@@ -93,7 +93,6 @@ final class NearbyClinicsModel: NSObject, ObservableObject, AMapSearchDelegate {
         request.offset = 25
         request.page = 1
         request.sortrule = 0
-        request.requireExtension = false
         searchAPI?.aMapPOIAroundSearch(request)
 
         timeoutWork?.cancel()

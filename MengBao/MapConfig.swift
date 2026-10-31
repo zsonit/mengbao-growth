@@ -25,11 +25,11 @@ enum MapConfig {
         guard !bootstrapped, isConfigured else { return }
         bootstrapped = true
 
-        AMapServices.shared().apiKey = iosKey
-        AMapServices.shared().enableHTTPS = true
-        // 高德 8.1.0+ 隐私合规接口，缺失会导致 SDK 初始化异常、地图不出图
-        AMapServices.shared().updatePrivacyShow(.didShow, privacyInfo: .didContain)
-        AMapServices.shared().updatePrivacyAgree(.didAgree)
+        AMapServices.shared()?.apiKey = iosKey
+        AMapServices.shared()?.enableHTTPS = true
+        // 高德 8.1.0+ 隐私合规接口（类方法），缺失会导致 SDK 初始化异常、地图不出图
+        AMapServices.updatePrivacyShow(.didShow, privacyInfo: .didContain)
+        AMapServices.updatePrivacyAgree(.didAgree)
     }
 
     // MARK: - 导航

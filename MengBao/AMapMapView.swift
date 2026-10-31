@@ -136,9 +136,9 @@ struct AMapMapView: UIViewRepresentable {
             }
 
             let view = MAPinAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-            view.canShowCallout = true
-            view.animatesDrop = false
-            view.pinColor = .red
+            view?.canShowCallout = true
+            view?.animatesDrop = false
+            view?.pinColor = .red
             return view
         }
 
