@@ -1,0 +1,66 @@
+name: MengBao
+options:
+  bundleIdPrefix: com.zsonit
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  xcodeVersion: "15.4"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  MengBao:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: MengBao
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zsonit.mengbao
+        PRODUCT_NAME: MengBao
+        INFOPLIST_FILE: Support/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        SWIFT_EMIT_LOC_STRINGS: YES
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: 萌宝成长
+        CFBundleName: MengBao
+        CFBundleDevelopmentRegion: zh_CN
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIUserInterfaceStyle: Automatic
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSupportsIndirectInputEvents: true
+        ITSAppUsesNonExemptEncryption: false
+        NSPhotoLibraryAddUsageDescription: 用于把生长曲线图保存到相册，方便发给医生或家人。
+        NSLocationWhenInUseUsageDescription: 用于计算附近接种门诊的距离，位置只在本机使用、不会上传。
+
+schemes:
+  MengBao:
+    build:
+      targets:
+        MengBao: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
