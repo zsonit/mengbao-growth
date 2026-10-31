@@ -6,6 +6,11 @@ import SwiftUI
 struct MengBaoApp: App {
     @StateObject private var store = Store.shared
 
+    init() {
+        // 高德 SDK 必须在任何地图/搜索类实例化之前完成 Key 与隐私合规配置
+        MapConfig.bootstrap()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

@@ -13,7 +13,8 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
-    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    ENABLE_MODULE_VERIFIER: NO
 
 targets:
   MengBao:
@@ -33,6 +34,9 @@ targets:
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         SWIFT_EMIT_LOC_STRINGS: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Support/Bridging-Header.h
+        OTHER_LDFLAGS: ["$(inherited)", "-ObjC"]
+        ENABLE_BITCODE: NO
     info:
       path: Support/Info.plist
       properties:
@@ -49,7 +53,16 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
         ITSAppUsesNonExemptEncryption: false
         NSPhotoLibraryAddUsageDescription: 用于把生长曲线图保存到相册，方便发给医生或家人。
-        NSLocationWhenInUseUsageDescription: 用于计算附近接种门诊的距离，位置只在本机使用、不会上传。
+        NSLocationWhenInUseUsageDescription: 用于在地图上显示你身边最近的预防接种门诊并计算距离；位置只在本机使用，不会上传或保存。
+        NSLocationAlwaysAndWhenInUseUsageDescription: 用于在地图上显示你身边最近的预防接种门诊并计算距离；位置只在本机使用，不会上传或保存。
+        AMapIOSKey: 5894f3adbdce48b2d6f35afcd8564966
+        AMapWebKey: 5c7f2a3500ac27e76034ed8b9225f344
+        LSApplicationQueriesSchemes:
+          - iosamap
+          - amapuri
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
 
 schemes:
   MengBao:

@@ -8,3 +8,7 @@ xcuserdata/
 .DS_Store
 Payload/
 *.ipa
+
+# CocoaPods
+Pods/
+MengBao.xcworkspace/

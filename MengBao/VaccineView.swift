@@ -230,6 +230,35 @@ struct ClinicListView: View {
         ScrollView {
             VStack(spacing: 0) {
                 VStack(spacing: 10) {
+                    NavigationLink { NearbyClinicsView() } label: {
+                        HStack(spacing: 11) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Palette.purple)
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: "map.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.white)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("附近接种门诊 · 地图定位")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Palette.ink)
+                                Text("按当前位置搜最近的接种点，可一键导航")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(Palette.subtle)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Palette.subtle)
+                        }
+                        .padding(11)
+                        .background(Palette.purpleTint)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass").foregroundColor(Palette.subtle)
                         TextField("搜索门诊 / 区 / 路 / 疫苗", text: $query)
@@ -354,15 +383,25 @@ struct ClinicDetailView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 13))
                         }
                     }
-                    if let url = URL(string: "http://maps.apple.com/?q=\(clinic.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&ll=\(clinic.lat),\(clinic.lng)") {
-                        Link(destination: url) {
-                            Text("🗺 在地图中打开")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(maxWidth: .infinity).padding(.vertical, 13)
-                                .background(Palette.purpleSoft)
-                                .foregroundColor(Palette.purple)
-                                .clipShape(RoundedRectangle(cornerRadius: 13))
-                        }
+                    Button {
+                        MapConfig.openNavigation(lat: clinic.lat, lng: clinic.lng, name: clinic.name)
+                    } label: {
+                        Text("🧭 导航到这里（高德地图）")
+                            .font(.system(size: 15, weight: .semibold))
+                            .frame(maxWidth: .infinity).padding(.vertical, 13)
+                            .background(Palette.purpleSoft)
+                            .foregroundColor(Palette.purple)
+                            .clipShape(RoundedRectangle(cornerRadius: 13))
+                    }
+                    Button {
+                        MapConfig.openMap(lat: clinic.lat, lng: clinic.lng, name: clinic.name)
+                    } label: {
+                        Text("🗺 在地图上查看")
+                            .font(.system(size: 15, weight: .semibold))
+                            .frame(maxWidth: .infinity).padding(.vertical, 13)
+                            .background(Palette.purpleSoft)
+                            .foregroundColor(Palette.purple)
+                            .clipShape(RoundedRectangle(cornerRadius: 13))
                     }
                     Button {
                         UIPasteboard.general.string = "\(clinic.name)\n\(clinic.address)\n电话：\(clinic.phone)"
