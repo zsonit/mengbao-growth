@@ -12,7 +12,6 @@ struct HomeView: View {
     @State private var showTeeth = false
     @State private var showTodo = false
     @State private var showStage = false
-    @State private var showVoice = false
     @State private var activeEntry: QuickEntry? = nil
 
     var body: some View {
@@ -47,9 +46,6 @@ struct HomeView: View {
         .sheet(item: $activeEntry) { entry in
             EntrySheet(entry: entry) { activeEntry = nil }
         }
-        .sheet(isPresented: $showVoice) {
-            VoiceEntryView { showVoice = false }
-        }
         .sheet(isPresented: $showRecord) {
             if let child = store.current { RecordEditorView(child: child, record: nil) }
         }
@@ -67,8 +63,13 @@ struct HomeView: View {
         .sheet(isPresented: $showStage) {
             if let child = store.current { StageSheet(child: child) }
         }
-        .overlay(alignment: .bottomTrailing) {
-            if store.current != nil { voiceButton }
+        .overlay(alignment: .bottom) {
+            if store.current != nil {
+                HoldToTalkButton { page in
+                    openAIPage(page)
+                }
+                .padding(.bottom, 8)
+            }
         }
     }
 
@@ -630,26 +631,16 @@ struct HomeView: View {
         }
     }
 
-    // MARK: 8. 语音 FAB
+    // MARK: 8. AI 按住说话 → 结果面板里的跳页
 
-    private var voiceButton: some View {
-        Button {
-            showVoice = true
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(LinearGradient(colors: [Color(hex: 0xFF8FB1), Color(hex: 0xA97BFF)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 56, height: 56)
-                    .shadow(color: Color(hex: 0xFF8FB1).opacity(0.45), radius: 12, y: 6)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.white)
-            }
+    private func openAIPage(_ page: String) {
+        switch page {
+        case "todo": showTodo = true
+        case "size": showSize = true
+        case "teeth": showTeeth = true
+        case "growth", "stage": showStage = true
+        default: break
         }
-        .buttonStyle(.plain)
-        .padding(.trailing, 18)
-        .padding(.bottom, 18)
     }
 
     // MARK: 辅助

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
@@ -227,6 +228,7 @@ private fun LiquidNavBar(
     Box(
         Modifier
             .fillMaxWidth()
+            .navigationBarsPadding()
             .padding(horizontal = 36.dp, vertical = 6.dp),
     ) {
         Row(

@@ -106,7 +106,7 @@ fun HomeScreen(
             } else {
                 LazyColumn(
                     Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 96.dp),
+                    contentPadding = PaddingValues(bottom = 120.dp),
                 ) {
                     item {
                         AiCard(
@@ -168,10 +168,16 @@ fun HomeScreen(
         }
 
         if (child != null) {
-            VoiceFab(
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 18.dp),
-                onClick = { showVoice = true },
-            )
+            HoldToTalkFab(onOpenPage = { page ->
+                when (page) {
+                    "todo" -> onNavigate(Routes.TODO)
+                    "size" -> onNavigate(Routes.SIZE)
+                    "teeth" -> onNavigate(Routes.TEETH)
+                    "growth" -> onNavigate(Routes.GROWTH)
+                    "trends" -> onNavigate(Routes.TRENDS)
+                    "history" -> onNavigate(Routes.HISTORY)
+                }
+            })
         }
     }
 
