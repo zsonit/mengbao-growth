@@ -74,7 +74,8 @@ struct RootView: View {
         }
         // 悬浮玻璃胶囊：内容滚动时会从玻璃后面穿过
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if store.tabBarHidden {
+            if store.tabBarHidden || store.voiceActive {
+                // 聊天页 / 按住说话时收起玻璃栏：语音遮罩才能盖满全屏（之前底部 inset 区域露出生内容）
                 EmptyView()
             } else {
                 LiquidTabBar(items: tabs, selection: $tab)

@@ -68,6 +68,7 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
     val scope = rememberCoroutineScope()
 
     var pressing by remember { mutableStateOf(false) }      // 按住录音中
+    var holdStartMs by remember { mutableStateOf(0L) }
     var waiting by remember { mutableStateOf(false) }       // 松手，等识别收尾
     var partial by remember { mutableStateOf("") }          // 实时转写
     var processing by remember { mutableStateOf(false) }    // AI 理解中
@@ -135,6 +136,7 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
 
     fun onHoldStart() {
         pressing = true
+        holdStartMs = System.currentTimeMillis()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -150,6 +152,12 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
         if (holdPendingPerm) {
             holdPendingPerm = false
             pressing = false
+            return
+        }
+        // 快速点按（<350ms）当误触：直接取消，不进 AI
+        if (System.currentTimeMillis() - holdStartMs < 350) {
+            pressing = false
+            OfflineAsr.stop()
             return
         }
         pressing = false
@@ -177,6 +185,7 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
                     detectTapGestures(
                         onPress = {
                             pressing = true
+                            holdStartMs = System.currentTimeMillis()
                             onHoldStart()
                             try {
                                 awaitRelease()

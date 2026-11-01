@@ -14,6 +14,8 @@ struct HoldToTalkButton: View {
     @State private var processing = false    // 松手后 AI 正在理解
     @State private var plan: AIPlan?         // 理解结果（弹面板）
     @State private var errorText: String?
+    @State private var fingerDown = false    // 手指是否还按着（权限回调是异步的，必须用它防“点一下卡死”）
+    @State private var holdStart = Date()
     @AppStorage("ai_model") private var model = "glm-5.3-flash"
 
     /// AI 要求打开某个页面时回调（home/feed/trends/history/todo/vaccine/size/growth/teeth/profile）
@@ -39,6 +41,13 @@ struct HoldToTalkButton: View {
             HoldResultSheet(plan: p, onOpenPage: onOpenPage)
                 .presentationDetents([.medium, .large])
         }
+        // 录音 / 理解期间把“语音进行中”上报给全局：玻璃栏自动收起，遮罩才能全屏盖住
+        .onChange(of: holding) { h in store.voiceActive = h || processing }
+        .onChange(of: processing) { p in store.voiceActive = holding || p }
+        .onDisappear {
+            store.voiceActive = false
+            if holding { voice.stop(); holding = false }
+        }
     }
 
     // MARK: 按钮
@@ -61,27 +70,58 @@ struct HoldToTalkButton: View {
     private var holdGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { _ in
-                guard !holding, !processing else { return }
-                guard store.current != nil else {
-                    errorText = "先在右上角建一个宝宝档案"
-                    plan = AIPlan.error(errorText ?? "")
-                    return
-                }
-                voice.requestPermission { ok in
-                    guard ok else {
-                        plan = AIPlan.error("没有麦克风权限，去 设置 → 隐私与安全性 → 麦克风 里打开")
-                        return
-                    }
-                    voice.start()
-                    withAnimation(Anim.pop) { holding = true }
-                }
+                // onChanged 会连发多次，只在第一下真正开始
+                guard !fingerDown else { return }
+                fingerDown = true
+                beginHold()
             }
             .onEnded { _ in
-                guard holding else { return }
-                withAnimation(Anim.pop) { holding = false }
-                voice.stop()
-                finish(text: voice.transcript)
+                fingerDown = false
+                endHold()
             }
+    }
+
+    private func beginHold() {
+        guard !holding, !processing else { return }
+        guard store.current != nil else {
+            errorText = "先在右上角建一个宝宝档案"
+            plan = AIPlan.error(errorText ?? "")
+            return
+        }
+        holdStart = Date()
+        voice.requestPermission { ok in
+            guard ok else {
+                plan = AIPlan.error("没有麦克风权限，去 设置 → 隐私与安全性 → 麦克风 里打开")
+                return
+            }
+            // 关键：权限回调是异步的。如果手指已经抬起（用户只是点了一下），
+            // 绝不能启动录音——否则 onEnded 早已走过，没人再来 stop()，就永远卡在「我在听…」
+            guard fingerDown else { return }
+            voice.start()
+            if let m = voice.message {
+                // 启动失败（没网 / 没麦克风 / 不支持）：不进入录音态，直接给出原因
+                plan = AIPlan.error(m)
+                return
+            }
+            withAnimation(Anim.pop) { holding = true }
+        }
+    }
+
+    private func endHold() {
+        guard holding else { return }
+        // 快速点按（<0.35s）当误触：直接取消，不进 AI，也不弹「没听清」
+        if Date().timeIntervalSince(holdStart) < 0.35 {
+            cancelHold()
+            return
+        }
+        withAnimation(Anim.pop) { holding = false }
+        voice.stop()
+        finish(text: voice.transcript)
+    }
+
+    private func cancelHold() {
+        voice.stop()
+        withAnimation(Anim.pop) { holding = false }
     }
 
     // MARK: 松手后交给 AI
@@ -155,6 +195,11 @@ struct HoldToTalkButton: View {
                     .foregroundColor(Palette.subtle)
                     .padding(.bottom, 28)
             }
+        }
+        // 逃生口：万一卡在录音态，点一下遮罩任意位置等同松手结束
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if holding { endHold() }
         }
     }
 

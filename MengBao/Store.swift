@@ -10,6 +10,8 @@ final class Store: ObservableObject {
     @Published private(set) var state: AppState
     /// 聊天 / 语音类页面独占全屏时，隐藏底部悬浮玻璃栏（避免遮住输入框和麦克风）
     @Published var tabBarHidden = false
+    /// 按住说话进行中（录音 / 理解）：玻璃栏收起，页面遮罩才能全屏盖住
+    @Published var voiceActive = false
 
     private let fileURL: URL
 
