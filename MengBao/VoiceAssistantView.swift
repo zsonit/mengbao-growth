@@ -17,7 +17,6 @@ struct VoiceAssistantView: View {
     @State private var listening = false
     @State private var micHint: String?
     @State private var showModels = false
-    @AppStorage("speech_mode") private var speechModeRaw = SpeechMode.auto.rawValue
     @State private var models: [AIModel] = []
     @State private var modelError: String?
     @State private var silenceWork: DispatchWorkItem?
@@ -36,6 +35,9 @@ struct VoiceAssistantView: View {
         .navigationTitle("AI 语音助手")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showModels) { modelSheet }
+        // 这个页面底部有麦克风 + 输入框，悬浮玻璃栏会压住它：进来先收起，离开再放回
+        .onAppear { store.tabBarHidden = true }
+        .onDisappear { store.tabBarHidden = false }
         .onChange(of: voice.transcript) { text in
             guard listening else { return }
             scheduleAutoSend(text)
@@ -346,7 +348,12 @@ struct VoiceAssistantView: View {
                 return
             }
             listening = true
-            voice.start(mode: SpeechMode.from(speechModeRaw))
+            voice.start()
+            // 启动校验（不支持 / 没网 / 没麦克风）是同步返回的，立刻回退到待机并给出原因
+            if let m = voice.message {
+                listening = false
+                micHint = m
+            }
         }
     }
 
@@ -464,20 +471,6 @@ struct VoiceAssistantView: View {
                     }
                 } footer: {
                     Text("语音记录用「推荐」的快速模型就够；问复杂问题时可以切「自动」。")
-                }
-
-                Section {
-                    ForEach(SpeechMode.allCases) { m in
-                        Button {
-                            speechModeRaw = m.rawValue
-                        } label: {
-                            row(title: m.title, sub: m.note, on: speechModeRaw == m.rawValue)
-                        }
-                    }
-                } header: {
-                    Text("语音识别")
-                } footer: {
-                    Text("默认「自动」：有网走网络识别（更准），没网自动切到手机本地识别。也可以在这里手动锁定。")
                 }
             }
             .navigationTitle("设置")

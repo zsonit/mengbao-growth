@@ -15,8 +15,6 @@ struct MengBaoApp: App {
         AppLog.i("Main", "App 启动：\(store.state.children.count) 个宝宝档案")
         // 触发同步引擎初始化（已配对时启动后会自动拉一次云端）
         _ = SyncManager.shared
-        // 语音识别要用网络状态决定走在线还是离线
-        _ = Reachability.shared
     }
 
     var body: some Scene {
@@ -97,7 +95,11 @@ struct RootView: View {
         }
         // 悬浮玻璃胶囊：内容滚动时会从玻璃后面穿过
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            LiquidTabBar(items: tabs, selection: $tab)
+            if store.tabBarHidden {
+                EmptyView()
+            } else {
+                LiquidTabBar(items: tabs, selection: $tab)
+            }
         }
     }
 }

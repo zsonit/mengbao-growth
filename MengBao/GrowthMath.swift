@@ -376,7 +376,44 @@ enum GrowthMath {
                                  vaccine: v, status: status, doneDate: done?.date))
             }
         }
+
+        // 自选（自费）疫苗：勾选后并入同一份日程，key 以 "opt|" 开头便于区分
+        for oid in (child.optVaccines ?? []) {
+            guard let opt = Standards.optionalById[oid] else { continue }
+            for (idx, months) in opt.months.enumerated() {
+                guard let dueDate = cal.date(byAdding: .month, value: months, to: child.birthDate) else { continue }
+                let key = "opt|\(oid)|\(idx)|\(months)"
+                let done = child.shots[key]
+                var status: Dose.Status = .pending
+                if done != nil {
+                    status = .done
+                } else if months <= currentMonths {
+                    status = .due
+                } else if months - currentMonths <= 2 {
+                    status = .soon
+                }
+                let oral = opt.name.contains("口服")
+                let vaccine = Vaccine(
+                    code: "OPT-\(oid.uppercased())",
+                    name: opt.name,
+                    dose: "第 \(idx + 1) 剂 / 共 \(opt.months.count) 剂",
+                    route: oral ? "口服" : "肌内注射",
+                    site: oral ? "口服（接种前 30 分钟避免喂奶）" : "上臂外侧三角肌 / 大腿前外侧",
+                    note: "\(opt.desc)。自费疫苗，参考价 \(opt.price)。是否接种请与接种医生沟通。"
+                )
+                list.append(Dose(key: key, months: months, ageLabel: ageText(for: months),
+                                 dueDate: dueDate, vaccine: vaccine, status: status, doneDate: done?.date))
+            }
+        }
         return list
+    }
+
+    /// 月龄 -> 中文年龄提示（自选疫苗的月龄不一定在标准表里）
+    static func ageText(for months: Int) -> String {
+        if let hit = Standards.vaccineAges.first(where: { $0.1 == months }) { return hit.0 }
+        if months < 12 { return "\(months) 月龄" }
+        let y = months / 12, m = months % 12
+        return m == 0 ? "\(y) 岁" : "\(y) 岁 \(m) 个月"
     }
 
     static func doneCount(for child: Child) -> Int {

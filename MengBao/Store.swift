@@ -8,6 +8,8 @@ final class Store: ObservableObject {
     static let shared = Store()
 
     @Published private(set) var state: AppState
+    /// 聊天 / 语音类页面独占全屏时，隐藏底部悬浮玻璃栏（避免遮住输入框和麦克风）
+    @Published var tabBarHidden = false
 
     private let fileURL: URL
 
@@ -64,12 +66,19 @@ final class Store: ObservableObject {
         SyncManager.shared.onDataChanged()
     }
 
+    /// 落盘放到串行后台队列：数据量大时编码 + 写盘不再卡主线程（录音、滚动时的卡顿来源之一）
+    private let ioQueue = DispatchQueue(label: "mengbao.store.io", qos: .utility)
+
     private func persist() {
-        do {
-            let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            AppLog.e("Store", "保存数据失败：\(error)")
+        let snapshot = state
+        let url = fileURL
+        ioQueue.async {
+            do {
+                let data = try JSONEncoder().encode(snapshot)
+                try data.write(to: url, options: .atomic)
+            } catch {
+                AppLog.e("Store", "保存数据失败：\(error)")
+            }
         }
     }
 
@@ -159,6 +168,11 @@ final class Store: ObservableObject {
     }
 
     // MARK: 接种
+
+    /// 保存自选（自费）疫苗勾选结果
+    func setOptVaccines(_ ids: [String]) {
+        updateCurrent { $0.optVaccines = ids.isEmpty ? nil : ids }
+    }
 
     func toggleShot(key: String) {
         updateCurrent { child in

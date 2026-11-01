@@ -375,7 +375,41 @@ object GrowthMath {
                 list.add(Dose(key, months, label, dueDate, v, status, done?.date))
             }
         }
+
+        // 自选（自费）疫苗：勾选后并入同一份日程，key 以 "opt|" 开头便于区分
+        for (oid in child.optVaccines ?: emptyList()) {
+            val opt = Standards.optionalById[oid] ?: continue
+            opt.months.forEachIndexed { idx, months ->
+                val key = "opt|$oid|$idx|$months"
+                val done = child.shots[key]
+                val status = when {
+                    done != null -> Dose.Status.DONE
+                    months <= currentMonths -> Dose.Status.DUE
+                    months - currentMonths <= 2 -> Dose.Status.SOON
+                    else -> Dose.Status.PENDING
+                }
+                val oral = opt.name.contains("口服")
+                val vaccine = Vaccine(
+                    code = "OPT-${oid.uppercase()}",
+                    name = opt.name,
+                    dose = "第 ${idx + 1} 剂 / 共 ${opt.months.size} 剂",
+                    route = if (oral) "口服" else "肌内注射",
+                    site = if (oral) "口服（接种前 30 分钟避免喂奶）" else "上臂外侧三角肌 / 大腿前外侧",
+                    note = "${opt.desc}。自费疫苗，参考价 ${opt.price}。是否接种请与接种医生沟通。",
+                )
+                list.add(Dose(key, months, ageTextForMonths(months), child.birthDate.plusMonths(months.toLong()), vaccine, status, done?.date))
+            }
+        }
         return list
+    }
+
+    /** 月龄 -> 中文年龄提示（自选疫苗的月龄不一定在标准表里） */
+    fun ageTextForMonths(months: Int): String {
+        Standards.vaccineAges.firstOrNull { it.second == months }?.let { return it.first }
+        if (months < 12) return "$months 月龄"
+        val y = months / 12
+        val m = months % 12
+        return if (m == 0) "$y 岁" else "$y 岁 $m 个月"
     }
 
     fun doneCount(child: Child): Int = schedule(child).count { it.status == Dose.Status.DONE }

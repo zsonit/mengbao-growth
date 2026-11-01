@@ -234,6 +234,38 @@ object Standards {
         ),
     )
 
+    /** 自选（自费 / 非免疫规划）疫苗；id 与 iOS 端保持一致 */
+    data class OptionalVaccine(
+        val id: String,
+        val name: String,
+        val price: String,
+        val desc: String,
+        val months: List<Int>,
+    )
+
+    val optionalCatalog = listOf(
+        OptionalVaccine("pcv13", "13 价肺炎结合疫苗", "¥460 ~ 800/剂 × 4 剂",
+            "肺炎球菌引起的肺炎、脑膜炎、中耳炎和败血症等", listOf(2, 4, 6, 15)),
+        OptionalVaccine("pentax", "五联疫苗", "¥600 ~ 640/剂 × 4 剂",
+            "替代百白破、白喉、破伤风、脊髓灰质炎、b 型流感嗜血杆菌（Hib）", listOf(2, 3, 4, 18)),
+        OptionalVaccine("rota5", "口服五价轮状病毒疫苗", "¥280 ~ 320/剂 × 3 剂",
+            "轮状病毒引起的严重腹泻、呕吐、脱水（秋季腹泻）", listOf(2, 3, 4)),
+        OptionalVaccine("rota6", "口服六价轮状病毒疫苗", "¥298 ~ 307/剂 × 3 剂",
+            "相比五价多覆盖一个 G9 型", listOf(2, 4, 6)),
+        OptionalVaccine("mcv4", "ACYW135 群流脑疫苗", "¥420/剂 × 4 剂",
+            "A、C、Y、W135 群脑膜炎奈瑟菌引起的流脑，替代 A 群多糖和 A+C 群多糖", listOf(6, 7, 36, 72)),
+        OptionalVaccine("varicella", "水痘疫苗", "¥160 ~ 200/剂 × 2 剂",
+            "水痘及水痘带状疱疹病毒感染", listOf(12, 48)),
+        OptionalVaccine("ev71", "EV71 手足口疫苗", "¥180 ~ 220/剂 × 2 剂",
+            "EV71 型肠道病毒引起的重症手足口病，6 月龄 ~ 5 岁接种", listOf(6, 7)),
+        OptionalVaccine("hib", "Hib 疫苗", "¥120 ~ 160/剂 × 4 剂",
+            "b 型流感嗜血杆菌引起的肺炎、脑膜炎等", listOf(2, 3, 4, 18)),
+        OptionalVaccine("hpv", "HPV 疫苗", "¥330 ~ 1300/剂 × 2 剂",
+            "9 ~ 14 岁女生优先，2 剂程序，预防宫颈癌", listOf(108, 114)),
+    )
+
+    val optionalById: Map<String, OptionalVaccine> = optionalCatalog.associateBy { it.id }
+
     val optionalVaccines = listOf(
         "五联疫苗" to "2 / 3 / 4 月龄 + 18 月龄",
         "13 价肺炎" to "2 / 4 / 6 月龄 + 12–15 月龄",

@@ -212,6 +212,7 @@ struct Child: Identifiable, Codable, Hashable {
     var shots: [String: ShotRecord] = [:]
     var todos: [TodoItem] = []
     var teethFallen: [Int: Date]? = nil   // 换牙档案：乳牙 FDI 编码 -> 脱落日期
+    var optVaccines: [String]? = nil      // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     var updatedAt: Date? = nil            // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
 
 

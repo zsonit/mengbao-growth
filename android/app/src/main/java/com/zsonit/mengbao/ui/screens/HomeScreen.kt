@@ -694,7 +694,7 @@ private fun ShotCard(child: Child, onOpenVaccine: () -> Unit) {
     val schedule = GrowthMath.schedule(child)
     val done = schedule.count { it.status == com.zsonit.mengbao.data.Dose.Status.DONE }
     val due = schedule.count { it.status == com.zsonit.mengbao.data.Dose.Status.DUE }
-    val total = GrowthMath.totalDoses
+    val total = schedule.size
     val next = schedule.firstOrNull { it.status == com.zsonit.mengbao.data.Dose.Status.SOON }
 
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {

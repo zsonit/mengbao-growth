@@ -238,6 +238,48 @@ enum Standards {
         ]
     ]
 
+    /// 自选（自费 / 非免疫规划）疫苗目录：勾选后自动加进接种日程
+    struct OptionalVaccine: Identifiable, Hashable {
+        let id: String
+        let name: String
+        let price: String            // 「¥460 ~ 800/剂 × 4剂」
+        let desc: String
+        let months: [Int]            // 每一剂的月龄
+    }
+
+    static let optionalCatalog: [OptionalVaccine] = [
+        OptionalVaccine(id: "pcv13", name: "13 价肺炎结合疫苗", price: "¥460 ~ 800/剂 × 4 剂",
+                        desc: "肺炎球菌引起的肺炎、脑膜炎、中耳炎和败血症等",
+                        months: [2, 4, 6, 15]),
+        OptionalVaccine(id: "pentax", name: "五联疫苗", price: "¥600 ~ 640/剂 × 4 剂",
+                        desc: "替代百白破、白喉、破伤风、脊髓灰质炎、b 型流感嗜血杆菌（Hib）",
+                        months: [2, 3, 4, 18]),
+        OptionalVaccine(id: "rota5", name: "口服五价轮状病毒疫苗", price: "¥280 ~ 320/剂 × 3 剂",
+                        desc: "轮状病毒引起的严重腹泻、呕吐、脱水（秋季腹泻）",
+                        months: [2, 3, 4]),
+        OptionalVaccine(id: "rota6", name: "口服六价轮状病毒疫苗", price: "¥298 ~ 307/剂 × 3 剂",
+                        desc: "相比五价多覆盖一个 G9 型",
+                        months: [2, 4, 6]),
+        OptionalVaccine(id: "mcv4", name: "ACYW135 群流脑疫苗", price: "¥420/剂 × 4 剂",
+                        desc: "A、C、Y、W135 群脑膜炎奈瑟菌引起的流脑，替代 A 群多糖和 A+C 群多糖",
+                        months: [6, 7, 36, 72]),
+        OptionalVaccine(id: "varicella", name: "水痘疫苗", price: "¥160 ~ 200/剂 × 2 剂",
+                        desc: "水痘及水痘带状疱疹病毒感染",
+                        months: [12, 48]),
+        OptionalVaccine(id: "ev71", name: "EV71 手足口疫苗", price: "¥180 ~ 220/剂 × 2 剂",
+                        desc: "EV71 型肠道病毒引起的重症手足口病，6 月龄 ~ 5 岁接种",
+                        months: [6, 7]),
+        OptionalVaccine(id: "hib", name: "Hib 疫苗", price: "¥120 ~ 160/剂 × 4 剂",
+                        desc: "b 型流感嗜血杆菌引起的肺炎、脑膜炎等",
+                        months: [2, 3, 4, 18]),
+        OptionalVaccine(id: "hpv", name: "HPV 疫苗", price: "¥330 ~ 1300/剂 × 2 剂",
+                        desc: "9 ~ 14 岁女生优先，2 剂程序，预防宫颈癌",
+                        months: [108, 114])
+    ]
+
+    static let optionalById: [String: OptionalVaccine] =
+        Dictionary(uniqueKeysWithValues: optionalCatalog.map { ($0.id, $0) })
+
     static let optionalVaccines: [(String, String)] = [
         ("五联疫苗", "2 / 3 / 4 月龄 + 18 月龄"),
         ("13 价肺炎", "2 / 4 / 6 月龄 + 12–15 月龄"),

@@ -185,6 +185,7 @@ data class Child(
     val shots: Map<String, ShotRecord> = emptyMap(),
     val todos: List<TodoItem> = emptyList(),
     val teethFallen: Map<Int, LocalDate>? = null,  // 换牙档案：乳牙 FDI 编码 -> 脱落日期
+    val optVaccines: List<String>? = null,         // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     val updatedAt: LocalDateTime? = null,          // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
 ) {
     val displayAvatar: String

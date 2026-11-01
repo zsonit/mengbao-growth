@@ -12,6 +12,7 @@ struct VaccineView: View {
 
     @State private var ageFilter = "全部"
     @State private var filter = "全部"
+    @State private var showOptional = false
 
     private let statusFilters = ["全部", "待接种", "已完成"]
 
@@ -26,13 +27,18 @@ struct VaccineView: View {
         .background(Palette.background.ignoresSafeArea())
         .navigationTitle("接种计划")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showOptional) {
+            OptionalVaccineSheet(selected: store.current?.optVaccines ?? []) { ids in
+                store.setOptVaccines(ids)
+            }
+        }
     }
 
     private func content(_ child: Child) -> some View {
         let schedule = GrowthMath.schedule(for: child)
         let done = schedule.filter { $0.status == .done }.count
         let due = schedule.filter { $0.status == .due }.count
-        let total = GrowthMath.totalDoses
+        let total = schedule.count
         let percent = Int(Double(done) / Double(max(total, 1)) * 100)
         let next = schedule.first { $0.status == .soon }
         let range = ageFilters.first { $0.0 == ageFilter }?.1
@@ -107,6 +113,8 @@ struct VaccineView: View {
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)
             .padding(.top, 12)
+
+            optionalEntry
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -189,6 +197,170 @@ struct VaccineView: View {
                 .padding(.bottom, 28)
         }
     }
+
+    // MARK: 自选疫苗入口
+
+    private var optionalEntry: some View {
+        let picked = store.current?.optVaccines ?? []
+        let names = picked.compactMap { Standards.optionalById[$0]?.name }
+        return Button {
+            showOptional = true
+        } label: {
+            HStack(spacing: 11) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Palette.purple.opacity(0.12))
+                        .frame(width: 36, height: 36)
+                    Text("💉").font(.system(size: 17))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(picked.isEmpty ? "自选疫苗" : "自选疫苗 · 已选 \(picked.count) 种")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Palette.ink)
+                    Text(picked.isEmpty ? "13 价肺炎、五联、轮状、水痘… 勾选后自动加入日程" : names.joined(separator: "、"))
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Palette.subtle)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Palette.subtle)
+            }
+            .padding(12)
+            .background(Palette.card)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Palette.hairlineSoft, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+    }
+}
+
+// MARK: - 自选疫苗面板
+
+struct OptionalVaccineSheet: View {
+    let selected: [String]
+    let onSave: ([String]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var picked: Set<String>
+
+    init(selected: [String], onSave: @escaping ([String]) -> Void) {
+        self.selected = selected
+        self.onSave = onSave
+        _picked = State(initialValue: Set(selected))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Palette.hairline)
+                .frame(width: 40, height: 5)
+                .padding(.top, 10)
+
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("自选疫苗")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(Palette.ink)
+                    Text("勾选后自动加入日程，相同功效仅建议选一种")
+                        .font(.system(size: 12))
+                        .foregroundColor(Palette.subtle)
+                }
+                Spacer(minLength: 0)
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 21))
+                        .foregroundColor(Palette.subtle.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(Standards.optionalCatalog) { v in
+                        row(v)
+                    }
+                    HintBlock(text: "价格为常见市场价区间，不同厂家、不同门诊会有差异；是否接种、何时接种请与接种门诊医生沟通。免疫规划疫苗（免费）优先保证。")
+                        .padding(.top, 4)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+
+            Button {
+                onSave(Standards.optionalCatalog.map(\.id).filter { picked.contains($0) })
+                dismiss()
+            } label: {
+                Text(picked.isEmpty ? "确认（不选自费疫苗）" : "确认添加 \(picked.count) 种")
+                    .font(.system(size: 15.5, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(picked.isEmpty ? Palette.subtle.opacity(0.45) : Palette.purple)
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .background(Palette.background)
+        }
+        .background(Palette.background.ignoresSafeArea())
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+    }
+
+    private func row(_ v: Standards.OptionalVaccine) -> some View {
+        let on = picked.contains(v.id)
+        return Button {
+            if on { picked.remove(v.id) } else { picked.insert(v.id) }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(on ? Palette.purple : Palette.hairline, lineWidth: on ? 1.5 : 1.2)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(on ? Palette.purple : Color.clear))
+                    if on {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(v.name)
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .foregroundColor(Palette.ink)
+                        Text(v.price)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundColor(Palette.purple)
+                    }
+                    Text(v.desc)
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Palette.subtle)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Palette.card)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(on ? Palette.purple.opacity(0.45) : Palette.hairlineSoft, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - 单剂卡片
@@ -228,6 +400,9 @@ struct DoseCard: View {
             HStack(spacing: 10) {
                 Text(dose.status == .done ? "✅" : "💉").font(.system(size: 17))
                 Text(dose.vaccine.name).font(.system(size: 14.5, weight: .semibold)).foregroundColor(Palette.ink)
+                if dose.key.hasPrefix("opt|") {
+                    TagView(text: "自费", tone: .warn)
+                }
                 Spacer()
                 TagView(text: dose.vaccine.dose, tone: tone)
             }

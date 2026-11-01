@@ -80,6 +80,9 @@ object JsonCodec {
         child.teethFallen?.takeIf { it.isNotEmpty() }?.let { teeth ->
             put("teethFallen", JSONObject().apply { teeth.forEach { (code, d) -> put(code.toString(), encodeDate(d)) } })
         }
+        child.optVaccines?.takeIf { it.isNotEmpty() }?.let { ids ->
+            put("optVaccines", JSONArray().apply { ids.forEach { put(it) } })
+        }
         put("todos", JSONArray().apply { child.todos.forEach { put(encodeTodo(it)) } })
         child.updatedAt?.let { put("updatedAt", encodeMoment(it)) }
     }
@@ -194,6 +197,9 @@ object JsonCodec {
                 key.toIntOrNull()?.let { code -> m[code] = decodeDate(jo.optDoubleOrNull(key)) }
             }
             m.ifEmpty { null }
+        },
+        optVaccines = o.optJSONArray("optVaccines")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.ifEmpty { null }
         },
         updatedAt = o.optDoubleOrNull("updatedAt")?.let { decodeMoment(it) },
     )

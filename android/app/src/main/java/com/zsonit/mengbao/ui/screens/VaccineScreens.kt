@@ -16,17 +16,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +92,7 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
     val child = Store.current
     var filter by remember { mutableStateOf("全部") }
     var statusFilter by remember { mutableStateOf("全部") }
+    var showOptional by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(Palette.background)) {
         TopBar(title = "接种计划", onBack = onBack)
@@ -107,9 +113,18 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
                     onOpenClinics = onOpenClinics,
                     onOpenYamiao = onOpenYamiao,
                     onOpenNearby = onOpenNearby,
+                    onOpenOptional = { showOptional = true },
                 )
             }
         }
+    }
+
+    if (showOptional && child != null) {
+        OptionalVaccineSheet(
+            selected = child.optVaccines ?: emptyList(),
+            onDismiss = { showOptional = false },
+            onSave = { Store.setOptVaccines(it) },
+        )
     }
 }
 
@@ -123,11 +138,12 @@ private fun VaccineContent(
     onOpenClinics: () -> Unit,
     onOpenYamiao: () -> Unit,
     onOpenNearby: () -> Unit,
+    onOpenOptional: () -> Unit,
 ) {
     val schedule = GrowthMath.schedule(child)
     val done = schedule.count { it.status == Dose.Status.DONE }
     val due = schedule.count { it.status == Dose.Status.DUE }
-    val total = GrowthMath.totalDoses
+    val total = schedule.size
     val percent = (done.toDouble() / maxOf(total, 1).toDouble() * 100).toInt()
     val next = schedule.firstOrNull { it.status == Dose.Status.SOON }
     val range = ageFilters.firstOrNull { it.first == filter }?.second
@@ -258,6 +274,8 @@ private fun VaccineContent(
         DividerLine(Palette.hairlineSoft)
         KVRow(key = "适用标准", value = "国家免疫规划 2026 版")
     }
+
+    OptionalEntryCard(child = child, onClick = onOpenOptional)
 
     Row(
         Modifier
@@ -398,6 +416,10 @@ private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
             Text(if (dose.status == Dose.Status.DONE) "✅" else "💉", fontSize = 17.sp)
             Spacer(Modifier.width(10.dp))
             Text(dose.vaccine.name, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
+            if (dose.key.startsWith("opt|")) {
+                Spacer(Modifier.width(6.dp))
+                TagView(text = "自费", tone = TagTone.WARN)
+            }
             Spacer(Modifier.weight(1f))
             TagView(text = dose.vaccine.dose, tone = tone)
         }
@@ -413,6 +435,156 @@ private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
                 "📌 ${dose.vaccine.note}",
                 fontSize = 12.sp, color = Palette.subtle, lineHeight = 18.sp,
             )
+        }
+    }
+}
+
+// MARK: - 自选疫苗入口
+
+@Composable
+private fun OptionalEntryCard(child: Child, onClick: () -> Unit) {
+    val picked = child.optVaccines ?: emptyList()
+    val names = picked.mapNotNull { Standards.optionalById[it]?.name }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Palette.card)
+            .border(1.dp, Palette.hairlineSoft, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Palette.purple.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) { Text("💉", fontSize = 17.sp) }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (picked.isEmpty()) "自选疫苗" else "自选疫苗 · 已选 ${picked.size} 种",
+                fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink,
+            )
+            Text(
+                if (picked.isEmpty()) "13 价肺炎、五联、轮状、水痘… 勾选后自动加入日程"
+                else names.joinToString("、"),
+                fontSize = 11.5.sp, color = Palette.subtle, maxLines = 2,
+            )
+        }
+        Text("›", fontSize = 18.sp, color = Palette.subtle)
+    }
+}
+
+// MARK: - 自选疫苗面板
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OptionalVaccineSheet(
+    selected: List<String>,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var picked by remember { mutableStateOf(selected.toSet()) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Palette.background,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding(),
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                Text("自选疫苗", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.ink)
+                Text(
+                    "勾选后自动加入日程，相同功效仅建议选一种",
+                    fontSize = 12.sp, color = Palette.subtle,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Standards.optionalCatalog.forEach { v ->
+                    OptionalRow(v = v, on = picked.contains(v.id)) {
+                        picked = if (picked.contains(v.id)) picked - v.id else picked + v.id
+                    }
+                }
+                HintBlock(
+                    text = "价格为常见市场价区间，不同厂家、不同门诊会有差异；是否接种、何时接种请与接种门诊医生沟通。免疫规划疫苗（免费）优先保证。",
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 10.dp, bottom = 14.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(if (picked.isEmpty()) Palette.subtle.copy(alpha = 0.45f) else Palette.purple)
+                    .clickable {
+                        onSave(Standards.optionalCatalog.map { it.id }.filter { picked.contains(it) })
+                        onDismiss()
+                    }
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (picked.isEmpty()) "确认（不选自费疫苗）" else "确认添加 ${picked.size} 种",
+                    fontSize = 15.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionalRow(v: Standards.OptionalVaccine, on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Palette.card)
+            .border(
+                1.dp,
+                if (on) Palette.purple.copy(alpha = 0.45f) else Palette.hairlineSoft,
+                RoundedCornerShape(16.dp),
+            )
+            .clickable { onClick() }
+            .padding(13.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .padding(top = 2.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(if (on) Palette.purple else Color.Transparent)
+                .border(if (on) 1.5.dp else 1.2.dp, if (on) Palette.purple else Palette.hairline, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (on) Text("✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(v.name, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
+                Text(v.price, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = Palette.purple)
+            }
+            Text(v.desc, fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 17.sp)
         }
     }
 }

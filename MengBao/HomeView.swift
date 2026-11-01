@@ -608,7 +608,7 @@ struct HomeView: View {
         let schedule = GrowthMath.schedule(for: child)
         let done = schedule.filter { $0.status == .done }.count
         let due = schedule.filter { $0.status == .due }.count
-        let total = GrowthMath.totalDoses
+        let total = schedule.count
         let next = schedule.first { $0.status == .soon }
         return VStack(spacing: 0) {
             SectionHeader(title: "接种进度")

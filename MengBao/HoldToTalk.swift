@@ -15,7 +15,6 @@ struct HoldToTalkButton: View {
     @State private var plan: AIPlan?         // 理解结果（弹面板）
     @State private var errorText: String?
     @AppStorage("ai_model") private var model = "glm-5.3-flash"
-    @AppStorage("speech_mode") private var speechModeRaw = SpeechMode.auto.rawValue
 
     /// AI 要求打开某个页面时回调（home/feed/trends/history/todo/vaccine/size/growth/teeth/profile）
     var onOpenPage: (String) -> Void
@@ -70,7 +69,7 @@ struct HoldToTalkButton: View {
                         plan = AIPlan.error("没有麦克风权限，去 设置 → 隐私与安全性 → 麦克风 里打开")
                         return
                     }
-                    voice.start(mode: SpeechMode.from(speechModeRaw))
+                    voice.start()
                     withAnimation(.easeOut(duration: 0.18)) { holding = true }
                 }
             }
@@ -148,7 +147,7 @@ struct HoldToTalkButton: View {
 
                 Spacer()
 
-                Text(processing ? "" : "松手结束 · \(voice.usedOffline ? "离线识别" : "网络识别")")
+                Text(processing ? "" : "松手结束 · 网络识别")
                     .font(.system(size: 12.5))
                     .foregroundColor(Palette.subtle)
                     .padding(.bottom, 28)

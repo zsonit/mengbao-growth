@@ -444,45 +444,11 @@ struct VoiceEntryView: View {
     }
 }
 
-// MARK: - 录音 + 转写
+// MARK: - 录音 + 转写（只走网络识别）
 
-// MARK: - 语音识别模式（网络优先，可自动可手动）
-
-enum SpeechMode: String, CaseIterable, Identifiable {
-    case auto, online, offline
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .auto: return "自动（推荐）"
-        case .online: return "网络识别"
-        case .offline: return "离线识别"
-        }
-    }
-    var note: String {
-        switch self {
-        case .auto: return "有网用网络识别更准，没网自动切离线"
-        case .online: return "只走网络，最准，但必须联网"
-        case .offline: return "只在本机识别，不联网、不耗流量"
-        }
-    }
-    static func from(_ raw: String) -> SpeechMode { SpeechMode(rawValue: raw) ?? .auto }
-}
-
-/// 轻量网络状态（NWPathMonitor 常驻，缓存当前是否有网）
-final class Reachability {
-    static let shared = Reachability()
-    private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "mengbao.reach")
-    private(set) var isOnline = true
-
-    private init() {
-        monitor.pathUpdateHandler = { [weak self] path in
-            self?.isOnline = (path.status == .satisfied)
-        }
-        monitor.start(queue: queue)
-    }
-}
-
+/// 语音转写：只走系统网络识别（不在设备端离线识别）。
+/// 所有音频会话 / 引擎的启动都放到串行后台队列，避免点麦克风时卡主线程；
+/// 段与段之间复用同一个 AVAudioEngine，不再反复启停（这正是之前「按一下卡半天」的原因）。
 final class SpeechRecorder: ObservableObject {
     @Published private(set) var transcript = ""      // 当前段的实时转写
     @Published private(set) var isRecording = false
@@ -492,6 +458,7 @@ final class SpeechRecorder: ObservableObject {
 
     private let engine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
+    private let audioQueue = DispatchQueue(label: "mengbao.speech.audio", qos: .userInitiated)
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var tapInstalled = false
@@ -504,7 +471,6 @@ final class SpeechRecorder: ObservableObject {
                 DispatchQueue.main.async { completion(false) }
                 return
             }
-            // iOS 17 才有 AVAudioApplication.requestRecordPermission，这里用老的会话接口
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 DispatchQueue.main.async { completion(granted) }
             }
@@ -513,76 +479,30 @@ final class SpeechRecorder: ObservableObject {
 
     // MARK: 开始
 
-    /// 当前这次录音实际用的模式（自动模式下会随网络状态变化）
-    @Published private(set) var usedOffline = false
-    private var startedMode: SpeechMode = .auto
-
-    func start(mode: SpeechMode = .auto) {
-        startedMode = mode
+    func start() {
         guard let recognizer = recognizer else {
             message = "这台设备不支持中文语音识别，试试下面的文字输入。"
             return
         }
         guard recognizer.isAvailable else {
-            message = "语音识别暂时不可用（可能没网），试试下面的文字输入。"
+            message = "语音识别需要联网，检查网络后再试；也可以直接打字。"
             return
         }
-        stop()
+        guard AVAudioSession.sharedInstance().isInputAvailable else {
+            message = "没有检测到麦克风，试试下面的文字输入。"
+            return
+        }
+
+        // 上一段先收尾，但保留音频引擎（复用，避免每次启停卡顿）
+        endTask()
         transcript = ""
         finishedSegment = ""
         message = nil
 
-        let session = AVAudioSession.sharedInstance()
-        guard session.isInputAvailable else {
-            message = "没有检测到麦克风，试试下面的文字输入。"
-            return
-        }
-        do {
-            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            message = "麦克风启动失败，试试下面的文字输入。"
-            return
-        }
-
-        let wantOffline: Bool
-        switch mode {
-        case .offline: wantOffline = true
-        case .online: wantOffline = false
-        case .auto: wantOffline = !Reachability.shared.isOnline
-        }
-        if wantOffline && !recognizer.supportsOnDeviceRecognition {
-            message = "这台设备不支持离线识别，连上网络后再试"
-            return
-        }
-        usedOffline = wantOffline
-
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        // 默认走网络（更准）；离线模式或没网时强制在设备端
-        req.requiresOnDeviceRecognition = wantOffline
+        req.requiresOnDeviceRecognition = false     // 固定走网络识别
         request = req
-
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else {
-            message = "麦克风不可用，试试下面的文字输入。"
-            return
-        }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.request?.append(buffer)
-        }
-        tapInstalled = true
-
-        engine.prepare()
-        do {
-            try engine.start()
-        } catch {
-            stop()
-            message = "麦克风启动失败，试试下面的文字输入。"
-            return
-        }
-        isRecording = true
 
         task = recognizer.recognitionTask(with: req) { [weak self] res, error in
             guard let self = self else { return }
@@ -600,19 +520,46 @@ final class SpeechRecorder: ObservableObject {
             if error != nil {
                 DispatchQueue.main.async {
                     self.isRecording = false
-                    // 自动模式下在线识别失败（没网 / 服务不可用）：立刻用离线重来一次
-                    if self.startedMode == .auto, !self.usedOffline, recognizer.supportsOnDeviceRecognition {
-                        self.stop()
-                        self.usedOffline = true
-                        self.message = "网络不太行，已切到离线识别"
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                            self.start(mode: .offline)
-                        }
-                        return
-                    }
-                    // 服务端约 1 分钟会掐断一次：把已识别的存为一段，视图层会自动续录
+                    // 服务端约 1 分钟会掐断一次 / 弱网断流：把已识别的存为一段，视图层会自动续录
                     self.finishedSegment = self.transcript
                     self.segmentTick += 1
+                }
+            }
+        }
+
+        startEngineIfNeeded()
+    }
+
+    /// 引擎已在跑就直接录音，否则在后台队列里初始化（绝不阻塞主线程）
+    private func startEngineIfNeeded() {
+        audioQueue.async { [weak self] in
+            guard let self = self else { return }
+            if self.engine.isRunning, self.tapInstalled {
+                DispatchQueue.main.async { self.isRecording = true }
+                return
+            }
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+                try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+                let input = self.engine.inputNode
+                let format = input.outputFormat(forBus: 0)
+                guard format.sampleRate > 0 else { throw SpeechError.noInput }
+
+                if !self.tapInstalled {
+                    input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+                        self?.request?.append(buffer)
+                    }
+                    self.tapInstalled = true
+                }
+                self.engine.prepare()
+                try self.engine.start()
+                DispatchQueue.main.async { self.isRecording = true }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                    self.message = "麦克风启动失败，试试下面的文字输入。"
                 }
             }
         }
@@ -621,18 +568,25 @@ final class SpeechRecorder: ObservableObject {
     // MARK: 停止
 
     func stop() {
-        if engine.isRunning {
-            engine.stop()
+        endTask()
+        audioQueue.async { [weak self] in
+            guard let self = self else { return }
+            if self.engine.isRunning { self.engine.stop() }
+            if self.tapInstalled {
+                self.engine.inputNode.removeTap(onBus: 0)
+                self.tapInstalled = false
+            }
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            DispatchQueue.main.async { self.isRecording = false }
         }
-        if tapInstalled {
-            engine.inputNode.removeTap(onBus: 0)
-            tapInstalled = false
-        }
+    }
+
+    private func endTask() {
         request?.endAudio()
         task?.cancel()
         request = nil
         task = nil
-        isRecording = false
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
+
+    enum SpeechError: Error { case noInput }
 }

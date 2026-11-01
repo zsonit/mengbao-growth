@@ -144,6 +144,11 @@ object Store {
 
     // MARK: 接种
 
+    /** 保存自选（自费）疫苗勾选结果 */
+    fun setOptVaccines(ids: List<String>) = updateCurrent { child ->
+        child.copy(optVaccines = ids.ifEmpty { null })
+    }
+
     fun toggleShot(key: String) = updateCurrent { child ->
         val shots = child.shots.toMutableMap()
         if (shots.containsKey(key)) shots.remove(key) else shots[key] = ShotRecord(LocalDate.now())
