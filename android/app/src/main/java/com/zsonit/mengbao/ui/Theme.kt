@@ -96,6 +96,7 @@ val DarkPalette = PaletteColors(
 val LocalPalette = staticCompositionLocalOf { LightPalette }
 
 object Palette {
+    val isDark: Boolean @Composable @ReadOnlyComposable get() = LocalPalette.current.isDark
     val purple: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.purple
     val purpleDeep: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.purpleDeep
     val purpleSoft: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.purpleSoft

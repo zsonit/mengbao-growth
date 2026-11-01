@@ -1,14 +1,26 @@
 package com.zsonit.mengbao
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,28 +78,11 @@ fun MengBaoApp() {
         containerColor = Palette.background,
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = Palette.card, tonalElevation = 0.dp) {
-                    tabs.forEach { tab ->
-                        val selected = currentRoute == tab.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { nav.switchTab(tab.route) },
-                            icon = { Text(tab.emoji, fontSize = 18.sp) },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedTextColor = Palette.purple,
-                                unselectedTextColor = Palette.subtle,
-                                indicatorColor = Palette.purpleSoft,
-                            ),
-                        )
-                    }
-                }
+                LiquidNavBar(
+                    tabs = tabs,
+                    current = currentRoute,
+                    onSelect = { nav.switchTab(it) },
+                )
             }
         },
     ) { padding ->
@@ -211,5 +206,65 @@ private fun NavHostController.switchTab(route: String) {
         popUpTo(Routes.HOME) { saveState = true }
         launchSingleTop = true
         restoreState = true
+    }
+}
+
+// MARK: - 液态玻璃悬浮导航栏（对应 iOS 的 LiquidTabBar）
+
+@Composable
+private fun LiquidNavBar(
+    tabs: List<Tab>,
+    current: String?,
+    onSelect: (String) -> Unit,
+) {
+    val isDark = Palette.isDark
+    val glassFill = if (isDark) Color(0xFF1E1B29).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.80f)
+    val edgeTop = Color.White.copy(alpha = if (isDark) 0.22f else 0.90f)
+    val edgeBottom = Color.White.copy(alpha = if (isDark) 0.06f else 0.25f)
+    val selFill = if (isDark) Palette.purpleSoft else Color.White.copy(alpha = 0.95f)
+    val pill = RoundedCornerShape(50.dp)
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 36.dp, vertical = 6.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 16.dp,
+                    shape = pill,
+                    ambientColor = Color.Black.copy(alpha = 0.15f),
+                    spotColor = Color.Black.copy(alpha = 0.20f),
+                )
+                .clip(pill)
+                .background(glassFill)
+                .border(BorderStroke(1.dp, Brush.verticalGradient(listOf(edgeTop, edgeBottom))), pill)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEach { tab ->
+                val selected = tab.route == current
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(pill)
+                        .background(if (selected) selFill else Color.Transparent)
+                        .clickable { onSelect(tab.route) }
+                        .padding(vertical = 7.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(tab.emoji, fontSize = 17.sp)
+                    Text(
+                        tab.label,
+                        fontSize = 10.5.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (selected) Palette.purple else Palette.subtle,
+                    )
+                }
+            }
+        }
     }
 }

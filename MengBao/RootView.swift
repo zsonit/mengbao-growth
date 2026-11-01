@@ -44,36 +44,58 @@ struct MengBaoApp: App {
     }
 }
 
-// MARK: - 根视图
+// MARK: - 根视图（悬浮液态玻璃 Tab 栏）
 
 struct RootView: View {
     @EnvironmentObject private var store: Store
+    @State private var tab = "growth"
+
+    /// 依据设置动态生成的页签
+    private var tabs: [LiquidTabBar.Item] {
+        var t = [LiquidTabBar.Item(id: "growth", label: "成长", icon: "leaf.fill")]
+        if store.settings.showFeed {
+            t.append(LiquidTabBar.Item(id: "feed", label: "喂养", icon: "drop.fill"))
+        }
+        if store.settings.showShot {
+            t.append(LiquidTabBar.Item(id: "vaccine", label: "接种", icon: "cross.case.fill"))
+        }
+        t.append(LiquidTabBar.Item(id: "profile", label: "我的", icon: "person.crop.circle"))
+        return t
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             NavigationStack {
                 HomeView()
+                    .toolbar(.hidden, for: .tabBar)
             }
-            .tabItem { Label("成长", systemImage: "leaf.fill") }
+            .tag("growth")
 
             if store.settings.showFeed {
                 NavigationStack {
                     FeedView()
+                        .toolbar(.hidden, for: .tabBar)
                 }
-                .tabItem { Label("喂养", systemImage: "drop.fill") }
+                .tag("feed")
             }
 
             if store.settings.showShot {
                 NavigationStack {
                     VaccineView()
+                        .toolbar(.hidden, for: .tabBar)
                 }
-                .tabItem { Label("接种", systemImage: "cross.case.fill") }
+                .tag("vaccine")
             }
 
             NavigationStack {
                 ProfileView()
+                    .toolbar(.hidden, for: .tabBar)
             }
-            .tabItem { Label("我的", systemImage: "person.crop.circle") }
+            .tag("profile")
+        }
+        // 悬浮玻璃胶囊：内容滚动时会从玻璃后面穿过
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            LiquidTabBar(items: tabs, selection: $tab)
         }
     }
 }
