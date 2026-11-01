@@ -11,3 +11,7 @@ gradlew text eol=lf
 *.png binary
 *.ipa binary
 *.apk binary
+*.onnx binary
+*.so binary
+*.jar binary
+android/app/src/main/assets/asr/tokens.txt -text

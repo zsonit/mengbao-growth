@@ -69,8 +69,8 @@ struct HomeView: View {
                     openAIPage(page)
                 }
                 // TabView + NavigationStack 下玻璃栏的 inset 传不进来，直接用
-                // 固定值把按钮顶到玻璃栏上方（栏 ≈62pt + 底部指示条 34pt）
-                .padding(.bottom, 104)
+                // 固定值把按钮顶到玻璃栏上方（栏 ≈66pt + 底部指示条 34pt + 间隙）
+                .padding(.bottom, 112)
             }
         }
     }
@@ -91,7 +91,7 @@ struct HomeView: View {
             HintBlock(text: Standards.disclaimer)
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
-                .padding(.bottom, 100)
+                .padding(.bottom, 176)
         }
     }
 
