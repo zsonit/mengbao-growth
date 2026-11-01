@@ -102,7 +102,7 @@ fun TodoVoiceDialog(onDismiss: () -> Unit, onSaved: (Int) -> Unit) {
         val engine = recognizer
         if (engine == null) {
             mode = "MANUAL"
-            error = "这台设备没有语音识别服务，直接打字一样能加"
+            error = "待办这里用的是系统语音服务，这台手机没有；请回首页按住麦克风说，或直接打字"
             return
         }
         if (clear) {

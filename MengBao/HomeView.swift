@@ -68,7 +68,9 @@ struct HomeView: View {
                 HoldToTalkButton { page in
                     openAIPage(page)
                 }
-                .padding(.bottom, 8)
+                // TabView + NavigationStack 下玻璃栏的 inset 传不进来，直接用
+                // 固定值把按钮顶到玻璃栏上方（栏 ≈62pt + 底部指示条 34pt）
+                .padding(.bottom, 104)
             }
         }
     }

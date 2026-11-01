@@ -1,4 +1,5 @@
 import SwiftUI
+import Network
 import Speech
 import AVFoundation
 
@@ -445,6 +446,43 @@ struct VoiceEntryView: View {
 
 // MARK: - 录音 + 转写
 
+// MARK: - 语音识别模式（网络优先，可自动可手动）
+
+enum SpeechMode: String, CaseIterable, Identifiable {
+    case auto, online, offline
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .auto: return "自动（推荐）"
+        case .online: return "网络识别"
+        case .offline: return "离线识别"
+        }
+    }
+    var note: String {
+        switch self {
+        case .auto: return "有网用网络识别更准，没网自动切离线"
+        case .online: return "只走网络，最准，但必须联网"
+        case .offline: return "只在本机识别，不联网、不耗流量"
+        }
+    }
+    static func from(_ raw: String) -> SpeechMode { SpeechMode(rawValue: raw) ?? .auto }
+}
+
+/// 轻量网络状态（NWPathMonitor 常驻，缓存当前是否有网）
+final class Reachability {
+    static let shared = Reachability()
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "mengbao.reach")
+    private(set) var isOnline = true
+
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.isOnline = (path.status == .satisfied)
+        }
+        monitor.start(queue: queue)
+    }
+}
+
 final class SpeechRecorder: ObservableObject {
     @Published private(set) var transcript = ""      // 当前段的实时转写
     @Published private(set) var isRecording = false
@@ -475,7 +513,12 @@ final class SpeechRecorder: ObservableObject {
 
     // MARK: 开始
 
-    func start() {
+    /// 当前这次录音实际用的模式（自动模式下会随网络状态变化）
+    @Published private(set) var usedOffline = false
+    private var startedMode: SpeechMode = .auto
+
+    func start(mode: SpeechMode = .auto) {
+        startedMode = mode
         guard let recognizer = recognizer else {
             message = "这台设备不支持中文语音识别，试试下面的文字输入。"
             return
@@ -502,11 +545,22 @@ final class SpeechRecorder: ObservableObject {
             return
         }
 
+        let wantOffline: Bool
+        switch mode {
+        case .offline: wantOffline = true
+        case .online: wantOffline = false
+        case .auto: wantOffline = !Reachability.shared.isOnline
+        }
+        if wantOffline && !recognizer.supportsOnDeviceRecognition {
+            message = "这台设备不支持离线识别，连上网络后再试"
+            return
+        }
+        usedOffline = wantOffline
+
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition {
-            req.requiresOnDeviceRecognition = true
-        }
+        // 默认走网络（更准）；离线模式或没网时强制在设备端
+        req.requiresOnDeviceRecognition = wantOffline
         request = req
 
         let input = engine.inputNode
@@ -546,6 +600,16 @@ final class SpeechRecorder: ObservableObject {
             if error != nil {
                 DispatchQueue.main.async {
                     self.isRecording = false
+                    // 自动模式下在线识别失败（没网 / 服务不可用）：立刻用离线重来一次
+                    if self.startedMode == .auto, !self.usedOffline, recognizer.supportsOnDeviceRecognition {
+                        self.stop()
+                        self.usedOffline = true
+                        self.message = "网络不太行，已切到离线识别"
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            self.start(mode: .offline)
+                        }
+                        return
+                    }
                     // 服务端约 1 分钟会掐断一次：把已识别的存为一段，视图层会自动续录
                     self.finishedSegment = self.transcript
                     self.segmentTick += 1

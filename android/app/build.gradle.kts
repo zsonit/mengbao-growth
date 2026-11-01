@@ -14,8 +14,8 @@ android {
         applicationId = "com.zsonit.mengbao"
         minSdk = 26
         targetSdk = 34
-        versionCode = 27
-        versionName = "2.9.0"
+        versionCode = 28
+        versionName = "2.9.1"
 
         resourceConfigurations += listOf("zh", "en")
 
@@ -81,6 +81,8 @@ android {
 }
 
 dependencies {
+    // 离线中文语音识别（sherpa-onnx，模型在 assets/asr）
+    implementation(files("libs/sherpa-classes.jar"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")

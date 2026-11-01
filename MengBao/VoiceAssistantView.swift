@@ -17,6 +17,7 @@ struct VoiceAssistantView: View {
     @State private var listening = false
     @State private var micHint: String?
     @State private var showModels = false
+    @AppStorage("speech_mode") private var speechModeRaw = SpeechMode.auto.rawValue
     @State private var models: [AIModel] = []
     @State private var modelError: String?
     @State private var silenceWork: DispatchWorkItem?
@@ -345,7 +346,7 @@ struct VoiceAssistantView: View {
                 return
             }
             listening = true
-            voice.start()
+            voice.start(mode: SpeechMode.from(speechModeRaw))
         }
     }
 
@@ -464,8 +465,22 @@ struct VoiceAssistantView: View {
                 } footer: {
                     Text("语音记录用「推荐」的快速模型就够；问复杂问题时可以切「自动」。")
                 }
+
+                Section {
+                    ForEach(SpeechMode.allCases) { m in
+                        Button {
+                            speechModeRaw = m.rawValue
+                        } label: {
+                            row(title: m.title, sub: m.note, on: speechModeRaw == m.rawValue)
+                        }
+                    }
+                } header: {
+                    Text("语音识别")
+                } footer: {
+                    Text("默认「自动」：有网走网络识别（更准），没网自动切到手机本地识别。也可以在这里手动锁定。")
+                }
             }
-            .navigationTitle("选择模型")
+            .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

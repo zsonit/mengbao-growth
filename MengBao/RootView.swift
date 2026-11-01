@@ -15,6 +15,8 @@ struct MengBaoApp: App {
         AppLog.i("Main", "App 启动：\(store.state.children.count) 个宝宝档案")
         // 触发同步引擎初始化（已配对时启动后会自动拉一次云端）
         _ = SyncManager.shared
+        // 语音识别要用网络状态决定走在线还是离线
+        _ = Reachability.shared
     }
 
     var body: some Scene {

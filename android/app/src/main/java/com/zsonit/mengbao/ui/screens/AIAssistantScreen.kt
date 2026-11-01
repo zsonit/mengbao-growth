@@ -8,7 +8,6 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -68,6 +67,7 @@ import com.zsonit.mengbao.data.AIActionItem
 import com.zsonit.mengbao.data.AIClient
 import com.zsonit.mengbao.data.AIModel
 import com.zsonit.mengbao.data.AIPlan
+import com.zsonit.mengbao.data.OfflineAsr
 import com.zsonit.mengbao.data.AIAssistant
 import com.zsonit.mengbao.data.AppLog
 import com.zsonit.mengbao.data.Store
@@ -119,11 +119,6 @@ fun AIAssistantScreen(
     var modelError by remember { mutableStateOf<String?>(null) }
     var model by remember { mutableStateOf("glm-5.3-flash") }
 
-    val supported = remember { SpeechRecognizer.isRecognitionAvailable(context) }
-    val recognizer = remember {
-        if (supported) runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull() else null
-    }
-
     fun send(text: String) {
         val content = text.trim()
         if (content.isEmpty() || busy) return
@@ -149,79 +144,31 @@ fun AIAssistantScreen(
 
     fun stopListen() {
         listening = false
-        runCatching { recognizer?.stopListening() }
-        runCatching { recognizer?.cancel() }
-        partial = ""
+        OfflineAsr.stop() // onFinal 回调里自动 send
     }
 
     fun startListen() {
-        val engine = recognizer
-        if (engine == null) {
-            micError = "这台设备没有语音识别服务，用下面的输入框打字也一样"
+        val err = OfflineAsr.ensure(context)
+        if (err != null) {
+            micError = err
             return
         }
         micError = null
         partial = ""
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-        }
-        runCatching { engine.startListening(intent) }
-            .onSuccess { listening = true }
-            .onFailure {
-                listening = false
-                micError = "启动语音识别失败，可以直接打字"
-            }
-    }
-
-    val listener = remember {
-        object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { listening = true }
-            override fun onBeginningOfSpeech() = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
-            override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() = Unit
-
-            override fun onError(errorCode: Int) {
+        listening = true
+        OfflineAsr.start(object : OfflineAsr.Callbacks {
+            override fun onPartial(text: String) { partial = text }
+            override fun onFinal(text: String) {
                 listening = false
                 partial = ""
-                when (errorCode) {
-                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
-                        micError = "没听到内容，点一下麦克风再说一次，或直接打字"
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                        micError = "没有麦克风权限，可以在系统设置里开一下"
-                    else -> micError = "语音识别没成功，可以直接打字"
-                }
+                if (text.isBlank()) micError = "没听清，再说一次？" else send(text)
             }
-
-            override fun onResults(results: Bundle?) {
+            override fun onError(msg: String) {
                 listening = false
-                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.firstOrNull().orEmpty().trim()
                 partial = ""
-                if (text.isEmpty()) {
-                    micError = "没听清，再说一次？"
-                } else {
-                    send(text)
-                }
+                micError = msg
             }
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.firstOrNull()?.let { partial = it }
-            }
-
-            override fun onEvent(eventType: Int, params: Bundle?) = Unit
-        }
-    }
-
-    DisposableEffect(recognizer) {
-        recognizer?.setRecognitionListener(listener)
-        onDispose {
-            runCatching { recognizer?.destroy() }
-        }
+        })
     }
 
     val micPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

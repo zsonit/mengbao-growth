@@ -1,17 +1,11 @@
 package com.zsonit.mengbao.ui.screens
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -56,13 +50,16 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.zsonit.mengbao.data.AIAssistant
 import com.zsonit.mengbao.data.AIPlan
+import com.zsonit.mengbao.data.OfflineAsr
 import com.zsonit.mengbao.ui.Palette
 import kotlinx.coroutines.launch
 
 // MARK: - 按住说话（Hold-to-Talk）
 //
-// 参照录屏交互：首页悬浮麦克风 → 按住不动原地录音（不跳页）→ 松手结束
+// 录屏同款交互：首页悬浮麦克风 → 按住不动原地录音（不跳页）→ 松手结束
 // → 大模型理解并执行 → 底部弹出结果面板（可撤销、可跳页）。
+// 语音识别用内置离线引擎 OfflineAsr（sherpa-onnx），不依赖系统语音服务，
+// 国产手机没有谷歌语音服务也能用，没网也能识别。
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,18 +68,12 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
     val scope = rememberCoroutineScope()
 
     var pressing by remember { mutableStateOf(false) }      // 按住录音中
-    var waiting by remember { mutableStateOf(false) }       // 松手，等识别结果回来
+    var waiting by remember { mutableStateOf(false) }       // 松手，等识别收尾
     var partial by remember { mutableStateOf("") }          // 实时转写
     var processing by remember { mutableStateOf(false) }    // AI 理解中
     var result by remember { mutableStateOf<AIPlan?>(null) }
     var showResult by remember { mutableStateOf(false) }
     var holdPendingPerm by remember { mutableStateOf(false) }
-
-    val recognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull()
-        } else null
-    }
 
     fun finishWithError(msg: String) {
         waiting = false
@@ -112,22 +103,24 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
     }
 
     fun startListening() {
-        val engine = recognizer
-        if (engine == null) {
-            finishWithError("这台设备没有语音识别服务，去 AI 助手里打字也一样")
+        val err = OfflineAsr.ensure(context)
+        if (err != null) {
+            finishWithError(err)
             return
         }
         partial = ""
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-        }
-        val ok = runCatching { engine.startListening(intent) }.isSuccess
-        if (!ok) {
-            finishWithError("语音识别没启动起来，再试一次")
-        }
+        OfflineAsr.start(object : OfflineAsr.Callbacks {
+            override fun onPartial(text: String) { partial = text }
+            override fun onFinal(text: String) {
+                waiting = false
+                if (text.isBlank()) {
+                    finishWithError("没听清说什么，按住再说一次")
+                } else {
+                    send(text)
+                }
+            }
+            override fun onError(msg: String) = finishWithError(msg)
+        })
     }
 
     val micPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -161,55 +154,11 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
         }
         pressing = false
         waiting = true
-        runCatching { recognizer?.stopListening() }
-    }
-
-    // 识别回调
-    val listener = remember {
-        object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onBeginningOfSpeech() = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
-            override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() = Unit
-
-            override fun onError(errorCode: Int) {
-                if (!pressing && !waiting) return // 会话已被取消
-                when (errorCode) {
-                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
-                        finishWithError("没听清说什么，按住再说一次")
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                        finishWithError("没有麦克风权限，去系统设置里开一下")
-                    else -> finishWithError("语音识别没成功，再试一次")
-                }
-            }
-
-            override fun onResults(results: Bundle?) {
-                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.firstOrNull()?.trim().orEmpty()
-                if (text.isEmpty()) {
-                    finishWithError("没听清说什么，按住再说一次")
-                } else {
-                    send(text)
-                }
-            }
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.firstOrNull()?.let { partial = it }
-            }
-
-            override fun onEvent(eventType: Int, params: Bundle?) = Unit
-        }
-    }
-
-    androidx.compose.runtime.DisposableEffect(recognizer) {
-        recognizer?.setRecognitionListener(listener)
-        onDispose { runCatching { recognizer?.destroy() } }
+        OfflineAsr.stop()
     }
 
     Box(Modifier.fillMaxSize()) {
-        // 悬浮麦克风按钮（底部居中）
+        // 悬浮麦克风按钮（底部居中，玻璃导航栏上方）
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -239,13 +188,10 @@ fun HoldToTalkFab(onOpenPage: (String) -> Unit) {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                if (pressing) "◔" else "🎙️",
-                fontSize = 22.sp,
-            )
+            Text("🎙️", fontSize = 22.sp)
         }
 
-        // 按住时的全屏玻璃面板
+        // 按住时的全屏面板
         if (pressing || waiting) {
             Box(
                 Modifier
