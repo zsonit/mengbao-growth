@@ -69,7 +69,7 @@ struct VoiceAssistantView: View {
                 .foregroundColor(Palette.purple)
                 .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
 
             Spacer()
 
@@ -114,7 +114,7 @@ struct VoiceAssistantView: View {
                 }
             }
             .onChange(of: turns.count) { _ in
-                withAnimation(.easeOut(duration: 0.25)) {
+                withAnimation(Anim.pop) {
                     if busy {
                         proxy.scrollTo("busy", anchor: .bottom)
                     } else if let last = turns.last {
@@ -156,7 +156,7 @@ struct VoiceAssistantView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Palette.hairlineSoft))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
             }
             .padding(.top, 4)
@@ -227,7 +227,7 @@ struct VoiceAssistantView: View {
                             .foregroundColor(Palette.bad)
                             .padding(.top, 2)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                     .padding(.top, 2)
                 }
@@ -250,7 +250,7 @@ struct VoiceAssistantView: View {
                         .background(Palette.purpleTint)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -300,7 +300,7 @@ struct VoiceAssistantView: View {
                     }
                     .frame(width: 52, height: 52)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 .disabled(busy)
 
                 HStack(spacing: 6) {
@@ -314,7 +314,7 @@ struct VoiceAssistantView: View {
                                 .font(.system(size: 22))
                                 .foregroundColor(Palette.purple)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                 }
                 .padding(.horizontal, 12)

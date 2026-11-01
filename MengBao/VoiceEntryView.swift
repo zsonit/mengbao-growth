@@ -102,7 +102,7 @@ struct VoiceEntryView: View {
                     .font(.system(size: 20))
                     .foregroundColor(Palette.subtle.opacity(0.55))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
@@ -135,7 +135,7 @@ struct VoiceEntryView: View {
                         .foregroundColor(.white)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
 
             Text(recorder.isRecording ? "正在听… 想到什么说什么" : "正在准备麦克风…")
                 .font(.system(size: 13.5, weight: .semibold))
@@ -182,7 +182,7 @@ struct VoiceEntryView: View {
                     .background(Palette.purple)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
@@ -226,7 +226,7 @@ struct VoiceEntryView: View {
                             .foregroundColor(Palette.subtle)
                             .padding(8)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -261,7 +261,7 @@ struct VoiceEntryView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 Button {
                     saveAll(results)
@@ -275,7 +275,7 @@ struct VoiceEntryView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .disabled(results.isEmpty)
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
         }
     }
@@ -308,7 +308,7 @@ struct VoiceEntryView: View {
                         .background(Palette.purple)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             Text("文字只在本机解析，不上传。")
                 .font(.system(size: 11))

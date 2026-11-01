@@ -94,7 +94,7 @@ struct QuickEntryManagerView: View {
                             .stroke(Palette.purple.opacity(0.35), lineWidth: 1)
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
             .background(Palette.background.opacity(0.96))
@@ -242,7 +242,7 @@ private struct AddQuickEntrySheet: View {
                                                 .stroke(icon == item ? Palette.purple : Color.clear, lineWidth: 1.5)
                                         )
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SoftPressStyle())
                             }
                         }
                     }

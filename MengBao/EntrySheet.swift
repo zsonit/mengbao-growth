@@ -72,7 +72,7 @@ struct EntrySheet: View {
                     .font(.system(size: 20))
                     .foregroundColor(Palette.subtle.opacity(0.55))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
@@ -205,7 +205,7 @@ struct EntrySheet: View {
                         ChipLabel(text: String(format: format, v) + unit,
                                   selected: abs(current - v) < 0.001)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
             }
             .padding(.vertical, 1)
@@ -219,7 +219,7 @@ struct EntrySheet: View {
                     Button { onTap(v) } label: {
                         ChipLabel(text: v, selected: current == v)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
             }
             .padding(.vertical, 1)

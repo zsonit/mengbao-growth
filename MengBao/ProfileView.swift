@@ -168,7 +168,7 @@ struct ProfileView: View {
                     }
                     .padding(.vertical, 9)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)
@@ -206,7 +206,7 @@ struct ProfileView: View {
                     }
                     .padding(.vertical, 9)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 Divider().background(Palette.hairlineSoft)
 
                 Toggle(isOn: Binding(
@@ -307,7 +307,7 @@ struct ProfileView: View {
                         }
                         .padding(.vertical, 9)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                     Divider().background(Palette.hairlineSoft)
                 }
                 Button {
@@ -317,7 +317,7 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 9)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)
@@ -352,7 +352,7 @@ struct ProfileView: View {
                     }
                     .padding(.vertical, 11)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 Text("升级 App 直接覆盖安装即可，数据不会丢（不要先删除 App）。换手机前先「导出备份」。")
                     .font(.system(size: 11))
                     .foregroundColor(Palette.subtle)
@@ -426,7 +426,7 @@ struct ProfileView: View {
             }
             .padding(.vertical, 9)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 
     // MARK: 辅助

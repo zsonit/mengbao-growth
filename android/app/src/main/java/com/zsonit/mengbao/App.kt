@@ -1,6 +1,18 @@
 package com.zsonit.mengbao
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,18 +20,26 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +111,15 @@ fun MengBaoApp() {
             navController = nav,
             startDestination = Routes.HOME,
             modifier = Modifier.padding(padding),
+            // 页面切换不再硬切：轻微缩小 + 淡入淡出，接近玻璃层叠滑入的手感
+            enterTransition = {
+                fadeIn(tween(260)) + scaleIn(initialScale = 0.985f, animationSpec = tween(300))
+            },
+            exitTransition = { fadeOut(tween(180)) + scaleOut(targetScale = 0.99f, animationSpec = tween(220)) },
+            popEnterTransition = {
+                fadeIn(tween(240)) + scaleIn(initialScale = 0.99f, animationSpec = tween(280))
+            },
+            popExitTransition = { fadeOut(tween(180)) + scaleOut(targetScale = 0.985f, animationSpec = tween(220)) },
         ) {
             composable(Routes.HOME) {
                 HomeScreen(
@@ -219,52 +248,123 @@ private fun LiquidNavBar(
     onSelect: (String) -> Unit,
 ) {
     val isDark = Palette.isDark
-    val glassFill = if (isDark) Color(0xFF1E1B29).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.80f)
-    val edgeTop = Color.White.copy(alpha = if (isDark) 0.22f else 0.90f)
-    val edgeBottom = Color.White.copy(alpha = if (isDark) 0.06f else 0.25f)
-    val selFill = if (isDark) Palette.purpleSoft else Color.White.copy(alpha = 0.95f)
+    val haptic = LocalHapticFeedback.current
     val pill = RoundedCornerShape(50.dp)
+
+    val glassFill = if (isDark) Color(0xFF1E1B29).copy(alpha = 0.80f) else Color.White.copy(alpha = 0.82f)
+    val edgeTop = Color.White.copy(alpha = if (isDark) 0.26f else 0.95f)
+    val edgeBottom = Color.White.copy(alpha = if (isDark) 0.06f else 0.22f)
+    val selFill = if (isDark) Palette.purpleSoft.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.96f)
+
+    val count = tabs.size.coerceAtLeast(1)
+    val index = tabs.indexOfFirst { it.route == current }.coerceAtLeast(0)
 
     Box(
         Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 36.dp, vertical = 6.dp),
+            .padding(horizontal = 30.dp, vertical = 6.dp),
     ) {
-        Row(
+        BoxWithConstraints(
             Modifier
                 .fillMaxWidth()
                 .shadow(
                     elevation = 16.dp,
                     shape = pill,
-                    ambientColor = Color.Black.copy(alpha = 0.15f),
+                    ambientColor = Color.Black.copy(alpha = 0.14f),
                     spotColor = Color.Black.copy(alpha = 0.20f),
                 )
                 .clip(pill)
                 .background(glassFill)
-                .border(BorderStroke(1.dp, Brush.verticalGradient(listOf(edgeTop, edgeBottom))), pill)
-                .padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            tabs.forEach { tab ->
-                val selected = tab.route == current
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clip(pill)
-                        .background(if (selected) selFill else Color.Transparent)
-                        .clickable { onSelect(tab.route) }
-                        .padding(vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(tab.emoji, fontSize = 17.sp)
-                    Text(
-                        tab.label,
-                        fontSize = 10.5.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (selected) Palette.purple else Palette.subtle,
+                // 顶光：上亮下透，玻璃的厚度感
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = if (isDark) 0.10f else 0.42f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = if (isDark) 0.16f else 0.03f),
+                        )
                     )
+                )
+                .border(BorderStroke(1.dp, Brush.verticalGradient(listOf(edgeTop, edgeBottom))), pill)
+                .padding(horizontal = 6.dp, vertical = 5.dp)
+                .height(52.dp),
+        ) {
+            val tabW = maxWidth / count
+            // 选中胶囊滑动（弹簧，不硬跳）
+            val slide by animateDpAsState(
+                targetValue = tabW * index,
+                animationSpec = spring(dampingRatio = 0.74f, stiffness = Spring.StiffnessMediumLow),
+                label = "tab-pill",
+            )
+
+            Box(
+                Modifier
+                    .offset(x = slide)
+                    .width(tabW)
+                    .fillMaxHeight()
+                    .clip(pill)
+                    .background(selFill)
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (isDark) 0.28f else 1f),
+                                Color.White.copy(alpha = if (isDark) 0.05f else 0.35f),
+                            )
+                        ),
+                        pill,
+                    ),
+            )
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                tabs.forEach { tab ->
+                    val selected = tab.route == current
+                    val interaction = remember { MutableInteractionSource() }
+                    val pressed by interaction.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (pressed) 0.93f else 1f,
+                        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow),
+                        label = "tab-press",
+                    )
+                    val lift by animateDpAsState(
+                        targetValue = if (selected) (-1).dp else 0.dp,
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+                        label = "tab-lift",
+                    )
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .height(52.dp)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(pill)
+                            .clickable(
+                                interactionSource = interaction,
+                                indication = null,
+                            ) {
+                                if (!selected) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSelect(tab.route)
+                                }
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            tab.emoji,
+                            fontSize = 17.sp,
+                            modifier = Modifier.offset(y = lift),
+                        )
+                        Text(
+                            tab.label,
+                            fontSize = 10.5.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (selected) Palette.purple else Palette.subtle.copy(alpha = 0.85f),
+                        )
+                    }
                 }
             }
         }

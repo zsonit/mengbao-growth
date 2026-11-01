@@ -97,7 +97,7 @@ struct TodoVoiceView: View {
                     .font(.system(size: 20))
                     .foregroundColor(Palette.subtle.opacity(0.55))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
@@ -130,7 +130,7 @@ struct TodoVoiceView: View {
                         .foregroundColor(.white)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
 
             Text(recorder.isRecording ? "正在听… 想到什么说什么" : "正在准备麦克风…")
                 .font(.system(size: 13.5, weight: .semibold))
@@ -172,7 +172,7 @@ struct TodoVoiceView: View {
                     .background(Palette.purple)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
@@ -212,7 +212,7 @@ struct TodoVoiceView: View {
                                 .background(Palette.purpleTint)
                                 .clipShape(Capsule())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SoftPressStyle())
                         }
                     }
                     Spacer(minLength: 6)
@@ -224,7 +224,7 @@ struct TodoVoiceView: View {
                             .foregroundColor(Palette.subtle)
                             .padding(8)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -245,7 +245,7 @@ struct TodoVoiceView: View {
                         .background(Palette.purpleTint)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 Button {
                     save()
@@ -258,7 +258,7 @@ struct TodoVoiceView: View {
                         .background(Palette.purple)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 .disabled(drafts.isEmpty)
                 .opacity(drafts.isEmpty ? 0.5 : 1)
             }
@@ -294,7 +294,7 @@ struct TodoVoiceView: View {
                         .background(Palette.purple)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
         }
         .padding(13)

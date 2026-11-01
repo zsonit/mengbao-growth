@@ -23,7 +23,7 @@ struct HoldToTalkButton: View {
         ZStack {
             // 按住时的全屏玻璃面板
             if holding || processing {
-                holdOverlay.transition(.opacity)
+                holdOverlay.transition(.opacity.combined(with: .scale(scale: 1.03)))
             }
 
             // 悬浮麦克风按钮
@@ -73,12 +73,12 @@ struct HoldToTalkButton: View {
                         return
                     }
                     voice.start()
-                    withAnimation(.easeOut(duration: 0.18)) { holding = true }
+                    withAnimation(Anim.pop) { holding = true }
                 }
             }
             .onEnded { _ in
                 guard holding else { return }
-                withAnimation(.easeIn(duration: 0.15)) { holding = false }
+                withAnimation(Anim.pop) { holding = false }
                 voice.stop()
                 finish(text: voice.transcript)
             }
@@ -240,7 +240,7 @@ private struct HoldResultSheet: View {
                     .background(Palette.purpleTint)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
 
             Spacer()
@@ -262,7 +262,7 @@ private struct HoldResultSheet: View {
                         .background(Palette.hairlineSoft)
                         .clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
                 Button {
                     dismiss()
@@ -275,7 +275,7 @@ private struct HoldResultSheet: View {
                         .background(Palette.purple)
                         .clipShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
         }
         .padding(.horizontal, 20)

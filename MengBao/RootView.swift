@@ -64,34 +64,13 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView(selection: $tab) {
-            NavigationStack {
-                HomeView()
-                    .toolbar(.hidden, for: .tabBar)
-            }
-            .tag("growth")
-
-            if store.settings.showFeed {
-                NavigationStack {
-                    FeedView()
-                        .toolbar(.hidden, for: .tabBar)
-                }
-                .tag("feed")
-            }
-
-            if store.settings.showShot {
-                NavigationStack {
-                    VaccineView()
-                        .toolbar(.hidden, for: .tabBar)
-                }
-                .tag("vaccine")
-            }
-
-            NavigationStack {
-                ProfileView()
-                    .toolbar(.hidden, for: .tabBar)
-            }
-            .tag("profile")
+        // 不再用 TabView：它的切页是「硬切」，正是动画生硬的主因。
+        // 改成 ZStack 常驻各页 + 淡入缩放交叉过渡，切页像玻璃层叠滑过去一样连续。
+        ZStack {
+            page("growth") { HomeView() }
+            if store.settings.showFeed { page("feed") { FeedView() } }
+            if store.settings.showShot { page("vaccine") { VaccineView() } }
+            page("profile") { ProfileView() }
         }
         // 悬浮玻璃胶囊：内容滚动时会从玻璃后面穿过
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -101,5 +80,19 @@ struct RootView: View {
                 LiquidTabBar(items: tabs, selection: $tab)
             }
         }
+    }
+
+    /// 单页容器：非当前页淡出并轻微缩小，切页时带阻尼弹簧
+    @ViewBuilder
+    private func page<Content: View>(_ id: String, @ViewBuilder content: () -> Content) -> some View {
+        let on = tab == id
+        NavigationStack { content() }
+            .opacity(on ? 1 : 0)
+            .scaleEffect(on ? 1 : 0.982)
+            .offset(y: on ? 0 : 8)
+            .allowsHitTesting(on)
+            .accessibilityHidden(!on)
+            .zIndex(on ? 1 : 0)
+            .animation(Anim.page, value: tab)
     }
 }

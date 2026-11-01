@@ -52,7 +52,7 @@ struct KidEditorView: View {
                                     } label: {
                                         ChipLabel(text: s.label, selected: sex == s, icon: s.symbol)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SoftPressStyle())
                                 }
                                 Spacer()
                             }
@@ -74,7 +74,7 @@ struct KidEditorView: View {
                                             .clipShape(Circle())
                                             .overlay(Circle().stroke(avatar == a && avatarPath == nil ? Palette.purple : Palette.hairline, lineWidth: 2))
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SoftPressStyle())
                                 }
                             }
                         }
@@ -93,7 +93,7 @@ struct KidEditorView: View {
                                             .background(Palette.purpleTint)
                                             .clipShape(Capsule())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SoftPressStyle())
                                     if avatarPath != nil {
                                         Button("移除") {
                                             child?.removeAvatarPhoto()
@@ -104,7 +104,7 @@ struct KidEditorView: View {
                                         .padding(.horizontal, 12).padding(.vertical, 9)
                                         .background(Palette.badBg)
                                         .clipShape(Capsule())
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(SoftPressStyle())
                                     }
                                     Spacer()
                                 }

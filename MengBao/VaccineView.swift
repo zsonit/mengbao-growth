@@ -119,17 +119,17 @@ struct VaccineView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(statusFilters, id: \.self) { item in
-                        Button { filter = item } label: {
+                        Button { withAnimation(Anim.tap) { filter = item } } label: {
                             ChipLabel(text: item, selected: filter == item)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                     Divider().frame(height: 18).padding(.horizontal, 2)
                     ForEach(ageFilters, id: \.0) { item in
-                        Button { ageFilter = item.0 } label: {
+                        Button { withAnimation(Anim.tap) { ageFilter = item.0 } } label: {
                             ChipLabel(text: item.0, selected: ageFilter == item.0)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                 }
                 .padding(.horizontal, 16)
@@ -142,14 +142,16 @@ struct VaccineView: View {
 
             ForEach(visible) { dose in
                 Button {
-                    store.toggleShot(key: dose.key)
+                    withAnimation(Anim.pop) { store.toggleShot(key: dose.key) }
                 } label: {
                     DoseCard(dose: dose)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 .padding(.horizontal, 16)
                 .padding(.top, 9)
             }
+            .transition(.opacity)
+            .animation(Anim.soft, value: visible.map(\.key))
 
             SectionHeader(title: "非免疫规划疫苗（自费 · 自愿）")
             VStack(spacing: 0) {
@@ -187,7 +189,7 @@ struct VaccineView: View {
                 .background(Palette.card)
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
@@ -232,7 +234,7 @@ struct VaccineView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Palette.hairlineSoft, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
         .padding(.horizontal, 16)
         .padding(.top, 10)
     }
@@ -275,7 +277,7 @@ struct OptionalVaccineSheet: View {
                         .font(.system(size: 21))
                         .foregroundColor(Palette.subtle.opacity(0.5))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .padding(.horizontal, 20)
             .padding(.top, 14)
@@ -305,7 +307,7 @@ struct OptionalVaccineSheet: View {
                     .background(picked.isEmpty ? Palette.subtle.opacity(0.45) : Palette.purple)
                     .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 12)
@@ -359,7 +361,7 @@ struct OptionalVaccineSheet: View {
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(on ? Palette.purple.opacity(0.45) : Palette.hairlineSoft, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 }
 
@@ -488,7 +490,7 @@ struct ClinicListView: View {
                         .background(Palette.purpleTint)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
 
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass").foregroundColor(Palette.subtle)
@@ -503,12 +505,12 @@ struct ClinicListView: View {
                         HStack(spacing: 8) {
                             ForEach(cityOptions, id: \.self) { c in
                                 Button { city = c } label: { ChipLabel(text: c, selected: city == c) }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SoftPressStyle())
                             }
                             Button { starOnly.toggle() } label: {
                                 ChipLabel(text: "★ 只看示范门诊", selected: starOnly)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SoftPressStyle())
                         }
                     }
                     Text("共 \(filtered.count) 家" + (visible.count < filtered.count ? " · 当前显示前 \(visible.count) 家，可搜索或选城市" : " · 出发前请电话确认"))
@@ -523,7 +525,7 @@ struct ClinicListView: View {
                     NavigationLink { ClinicDetailView(clinic: clinic) } label: {
                         ClinicRow(clinic: clinic)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
                 }

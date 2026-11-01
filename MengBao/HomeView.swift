@@ -79,15 +79,16 @@ struct HomeView: View {
 
     private func content(for child: Child) -> some View {
         VStack(spacing: 0) {
-            header(child)
-            aiCard(child)
-            if store.settings.showFeed { todaySection(child) }
+            // 各区块错开几十毫秒淡入上浮，进页面时像玻璃一片片落定，而不是「唰」地全出现
+            header(child).softAppear(delay: 0)
+            aiCard(child).softAppear(delay: 0.04)
+            if store.settings.showFeed { todaySection(child).softAppear(delay: 0.08) }
             if store.settings.showFeed {
-                quickEntryRow
+                quickEntryRow.softAppear(delay: 0.11)
             }
-            commonTools
-            recentCard(child)
-            extras(child)
+            commonTools.softAppear(delay: 0.14)
+            recentCard(child).softAppear(delay: 0.17)
+            extras(child).softAppear(delay: 0.20)
             HintBlock(text: Standards.disclaimer)
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -185,7 +186,7 @@ struct HomeView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .padding(.horizontal, 16)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
 
             Text("* AI 分析仅供参考，不能替代医疗建议")
                 .font(.system(size: 10.5))
@@ -200,13 +201,13 @@ struct HomeView: View {
         switch card.action {
         case .entry(let id):
             Button { activeEntry = quickEntry(for: id) } label: { actionChip(card.actionTitle) }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
         case .growth:
             NavigationLink { GrowthDetailView() } label: { actionChip(card.actionTitle) }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
         case .vaccine:
             NavigationLink { VaccineView() } label: { actionChip(card.actionTitle) }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
         case AISuggestion.Action.none:
             EmptyView()
         }
@@ -290,7 +291,7 @@ struct HomeView: View {
                     .padding(7)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 
     /// 分钟数 → 45m / 1h / 1h20m（与 Android 端一致）
@@ -321,7 +322,7 @@ struct HomeView: View {
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(Palette.hairline, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
 
                 NavigationLink { QuickEntryManagerView() } label: {
@@ -337,7 +338,7 @@ struct HomeView: View {
                     .clipShape(Capsule())
                     .overlay(Capsule().stroke(Palette.purple.opacity(0.25), lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -353,56 +354,56 @@ struct HomeView: View {
                 NavigationLink { GrowthDetailView() } label: {
                     toolItem("📈", "生长曲线", Palette.purpleTint)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 NavigationLink { TrendsView() } label: {
                     toolItem("📊", "成长趋势", Palette.blueBg)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 NavigationLink { VaccineView() } label: {
                     toolItem("💉", "接种计划", Palette.pinkBg)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 if store.settings.showFeed {
                     NavigationLink { FeedView() } label: {
                         toolItem("🍼", "喂养记录", Palette.blueBg)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
 
                 NavigationLink { HistoryView() } label: {
                     toolItem("🕘", "历史记录", Palette.okBg)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 if store.settings.showSize {
                     Button { showSize = true } label: {
                         toolItem("👟", "鞋服尺码", Palette.warnBg)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
 
                 Button { showTeeth = true } label: {
                     toolItem("🦷", "换牙档案", Palette.pinkBg)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 Button { showTodo = true } label: {
                     toolItem("📋", "待办", Palette.purpleSoft)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 Button { showStage = true } label: {
                     toolItem("⭐", "阶段重点", Palette.blueBg)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 Button { showRecord = true } label: {
                     toolItem("📏", "记身高体重", Palette.pinkBg)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .padding(.horizontal, 12)
         }
@@ -555,7 +556,7 @@ struct HomeView: View {
                                 }
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                         Text(todo.title)
                             .font(.system(size: 13.5))
                             .foregroundColor(todo.done ? Palette.subtle : Palette.ink)
@@ -573,7 +574,7 @@ struct HomeView: View {
                         Button { store.deleteTodo(todo.id) } label: {
                             Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(Palette.subtle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                     .padding(.vertical, 9)
                     if todo.id != sorted.last?.id {
@@ -629,7 +630,7 @@ struct HomeView: View {
                 .cardStyle(padding: 14)
                 .padding(.horizontal, 16)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SoftPressStyle())
         }
     }
 

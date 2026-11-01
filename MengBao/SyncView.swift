@@ -78,7 +78,7 @@ struct SyncView: View {
                         .padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Palette.purple))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 .disabled(running)
             }
         }
@@ -106,7 +106,7 @@ struct SyncView: View {
                         .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
                             .fill(joinText.isEmpty ? Palette.subtle.opacity(0.4) : Palette.purple))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 .disabled(running || joinText.isEmpty)
             }
         }
@@ -160,7 +160,7 @@ struct SyncView: View {
                             .padding(.vertical, 12)
                             .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Palette.purple))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                     .disabled(sync.busy || running)
 
                     Button {
@@ -170,7 +170,7 @@ struct SyncView: View {
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundColor(Palette.warn)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                     Text("解除后：本机和云端的资料都不会消失，只是不再同步；重新输入配对码可再次加入")
                         .font(.system(size: 10.5))
                         .foregroundColor(Palette.subtle)
@@ -213,9 +213,9 @@ struct SyncView: View {
             let outcome = block()
             DispatchQueue.main.async {
                 running = false
-                withAnimation { toast = outcome.message }
+                withAnimation(Anim.pop) { toast = outcome.message }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                    withAnimation { toast = nil }
+                    withAnimation(Anim.pop) { toast = nil }
                 }
             }
         }

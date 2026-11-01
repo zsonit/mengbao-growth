@@ -208,7 +208,7 @@ struct ToothChartView: View {
 
     private func tabButton(_ title: String, index: Int) -> some View {
         Button {
-            withAnimation(.easeOut(duration: 0.15)) { tab = index }
+            withAnimation(Anim.tab) { tab = index }
         } label: {
             Text(title)
                 .font(.system(size: 14, weight: tab == index ? .semibold : .regular))
@@ -224,7 +224,7 @@ struct ToothChartView: View {
                     }
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 
     // 牙弓图

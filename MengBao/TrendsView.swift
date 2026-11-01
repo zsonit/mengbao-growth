@@ -279,7 +279,7 @@ struct TrendsView: View {
                             .clipShape(Capsule())
                             .overlay(Capsule().strokeBorder(metric == m ? Palette.purple : Palette.hairline))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                 }
                 .padding(.horizontal, 16)
@@ -303,7 +303,7 @@ struct TrendsView: View {
                                 .clipShape(Capsule())
                                 .overlay(Capsule().strokeBorder(rangeDays == days ? Palette.purple.opacity(0.25) : Color.clear))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                 }
                 .padding(.horizontal, 18)
@@ -441,7 +441,7 @@ struct TrendsView: View {
                             .background(Palette.purpleTint)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                     }
                     .transition(.opacity)
                 }
@@ -458,7 +458,7 @@ struct TrendsView: View {
                         }
                         .foregroundColor(Palette.purple)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
                 .padding(.top, 2)
             }
@@ -518,7 +518,7 @@ struct TrendsView: View {
                     }
                     .foregroundColor(Palette.purple)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             Text(lines.joined(separator: "　"))
                 .font(.system(size: 12.5))
@@ -591,7 +591,7 @@ struct DayHistoryView: View {
                         .background(Palette.purpleTint)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
 
                 DatePicker("", selection: $day, displayedComponents: .date)
                     .labelsHidden()
@@ -606,7 +606,7 @@ struct DayHistoryView: View {
                         .background(cal.compare(day, to: Date(), toGranularity: .day) == .orderedSame ? Palette.hairlineSoft : Palette.purpleTint)
                         .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 .disabled(cal.compare(day, to: Date(), toGranularity: .day) == .orderedSame)
             }
             .padding(.horizontal, 16)
@@ -681,7 +681,7 @@ struct DayHistoryView: View {
                 .clipShape(Capsule())
                 .overlay(Capsule().strokeBorder(filter == metric ? Palette.purple : Palette.hairline))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 
     private func buildEntries(child: Child, day: Date) -> [Entry] {

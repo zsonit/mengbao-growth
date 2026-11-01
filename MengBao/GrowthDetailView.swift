@@ -35,7 +35,7 @@ struct GrowthDetailView: View {
                 HStack(spacing: 8) {
                     ForEach(GrowthMetric.allCases) { m in
                         Button { metric = m } label: { ChipLabel(text: m.rawValue, selected: metric == m) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SoftPressStyle())
                     }
                     Spacer()
                 }
@@ -521,7 +521,7 @@ struct TodoEditorView: View {
                                 .clipShape(Circle())
                                 .shadow(color: Color(hex: 0xFF8FB1).opacity(0.35), radius: 8, y: 3)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                         .accessibilityLabel("语音添加待办")
                     }
 
@@ -535,7 +535,7 @@ struct TodoEditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
 
                     if let hint = addedHint {
                         Text(hint)
@@ -641,7 +641,7 @@ struct StageSheet: View {
                                 Image(systemName: "plus.circle")
                                     .foregroundColor(Palette.purple)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SoftPressStyle())
                         }
                         .padding(14)
                         .background(Palette.card)

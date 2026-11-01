@@ -26,7 +26,7 @@ struct YamiaoView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Palette.ink)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
                 Button {
                     if let url = URL(string: YamiaoWebView.url.absoluteString) {
                         UIApplication.shared.open(url)
@@ -36,7 +36,7 @@ struct YamiaoView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Palette.ink)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -78,7 +78,7 @@ struct YamiaoView: View {
                                 .padding(.vertical, 8)
                                 .background(Capsule().fill(Palette.purpleDeep))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPressStyle())
                         .padding(.top, 4)
                     }
                     .padding(.horizontal, 32)

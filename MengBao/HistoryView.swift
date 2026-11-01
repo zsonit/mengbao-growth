@@ -71,7 +71,7 @@ struct HistoryView: View {
                 HStack(spacing: 8) {
                     ForEach(filters, id: \.self) { f in
                         Button { filter = f } label: { ChipLabel(text: f, selected: filter == f) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SoftPressStyle())
                     }
                 }
                 .padding(.horizontal, 16)
@@ -104,7 +104,7 @@ struct HistoryView: View {
                     Button { store.deleteRecord(record.id) } label: {
                         Image(systemName: "trash").font(.system(size: 12)).foregroundColor(Palette.bad)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
                 RecordMiniCard(child: child, record: record, weightUnit: store.settings.weightUnit)
                     .padding(.horizontal, -0)
@@ -121,7 +121,7 @@ struct HistoryView: View {
                 Button { store.deleteFeed(log.id) } label: {
                     Image(systemName: "trash").font(.system(size: 12)).foregroundColor(Palette.bad)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoftPressStyle())
             }
             .padding(14)
             .background(Palette.card)
@@ -137,7 +137,7 @@ struct HistoryView: View {
                     Button { store.deleteSize(size.id) } label: {
                         Image(systemName: "trash").font(.system(size: 12)).foregroundColor(Palette.bad)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
                 if let cn = s.cn, let eu = s.eu {
                     Text("脚长 \(String(format: "%.1f", size.footLength ?? 0))cm → 中国码 \(cn) / 欧码 \(eu)")

@@ -110,7 +110,7 @@ struct FeedView: View {
                             } label: {
                                 Image(systemName: "trash").font(.system(size: 12)).foregroundColor(Palette.bad)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SoftPressStyle())
                         }
                         .padding(.vertical, 9)
                     }
@@ -159,7 +159,7 @@ struct FeedView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 
     private func last7(_ child: Child, value: (FeedLog) -> Double?) -> [Double] {
@@ -232,7 +232,7 @@ struct FeedEditorView: View {
                                 } label: {
                                     ChipLabel(text: k.title, selected: kind == k, icon: k.icon)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(SoftPressStyle())
                             }
                         }
                     }
@@ -248,7 +248,7 @@ struct FeedEditorView: View {
                             HStack(spacing: 8) {
                                 ForEach(["左", "右", "双侧"], id: \.self) { s in
                                     Button { side = s } label: { ChipLabel(text: s, selected: side == s) }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(SoftPressStyle())
                                 }
                                 Spacer()
                             }
@@ -257,7 +257,7 @@ struct FeedEditorView: View {
                             HStack(spacing: 8) {
                                 ForEach(["小便", "大便", "混合"], id: \.self) { s in
                                     Button { diaperKind = s } label: { ChipLabel(text: s, selected: diaperKind == s) }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(SoftPressStyle())
                                 }
                                 Spacer()
                             }
