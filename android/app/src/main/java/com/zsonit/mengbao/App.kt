@@ -31,12 +31,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -254,7 +258,8 @@ private fun LiquidNavBar(
     val glassFill = if (isDark) Color(0xFF1E1B29).copy(alpha = 0.80f) else Color.White.copy(alpha = 0.82f)
     val edgeTop = Color.White.copy(alpha = if (isDark) 0.26f else 0.95f)
     val edgeBottom = Color.White.copy(alpha = if (isDark) 0.06f else 0.22f)
-    val selFill = if (isDark) Palette.purpleSoft.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.96f)
+    // 选中指示必须是「透明玻璃水滴」：只给很淡的染色，绝不填实
+    val selFill = if (isDark) Palette.purpleSoft.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.32f)
 
     val count = tabs.size.coerceAtLeast(1)
     val index = tabs.indexOfFirst { it.route == current }.coerceAtLeast(0)
@@ -291,11 +296,23 @@ private fun LiquidNavBar(
                 .height(52.dp),
         ) {
             val tabW = maxWidth / count
-            // 选中胶囊滑动（弹簧，不硬跳）
+            // 选中水滴滑动（弹簧，不硬跳）
             val slide by animateDpAsState(
                 targetValue = tabW * index,
-                animationSpec = spring(dampingRatio = 0.74f, stiffness = Spring.StiffnessMediumLow),
+                animationSpec = spring(dampingRatio = 0.66f, stiffness = Spring.StiffnessMediumLow),
                 label = "tab-pill",
+            )
+            // 滑动途中像水滴一样被拉长，落定后弹回
+            var stretched by remember { mutableStateOf(false) }
+            LaunchedEffect(index) {
+                stretched = true
+                delay(140)
+                stretched = false
+            }
+            val stretch by animateFloatAsState(
+                targetValue = if (stretched) 1.22f else 1f,
+                animationSpec = spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMedium),
+                label = "droplet-stretch",
             )
 
             Box(
@@ -303,14 +320,18 @@ private fun LiquidNavBar(
                     .offset(x = slide)
                     .width(tabW)
                     .fillMaxHeight()
+                    .graphicsLayer {
+                        scaleX = stretch
+                        scaleY = 1f / stretch
+                    }
                     .clip(pill)
                     .background(selFill)
                     .border(
                         1.dp,
                         Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = if (isDark) 0.28f else 1f),
-                                Color.White.copy(alpha = if (isDark) 0.05f else 0.35f),
+                                Color.White.copy(alpha = if (isDark) 0.24f else 0.70f),
+                                Color.White.copy(alpha = if (isDark) 0.04f else 0.15f),
                             )
                         ),
                         pill,

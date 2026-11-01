@@ -139,22 +139,78 @@ struct LiquidTabBar: View {
     @Binding var selection: String
 
     @Environment(\.colorScheme) private var scheme
-    @Namespace private var pillNS
     /// 高光扫过的位置：切换页签时斜掠一次，营造液体流动感
     @State private var sweep: CGFloat = -1.2
+    /// 水滴拉伸系数：滑动途中 >1（横向拉长、纵向压扁），落定回 1
+    @State private var stretch: CGFloat = 1.0
+    @State private var stretchWork: DispatchWorkItem?
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(items) { item in
-                itemButton(item)
+        GeometryReader { geo in
+            let tabW = geo.size.width / CGFloat(max(items.count, 1))
+            let idx = CGFloat(items.firstIndex { $0.id == selection } ?? 0)
+            ZStack(alignment: .leading) {
+                // 透明玻璃水滴：从旧位置滑到新位置，途中被「拉」一下再弹回
+                droplet(tabW: tabW, h: geo.size.height, idx: idx)
+                HStack(spacing: 2) {
+                    ForEach(items) { item in
+                        itemButton(item)
+                    }
+                }
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
+        .frame(height: 54)
         .liquidGlass(in: Capsule())
         .overlay(sheen)
         .padding(.horizontal, 22)
         .padding(.bottom, 2)
+        .onChange(of: selection) { _ in pulse() }
+    }
+
+    // MARK: 透明玻璃水滴（选中指示）
+
+    private func droplet(tabW: CGFloat, h: CGFloat, idx: CGFloat) -> some View {
+        let light = scheme == .light
+        return Capsule()
+            .fill(.ultraThinMaterial)
+            .overlay(
+                // 注意：保持「透明」——只有很淡的染色，绝不填白
+                Capsule().fill(
+                    LinearGradient(
+                        colors: light
+                            ? [Color.white.opacity(0.28), Color.white.opacity(0.08)]
+                            : [Palette.purple.opacity(0.20), Palette.purple.opacity(0.06)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    LinearGradient(
+                        colors: light
+                            ? [Color.white.opacity(0.70), Color.white.opacity(0.15)]
+                            : [Color.white.opacity(0.24), Color.white.opacity(0.04)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+            )
+            .shadow(color: .black.opacity(light ? 0.06 : 0.28), radius: 6, x: 0, y: 3)
+            .frame(width: tabW - 10, height: h - 10)
+            .scaleEffect(x: stretch, y: 1.0 / max(stretch, 0.5), anchor: .center)
+            .offset(x: idx * tabW + 5)
+            .animation(.spring(response: 0.40, dampingFraction: 0.66), value: idx)
+    }
+
+    /// 水滴落定的挤压回弹：先快速拉长一点，稍后弹回
+    private func pulse() {
+        stretchWork?.cancel()
+        withAnimation(.spring(response: 0.20, dampingFraction: 0.85)) { stretch = 1.22 }
+        let work = DispatchWorkItem {
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.62)) { stretch = 1.0 }
+        }
+        stretchWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14, execute: work)
     }
 
     // MARK: 单个页签
@@ -180,50 +236,13 @@ struct LiquidTabBar: View {
                     .opacity(selected ? 1 : 0.82)
             }
             .foregroundColor(selected ? Palette.purple : Palette.subtle)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background {
-                if selected {
-                    selectionPill
-                        .matchedGeometryEffect(id: "tab-pill", in: pillNS)
-                }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Capsule())
         }
         .buttonStyle(SoftPressStyle(scale: 0.93, dim: 0.9))
     }
 
-    /// 选中态的玻璃小胶囊：比外层更亮一点，像一枚凸起的透镜
-    private var selectionPill: some View {
-        let light = scheme == .light
-        return Capsule()
-            .fill(.ultraThinMaterial)
-            .overlay(
-                Capsule().fill(
-                    LinearGradient(
-                        colors: light
-                            ? [Color.white.opacity(0.98), Color.white.opacity(0.72)]
-                            : [Palette.purple.opacity(0.34), Palette.purple.opacity(0.14)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-            )
-            .overlay(
-                Capsule().strokeBorder(
-                    LinearGradient(
-                        colors: light
-                            ? [Color.white, Color.white.opacity(0.35)]
-                            : [Color.white.opacity(0.30), Color.white.opacity(0.05)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-            )
-            .shadow(color: .black.opacity(light ? 0.10 : 0.35), radius: 7, x: 0, y: 3)
-            .shadow(color: Palette.purple.opacity(light ? 0.16 : 0.28), radius: 10, x: 0, y: 2)
-    }
-
-    /// 斜掠高光
+    // MARK: 斜掠高光
     private var sheen: some View {
         GeometryReader { geo in
             LinearGradient(
