@@ -472,6 +472,7 @@ private fun QuickEntryChip(icon: String, title: String, onClick: () -> Unit) {
 @Composable
 private fun QuickGrid(showFeed: Boolean, showSize: Boolean, onNavigate: (String) -> Unit, onNewRecord: () -> Unit) {
     val entries = buildList {
+        add(Triple("🎙️", "AI 助手", { onNavigate(Routes.AI) }))
         add(Triple("📝", "记录数据", { onNewRecord() }))
         add(Triple("📈", "生长曲线", { onNavigate(Routes.GROWTH) }))
         add(Triple("📊", "成长趋势", { onNavigate(Routes.TRENDS) }))

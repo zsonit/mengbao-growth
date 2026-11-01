@@ -168,6 +168,22 @@ struct HomeView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
 
+            NavigationLink { VoiceAssistantView() } label: {
+                HStack(spacing: 7) {
+                    Text("🎙️").font(.system(size: 14))
+                    Text("说一句就记下").font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.ink)
+                    Text("「十点喝了 120 的奶」").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.system(size: 10)).foregroundColor(Palette.purple)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Palette.purpleTint)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .padding(.horizontal, 16)
+            }
+            .buttonStyle(.plain)
+
             Text("* AI 分析仅供参考，不能替代医疗建议")
                 .font(.system(size: 10.5))
                 .foregroundColor(Palette.subtle)

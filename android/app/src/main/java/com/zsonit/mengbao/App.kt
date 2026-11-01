@@ -40,6 +40,7 @@ import com.zsonit.mengbao.ui.screens.StageScreen
 import com.zsonit.mengbao.ui.screens.ToothChartScreen
 import com.zsonit.mengbao.ui.screens.TodoEditorScreen
 import com.zsonit.mengbao.ui.screens.TrendsScreen
+import com.zsonit.mengbao.ui.screens.AIAssistantScreen
 import com.zsonit.mengbao.ui.screens.DayHistoryScreen
 import com.zsonit.mengbao.ui.screens.VaccineScreen
 
@@ -111,7 +112,12 @@ fun MengBaoApp() {
                     onOpenNearby = { nav.navigate(Routes.NEARBY) },
                 )
             }
-            composable(Routes.PROFILE) { ProfileScreen(onOpenKids = { nav.navigate(Routes.KIDS) }) }
+            composable(Routes.PROFILE) {
+                ProfileScreen(
+                    onOpenKids = { nav.navigate(Routes.KIDS) },
+                    onOpenAI = { nav.navigate(Routes.AI) },
+                )
+            }
 
             composable(Routes.GROWTH) { GrowthDetailScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.HISTORY) { HistoryScreen(onBack = { nav.popBackStack() }) }
@@ -158,6 +164,25 @@ fun MengBaoApp() {
 
             composable(Routes.YAMIAO) { YamiaoWebScreen(onBack = { nav.popBackStack() }, onOpenNearby = { nav.navigate(Routes.NEARBY) }) }
             composable(Routes.NEARBY) { NearbyMapScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.AI) {
+                AIAssistantScreen(
+                    onBack = { nav.popBackStack() },
+                    onOpenPage = { page ->
+                        when (page) {
+                            "home" -> nav.switchTab(Routes.HOME)
+                            "feed" -> nav.switchTab(Routes.FEED)
+                            "vaccine" -> nav.switchTab(Routes.VACCINE)
+                            "profile" -> nav.switchTab(Routes.PROFILE)
+                            "trends" -> nav.navigate(Routes.TRENDS)
+                            "history" -> nav.navigate(Routes.HISTORY)
+                            "todo" -> nav.navigate(Routes.TODO)
+                            "size" -> nav.navigate(Routes.SIZE)
+                            "growth" -> nav.navigate(Routes.GROWTH)
+                            "teeth" -> nav.navigate(Routes.TEETH)
+                        }
+                    },
+                )
+            }
             composable(Routes.TRENDS) {
                 TrendsScreen(
                     onBack = { nav.popBackStack() },

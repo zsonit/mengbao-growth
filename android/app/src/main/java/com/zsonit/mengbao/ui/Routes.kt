@@ -23,6 +23,7 @@ object Routes {
     const val NEARBY = "nearby"   // 附近接种门诊（自带地图 + 距离排序）
     const val TRENDS = "trends"   // 成长趋势（9 项曲线）
     const val DAY_HISTORY = "day_history"   // 某天的明细（精确到几点几分）
+    const val AI = "ai"   // AI 语音助手
 
     fun recordEditor(recordId: String? = null) = "$RECORD_EDITOR/${recordId ?: "new"}"
     fun kidEditor(childId: String? = null) = "$KID_EDITOR/${childId ?: "new"}"

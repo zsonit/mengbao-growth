@@ -67,7 +67,7 @@ import java.util.Locale
 // MARK: - 我的
 
 @Composable
-fun ProfileScreen(onOpenKids: () -> Unit) {
+fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
@@ -106,6 +106,7 @@ fun ProfileScreen(onOpenKids: () -> Unit) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             ProfileCard(onOpenKids)
             StatsGrid()
+            AISection(onOpenAI = onOpenAI)
             SettingsSection(
                 onOpenParents = { showParents = true },
             )
@@ -266,6 +267,38 @@ private fun StatsGrid() {
                 Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.purple)
                 Text(label, fontSize = 10.5.sp, color = Palette.subtle)
             }
+        }
+    }
+}
+
+// MARK: AI 助手
+
+@Composable
+private fun AISection(onOpenAI: () -> Unit) {
+    SectionHeader(title = "AI 助手")
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().cardStyle(padding = 14.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clickable { onOpenAI() },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🎙️", fontSize = 17.sp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("语音助手", fontSize = 14.sp, color = Palette.ink)
+                Text(
+                    "说一句话就能记喂养、加待办、查今天的数据",
+                    fontSize = 11.5.sp, color = Palette.subtle,
+                )
+            }
+            Text(
+                "免费", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Palette.purpleTint)
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("›", fontSize = 16.sp, color = Palette.subtle)
         }
     }
 }

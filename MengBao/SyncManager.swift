@@ -16,8 +16,8 @@ final class SyncManager: ObservableObject {
 
     static let shared = SyncManager()
 
-    private static let endpoint = "https://mengbao-sync.app.workbuddy.host"
-    private static let publishableKey = "wbpk_z3Qd2DmHRK20lYTyzpjsTH_DG9v1WdRyKgkBsMLewH3mh5Br7EOcUlR"
+    private static let endpoint = CloudCfg.endpoint
+    private static let publishableKey = CloudCfg.publishableKey
     private static let rest = endpoint + "/.cloud/database/rest/v1/mengbao_sync"
     /// fetchRemote 的解密失败标记
     private static let undecryptable = "undecryptable"

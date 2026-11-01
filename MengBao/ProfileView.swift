@@ -36,6 +36,7 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 profileCard
                 statsGrid
+                aiSection
                 settingsSection
                 childrenSection
                 dataSection
@@ -142,6 +143,36 @@ struct ProfileView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
+    }
+
+    private var aiSection: some View {
+        VStack(spacing: 0) {
+            SectionHeader(title: "AI 助手")
+            VStack(spacing: 0) {
+                NavigationLink { VoiceAssistantView() } label: {
+                    HStack(spacing: 10) {
+                        Text("🎙️").font(.system(size: 17))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("语音助手").font(.system(size: 14)).foregroundColor(Palette.ink)
+                            Text("说一句话就能记喂养、加待办、查今天的数据")
+                                .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                        }
+                        Spacer()
+                        Text("免费")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundColor(Palette.purple)
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(Palette.purpleTint)
+                            .clipShape(Capsule())
+                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Palette.subtle)
+                    }
+                    .padding(.vertical, 9)
+                }
+                .buttonStyle(.plain)
+            }
+            .cardStyle(padding: 14)
+            .padding(.horizontal, 16)
+        }
     }
 
     private var settingsSection: some View {
