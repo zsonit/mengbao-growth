@@ -12,6 +12,14 @@ final class Store: ObservableObject {
     @Published var tabBarHidden = false
     /// 按住说话进行中（录音 / 理解）：玻璃栏收起，页面遮罩才能全屏盖住
     @Published var voiceActive = false
+    /// 正在按住录音（遮罩由 RootView 顶层渲染，不受首页按钮的 padding 影响）
+    @Published var voiceHolding = false
+    /// 松手后 AI 正在理解
+    @Published var voiceProcessing = false
+    /// 录音中的实时转写
+    @Published var voiceLiveText = ""
+    /// 遮罩被点一下（逃生口）：计数器 +1，由 HoldToTalkButton 监听后结束录音
+    @Published var voiceStopTick = 0
 
     private let fileURL: URL
 

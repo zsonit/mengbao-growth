@@ -22,32 +22,45 @@ struct HoldToTalkButton: View {
     var onOpenPage: (String) -> Void
 
     var body: some View {
-        ZStack {
-            // 按住时的全屏玻璃面板
-            if holding || processing {
-                holdOverlay.transition(.opacity.combined(with: .scale(scale: 1.03)))
-            }
-
-            // 悬浮麦克风按钮
+        // 只保留悬浮麦克风按钮。
+        // 全屏遮罩不在这里画——本按钮挂在首页 ScrollView 的 .overlay 上，还被
+        // .padding(.bottom, 112) 顶到玻璃栏上方，所以它自身的 bounds 底部就是缺的，
+        // 在里面 ignoresSafeArea 也铺不满（2.9.6/2.9.7 的底部缺口就是这么来的）。
+        // 遮罩改由 RootView 顶层渲染，见 VoiceHoldOverlay。
+        Button {} label: { fabLabel }
+            .buttonStyle(.plain)
+            .simultaneousGesture(holdGesture)
+            .disabled(processing)
             // 按住录音时只把它变透明（不移除视图，否则手势会被打断、录音停不掉），
             // 避免它和遮罩里的大圆钮叠成两个图案
-            Button {} label: { fabLabel }
-                .buttonStyle(.plain)
-                .simultaneousGesture(holdGesture)
-                .disabled(processing)
-                .opacity(holding || processing ? 0 : 1)
-        }
-        .sheet(item: $plan) { p in
-            HoldResultSheet(plan: p, onOpenPage: onOpenPage)
-                .presentationDetents([.medium, .large])
-        }
-        // 录音 / 理解期间把“语音进行中”上报给全局：玻璃栏自动收起，遮罩才能全屏盖住
-        .onChange(of: holding) { h in store.voiceActive = h || processing }
-        .onChange(of: processing) { p in store.voiceActive = holding || p }
-        .onDisappear {
-            store.voiceActive = false
-            if holding { voice.stop(); holding = false }
-        }
+            .opacity(holding || processing ? 0 : 1)
+            .sheet(item: $plan) { p in
+                HoldResultSheet(plan: p, onOpenPage: onOpenPage)
+                    .presentationDetents([.medium, .large])
+            }
+            // 录音 / 理解期间把状态上报给全局：玻璃栏收起 + 顶层遮罩出现
+            .onChange(of: holding) { h in
+                store.voiceHolding = h
+                store.voiceActive = h || processing
+            }
+            .onChange(of: processing) { p in
+                store.voiceProcessing = p
+                store.voiceActive = holding || p
+            }
+            .onChange(of: voice.transcript) { t in
+                store.voiceLiveText = t
+            }
+            // 遮罩被点一下（逃生口）：等同松手
+            .onChange(of: store.voiceStopTick) { _ in
+                if holding { endHold() }
+            }
+            .onDisappear {
+                store.voiceActive = false
+                store.voiceHolding = false
+                store.voiceProcessing = false
+                store.voiceLiveText = ""
+                if holding { voice.stop(); holding = false }
+            }
     }
 
     // MARK: 按钮
@@ -145,25 +158,34 @@ struct HoldToTalkButton: View {
         }
     }
 
-    // MARK: 按住时的遮罩
+}
 
-    private var holdOverlay: some View {
+// MARK: - 全屏遮罩（由 RootView 顶层渲染，才能真正铺满整块屏幕）
+
+struct VoiceHoldOverlay: View {
+    /// 松手后正在理解
+    let processing: Bool
+    /// 实时转写文本
+    let said: String
+    /// 点一下遮罩（逃生口）
+    var onTap: () -> Void
+
+    var body: some View {
         ZStack {
-            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
+            // 玻璃底：不裁剪、不跟随任何 padding，四边一直铺到屏幕边缘
+            Rectangle().fill(.ultraThinMaterial)
 
             VStack(spacing: 26) {
                 Spacer()
 
                 if processing {
-                    // 松手后：正在理解
                     VStack(spacing: 16) {
                         ProgressView().tint(Palette.purple)
                         Text("正在理解…").font(.system(size: 15, weight: .medium)).foregroundColor(Palette.ink)
-                        Text(saidText).font(.system(size: 13)).foregroundColor(Palette.subtle)
+                        Text(said).font(.system(size: 13)).foregroundColor(Palette.subtle)
                             .multilineTextAlignment(.center).padding(.horizontal, 40)
                     }
                 } else {
-                    // 按住中：波纹 + 大圆钮 + 实时转写
                     ZStack {
                         RippleView(color: Palette.purple)
                         Circle()
@@ -176,10 +198,10 @@ struct HoldToTalkButton: View {
                             .foregroundColor(.white)
                     }
 
-                    if saidText.isEmpty {
+                    if said.isEmpty {
                         Text("我在听…").font(.system(size: 16, weight: .medium)).foregroundColor(Palette.ink)
                     } else {
-                        Text(saidText)
+                        Text(said)
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(Palette.ink)
                             .multilineTextAlignment(.center)
@@ -196,15 +218,10 @@ struct HoldToTalkButton: View {
                     .padding(.bottom, 28)
             }
         }
-        // 逃生口：万一卡在录音态，点一下遮罩任意位置等同松手结束
+        // 关键：铺到状态栏与 Home 指示条之外，底部不再留缺口
+        .ignoresSafeArea()
         .contentShape(Rectangle())
-        .onTapGesture {
-            if holding { endHold() }
-        }
-    }
-
-    private var saidText: String {
-        voice.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        .onTapGesture(perform: onTap)
     }
 }
 

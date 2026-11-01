@@ -64,23 +64,38 @@ struct RootView: View {
     }
 
     var body: some View {
-        // 不再用 TabView：它的切页是「硬切」，正是动画生硬的主因。
-        // 改成 ZStack 常驻各页 + 淡入缩放交叉过渡，切页像玻璃层叠滑过去一样连续。
         ZStack {
-            page("growth") { HomeView() }
-            if store.settings.showFeed { page("feed") { FeedView() } }
-            if store.settings.showShot { page("vaccine") { VaccineView() } }
-            page("profile") { ProfileView() }
-        }
-        // 悬浮玻璃胶囊：内容滚动时会从玻璃后面穿过
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if store.tabBarHidden || store.voiceActive {
-                // 聊天页 / 按住说话时收起玻璃栏：语音遮罩才能盖满全屏（之前底部 inset 区域露出生内容）
-                EmptyView()
-            } else {
-                LiquidTabBar(items: tabs, selection: $tab)
+            // 不再用 TabView：它的切页是「硬切」，正是动画生硬的主因。
+            // 改成 ZStack 常驻各页 + 淡入缩放交叉过渡，切页像玻璃层叠滑过去一样连续。
+            ZStack {
+                page("growth") { HomeView() }
+                if store.settings.showFeed { page("feed") { FeedView() } }
+                if store.settings.showShot { page("vaccine") { VaccineView() } }
+                page("profile") { ProfileView() }
+            }
+            // 悬浮玻璃胶囊：内容滚动时会从玻璃后面穿过
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if store.tabBarHidden || store.voiceActive || store.voiceHolding || store.voiceProcessing {
+                    // 聊天页 / 按住说话时收起玻璃栏：语音遮罩才能盖满全屏
+                    EmptyView()
+                } else {
+                    LiquidTabBar(items: tabs, selection: $tab)
+                }
+            }
+
+            // 按住说话的玻璃遮罩：挂在根视图这一层（不是首页那个被 padding 顶起的按钮内部），
+            // 四边 ignoresSafeArea，底部不会再露出首页内容
+            if store.voiceHolding || store.voiceProcessing {
+                VoiceHoldOverlay(processing: store.voiceProcessing, said: store.voiceLiveText) {
+                    // 逃生口：万一卡在录音态，点一下遮罩等同松手
+                    store.voiceStopTick += 1
+                }
+                .transition(.opacity)
+                .zIndex(10)
             }
         }
+        .animation(Anim.pop, value: store.voiceHolding)
+        .animation(Anim.pop, value: store.voiceProcessing)
     }
 
     /// 单页容器：非当前页淡出并轻微缩小，切页时带阻尼弹簧
