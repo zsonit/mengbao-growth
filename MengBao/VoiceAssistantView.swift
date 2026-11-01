@@ -112,7 +112,11 @@ struct VoiceAssistantView: View {
             }
             .onChange(of: turns.count) { _ in
                 withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo(busy ? "busy" : turns.last?.id, anchor: .bottom)
+                    if busy {
+                        proxy.scrollTo("busy", anchor: .bottom)
+                    } else if let last = turns.last {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
                 }
             }
         }
