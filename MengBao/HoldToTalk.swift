@@ -27,10 +27,13 @@ struct HoldToTalkButton: View {
             }
 
             // 悬浮麦克风按钮
+            // 按住录音时只把它变透明（不移除视图，否则手势会被打断、录音停不掉），
+            // 避免它和遮罩里的大圆钮叠成两个图案
             Button {} label: { fabLabel }
                 .buttonStyle(.plain)
                 .simultaneousGesture(holdGesture)
                 .disabled(processing)
+                .opacity(holding || processing ? 0 : 1)
         }
         .sheet(item: $plan) { p in
             HoldResultSheet(plan: p, onOpenPage: onOpenPage)
