@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    paths:
+      - "MengBao/**"
+      - "Support/**"
+      - "Podfile"
+      - "project.yml"
+      - ".github/workflows/build-ipa.yml"
   workflow_dispatch:
 
 jobs:
@@ -33,11 +39,6 @@ jobs:
         run: |
           pod install --repo-update 2>&1 | tail -40
           ls -la
-
-      - name: Inspect AMap API (debug)
-        continue-on-error: true
-        run: |
-          find Pods -name "AMapServices.h" -print -exec cat {} \;
 
       - name: Build (unsigned, iphoneos)
         run: |

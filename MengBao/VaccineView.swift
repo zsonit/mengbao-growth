@@ -10,7 +10,10 @@ struct VaccineView: View {
         ("3 岁", 36...47), ("4 岁", 48...71), ("6 岁", 72...400)
     ]
 
+    @State private var ageFilter = "全部"
     @State private var filter = "全部"
+
+    private let statusFilters = ["全部", "待接种", "已完成"]
 
     var body: some View {
         ScrollView {
@@ -32,35 +35,46 @@ struct VaccineView: View {
         let total = GrowthMath.totalDoses
         let percent = Int(Double(done) / Double(max(total, 1)) * 100)
         let next = schedule.first { $0.status == .soon }
-        let range = ageFilters.first { $0.0 == filter }?.1
-        let visible = range == nil ? schedule : schedule.filter { range!.contains($0.months) }
+        let range = ageFilters.first { $0.0 == ageFilter }?.1
+        var visible = range == nil ? schedule : schedule.filter { range!.contains($0.months) }
+        if filter == "待接种" {
+            visible = visible.filter { $0.status != .done }
+        } else if filter == "已完成" {
+            visible = visible.filter { $0.status == .done }
+        }
 
         return VStack(spacing: 0) {
-            // Hero
+            // 顶部日程卡
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
-                    Text(child.displayAvatar).font(.system(size: 24))
-                        .frame(width: 50, height: 50)
-                        .background(Circle().fill(Color.white.opacity(0.24)))
+                    AvatarView(child: child, size: 50, fontSize: 24, bg: Color.white.opacity(0.24))
                         .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 2))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(child.name).font(.system(size: 19, weight: .bold))
-                        Text("\(GrowthMath.ageText(from: child.birthDate)) · 广东执行国家免疫规划")
-                            .font(.system(size: 12)).opacity(0.95)
+                        Text("\(child.name) 的接种日程").font(.system(size: 19, weight: .bold))
+                        Text("已接种 \(done)/\(total) 剂 · 完成 \(percent)%")
+                            .font(.system(size: 12.5)).opacity(0.95)
                     }
                     Spacer(minLength: 0)
                 }
-                HStack {
-                    Text("📍 接种进度").font(.system(size: 12.5))
-                    Spacer()
-                    Text("\(percent)% 完成").font(.system(size: 12.5, weight: .semibold))
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.28))
+                        Capsule()
+                            .fill(Color.white)
+                            .frame(width: geo.size.width * CGFloat(min(1.0, Double(done) / Double(max(total, 1)))))
+                    }
                 }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.18)))
+                .frame(height: 8)
                 .padding(.top, 14)
 
-                NavigationLink { ClinicListView() } label: {
-                    Text("🗺 查看附近接种门诊 →")
+                Text("依据国家免疫规划疫苗儿童免疫程序表（2026 年版）")
+                    .font(.system(size: 11))
+                    .opacity(0.92)
+                    .padding(.top, 8)
+
+                NavigationLink { YamiaoView() } label: {
+                    Text("📍 粤苗官方 · 定位查接种门诊 →")
                         .font(.system(size: 13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -88,7 +102,7 @@ struct VaccineView: View {
                 Divider().background(Palette.hairlineSoft)
                 KVRow(key: "下一针", value: next.map { "\($0.ageLabel) · \($0.vaccine.name)" } ?? "全部按计划完成")
                 Divider().background(Palette.hairlineSoft)
-                KVRow(key: "适用标准", value: "国家免疫规划 2025 版")
+                KVRow(key: "适用标准", value: "国家免疫规划 2026 版")
             }
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)
@@ -96,9 +110,16 @@ struct VaccineView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
+                    ForEach(statusFilters, id: \.self) { item in
+                        Button { filter = item } label: {
+                            ChipLabel(text: item, selected: filter == item)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Divider().frame(height: 18).padding(.horizontal, 2)
                     ForEach(ageFilters, id: \.0) { item in
-                        Button { filter = item.0 } label: {
-                            ChipLabel(text: item.0, selected: filter == item.0)
+                        Button { ageFilter = item.0 } label: {
+                            ChipLabel(text: item.0, selected: ageFilter == item.0)
                         }
                         .buttonStyle(.plain)
                     }
@@ -135,6 +156,32 @@ struct VaccineView: View {
             }
             .cardStyle()
             .padding(.horizontal, 16)
+
+            NavigationLink { ClinicListView() } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "list.bullet.rectangle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Palette.purple)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("常见接种门诊速查")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Palette.ink)
+                        Text("离线名录，没网或想先看地址电话时用")
+                            .font(.system(size: 11))
+                            .foregroundColor(Palette.subtle)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Palette.subtle)
+                }
+                .padding(12)
+                .background(Palette.card)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
 
             HintBlock(text: "预约用「粤苗」App / 微信小程序，可查门诊号源、入学查验、电子接种证。本页仅作家庭记录，实际程序以接种门诊安排为准。")
                 .padding(.horizontal, 16)
@@ -212,25 +259,34 @@ struct DoseCard: View {
 // MARK: - 门诊列表
 
 struct ClinicListView: View {
+    @ObservedObject private var library = ClinicLibrary.shared
     @State private var query = ""
     @State private var city = "全部城市"
     @State private var starOnly = false
 
-    private let cities = ["全部城市", "广州", "深圳", "佛山", "东莞", "珠海", "中山", "惠州", "汕头", "湛江"]
+    private var cityOptions: [String] {
+        ["全部城市"] + library.cities()
+    }
 
     private var filtered: [Clinic] {
-        Standards.clinics.filter { c in
+        library.all.filter { c in
             (city == "全部城市" || c.city == city)
                 && (!starOnly || c.star)
                 && (query.isEmpty || (c.name + c.address + c.district + c.vaccines).localizedCaseInsensitiveContains(query))
         }
     }
 
+    /// 全量数据时限制一次渲染的条数，保证滚动流畅
+    private var visible: [Clinic] {
+        let limit = (city == "全部城市" && query.isEmpty) ? 80 : 500
+        return Array(filtered.prefix(limit))
+    }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 VStack(spacing: 10) {
-                    NavigationLink { NearbyClinicsView() } label: {
+                    NavigationLink { YamiaoView() } label: {
                         HStack(spacing: 11) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -241,10 +297,10 @@ struct ClinicListView: View {
                                     .foregroundColor(.white)
                             }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("附近接种门诊 · 地图定位")
+                                Text("粤苗官方 · 定位查附近接种门诊")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(Palette.ink)
-                                Text("按当前位置搜最近的接种点，可一键导航")
+                                Text("省疾控官方名单，定位附近门诊、地图查看，权威实时")
                                     .font(.system(size: 11.5))
                                     .foregroundColor(Palette.subtle)
                             }
@@ -270,7 +326,7 @@ struct ClinicListView: View {
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(cities, id: \.self) { c in
+                            ForEach(cityOptions, id: \.self) { c in
                                 Button { city = c } label: { ChipLabel(text: c, selected: city == c) }
                                     .buttonStyle(.plain)
                             }
@@ -280,7 +336,7 @@ struct ClinicListView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    Text("共 \(filtered.count) 家 · 数据为离线示例，出发前请电话确认")
+                    Text("共 \(filtered.count) 家" + (visible.count < filtered.count ? " · 当前显示前 \(visible.count) 家，可搜索或选城市" : " · 出发前请电话确认"))
                         .font(.system(size: 12)).foregroundColor(Palette.subtle)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -288,7 +344,7 @@ struct ClinicListView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
 
-                ForEach(filtered) { clinic in
+                ForEach(visible) { clinic in
                     NavigationLink { ClinicDetailView(clinic: clinic) } label: {
                         ClinicRow(clinic: clinic)
                     }
@@ -297,14 +353,14 @@ struct ClinicListView: View {
                     .padding(.top, 10)
                 }
 
-                HintBlock(text: "门诊地址、开诊时间与号源实时变动，出发前请电话确认。离线数据来自广东省疾控与各市卫健委公开信息，仅供出行参考。")
+                HintBlock(text: "本页是离线速查名录（常见门诊地址与电话）。想看周边全部可接种单位，用上面的「粤苗官方 · 定位查附近接种门诊」，官方名单实时定位查询。门诊地址与开诊时间会变动，出发前请电话确认，预约以「粤苗」为准。")
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
                     .padding(.bottom, 28)
             }
         }
         .background(Palette.background.ignoresSafeArea())
-        .navigationTitle("接种门诊")
+        .navigationTitle("接种门诊速查")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

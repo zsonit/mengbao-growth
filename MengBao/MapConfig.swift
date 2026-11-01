@@ -27,9 +27,9 @@ enum MapConfig {
 
         AMapServices.shared()?.apiKey = iosKey
         AMapServices.shared()?.enableHTTPS = true
-        // 高德 8.1.0+ 隐私合规接口（类方法），缺失会导致 SDK 初始化异常、地图不出图
-        AMapServices.updatePrivacyShow(.didShow, privacyInfo: .didContain)
-        AMapServices.updatePrivacyAgree(.didAgree)
+        // 高德 8.1.0+ 隐私合规接口（在 MAMapView 类上），缺失会导致 SDK 初始化异常、地图不出图
+        MAMapView.updatePrivacyShow(.didShow, privacyInfo: .didContain)
+        MAMapView.updatePrivacyAgree(.didAgree)
     }
 
     // MARK: - 导航

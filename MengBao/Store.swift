@@ -18,9 +18,13 @@ final class Store: ObservableObject {
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("state.json")
 
-        if let data = try? Data(contentsOf: fileURL),
-           let decoded = try? JSONDecoder().decode(AppState.self, from: data) {
-            state = decoded
+        if let data = try? Data(contentsOf: fileURL) {
+            do {
+                state = try JSONDecoder().decode(AppState.self, from: data)
+            } catch {
+                AppLog.e("Store", "读取本机数据失败（可能数据文件损坏）：\(error)")
+                state = AppState()
+            }
         } else {
             state = AppState()
         }
@@ -40,11 +44,13 @@ final class Store: ObservableObject {
 
     // MARK: 写
 
-    func update(_ block: (inout AppState) -> Void) {
+    /// silent=true 由同步引擎回写数据用，不再触发新一轮同步，避免乒乓
+    func update(_ block: (inout AppState) -> Void, silent: Bool = false) {
         var copy = state
         block(&copy)
         state = copy
         persist()
+        if !silent { SyncManager.shared.onDataChanged() }
     }
 
     func updateCurrent(_ block: (inout Child) -> Void) {
@@ -52,8 +58,10 @@ final class Store: ObservableObject {
         var copy = state
         guard let idx = copy.children.firstIndex(where: { $0.id == id }) else { return }
         block(&copy.children[idx])
+        copy.children[idx].updatedAt = Date()
         state = copy
         persist()
+        SyncManager.shared.onDataChanged()
     }
 
     private func persist() {
@@ -61,7 +69,7 @@ final class Store: ObservableObject {
             let data = try JSONEncoder().encode(state)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            print("保存失败：\(error)")
+            AppLog.e("Store", "保存数据失败：\(error)")
         }
     }
 
@@ -69,7 +77,8 @@ final class Store: ObservableObject {
 
     @discardableResult
     func addChild(name: String, sex: Sex, birthDate: Date, avatar: String) -> UUID {
-        let child = Child(name: name, sex: sex, birthDate: birthDate, avatar: avatar)
+        var child = Child(name: name, sex: sex, birthDate: birthDate, avatar: avatar)
+        child.updatedAt = Date()
         update { s in
             s.children.append(child)
             s.currentID = child.id
@@ -84,7 +93,9 @@ final class Store: ObservableObject {
     func updateChild(_ child: Child) {
         update { s in
             if let idx = s.children.firstIndex(where: { $0.id == child.id }) {
-                s.children[idx] = child
+                var c = child
+                c.updatedAt = Date()
+                s.children[idx] = c
             }
         }
     }
@@ -129,8 +140,18 @@ final class Store: ObservableObject {
 
     // MARK: 尺码
 
+    /// 保存尺码：同一天已有记录时「更新那一条」而不是再追加一条
     func addSize(_ record: SizeRecord) {
-        updateCurrent { $0.sizes.append(record) }
+        updateCurrent { child in
+            if let same = child.sizes.filter({ $0.date == record.date }).max(by: { $0.filledCount < $1.filledCount }) {
+                var merged = record.fillMissingFrom(same)
+                merged.id = same.id            // 必须沿用原 id，否则对端会当成新记录，又变回两条
+                child.sizes = child.sizes.map { $0.id == same.id ? merged : $0 }
+            } else {
+                child.sizes.append(record)
+            }
+            child.sizes.sort { $0.date < $1.date }
+        }
     }
 
     func deleteSize(_ id: UUID) {
@@ -155,6 +176,12 @@ final class Store: ObservableObject {
         updateCurrent { $0.todos.append(todo) }
     }
 
+    /// 语音一次说好几条时批量加入：只触发一次保存 / 一次同步
+    func addTodos(_ items: [TodoItem]) {
+        guard !items.isEmpty else { return }
+        updateCurrent { $0.todos.append(contentsOf: items) }
+    }
+
     func toggleTodo(_ id: UUID) {
         updateCurrent { child in
             if let idx = child.todos.firstIndex(where: { $0.id == id }) {
@@ -171,10 +198,54 @@ final class Store: ObservableObject {
 
     func setWeightUnit(_ unit: String) { update { $0.settings.weightUnit = unit } }
     func setShowFeed(_ on: Bool) { update { $0.settings.showFeed = on } }
+    func setShowSize(_ on: Bool) { update { $0.settings.showSize = on } }
+    func setShowLog(_ on: Bool) { update { $0.settings.showLog = on } }
     func setShowShot(_ on: Bool) { update { $0.settings.showShot = on } }
     func setDarkMode(_ value: Bool?) { update { $0.settings.darkMode = value } }
     func setParents(father: Double?, mother: Double?) {
         update { $0.settings.fatherHeight = father; $0.settings.motherHeight = mother }
+    }
+
+    // MARK: 快捷入口
+
+    var quickEntries: [QuickEntry] { state.settings.resolvedQuickEntries }
+
+    /// 首页要展示的入口（过滤掉喂养类，若喂养模块关闭）
+    var homeQuickEntries: [QuickEntry] {
+        let feedKinds: Set<String> = ["bottle", "breast", "pumping", "solid", "supplement"]
+        return quickEntries.filter { $0.visible && (settings.showFeed || !feedKinds.contains($0.kind)) }
+    }
+
+    func setQuickEntries(_ entries: [QuickEntry]) {
+        update { $0.settings.quickEntries = entries }
+    }
+
+    func moveQuickEntry(from source: IndexSet, to destination: Int) {
+        var list = quickEntries
+        list.move(fromOffsets: source, toOffset: destination)
+        setQuickEntries(list)
+    }
+
+    func toggleQuickEntry(_ id: String) {
+        var list = quickEntries
+        guard let idx = list.firstIndex(where: { $0.id == id }) else { return }
+        list[idx].visible.toggle()
+        setQuickEntries(list)
+    }
+
+    func addCustomQuickEntry(title: String, icon: String) {
+        var list = quickEntries
+        let id = "custom-\(UUID().uuidString)"
+        list.append(QuickEntry(id: id, kind: "custom", title: title, icon: icon, visible: true))
+        setQuickEntries(list)
+    }
+
+    func deleteQuickEntry(_ id: String) {
+        setQuickEntries(quickEntries.filter { $0.id != id })
+    }
+
+    func resetQuickEntries() {
+        update { $0.settings.quickEntries = [] }
     }
 
     // MARK: 导入导出

@@ -53,7 +53,7 @@ struct HistoryView: View {
         var items: [Item] = []
         items.append(contentsOf: child.records.map { Item.record($0) })
         items.append(contentsOf: child.feeds.map { Item.feed($0) })
-        items.append(contentsOf: child.sizes.map { Item.size($0) })
+        if store.settings.showSize { items.append(contentsOf: child.sizes.filter { $0.hasContent }.map { Item.size($0) }) }
         items.sort { $0.date > $1.date }
 
         let visible = filter == "全部" ? items : items.filter { $0.kind == filter }
@@ -145,6 +145,30 @@ struct HistoryView: View {
                 }
                 if let top = s.top, let pant = s.pant {
                     Text("上衣 \(top) · 裤子 \(pant)").font(.system(size: 13.5)).foregroundColor(Palette.ink)
+                }
+                // 手填的身体/衣物尺寸
+                let manual: [String] = {
+                    var parts: [String] = []
+                    func add(_ label: String, _ v: Double?, unit: String = "cm") {
+                        guard let v else { return }
+                        parts.append("\(label) \(String(format: "%.1f", v))\(unit)")
+                    }
+                    add("肩宽", size.shoulder)
+                    add("腰围", size.waist)
+                    add("臀围", size.hip)
+                    add("大腿围", size.thigh)
+                    add("小腿围", size.calf)
+                    add("衣长", size.topLength)
+                    add("袖长", size.sleeve)
+                    add("裤长", size.pantsLength)
+                    if let v = size.shoeSize { parts.append("穿鞋 \(v) 码") }
+                    add("鞋内长", size.shoeInner)
+                    return parts
+                }()
+                if !manual.isEmpty {
+                    Text(manual.joined(separator: " · "))
+                        .font(.system(size: 12.5)).foregroundColor(Palette.ink2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if !size.note.isEmpty {
                     Text(size.note).font(.system(size: 12)).foregroundColor(Palette.subtle)

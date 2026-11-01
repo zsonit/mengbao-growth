@@ -25,6 +25,9 @@ struct ProfileView: View {
     @State private var showParents = false
     @State private var showImport = false
     @State private var showReset = false
+    @State private var showLogSheet = false
+    @State private var showSync = false
+    @State private var logText = ""
     @State private var shareItem: ShareItem?
     @State private var importMessage: String?
 
@@ -36,6 +39,7 @@ struct ProfileView: View {
                 settingsSection
                 childrenSection
                 dataSection
+                logSection
                 aboutSection
                 Spacer(minLength: 28)
             }
@@ -47,6 +51,26 @@ struct ProfileView: View {
         .sheet(isPresented: $showParents) { ParentsHeightView() }
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.url])
+        }
+        .sheet(isPresented: $showSync) {
+            SyncView()
+        }
+        .sheet(isPresented: $showLogSheet) {
+            NavigationStack {
+                ScrollView {
+                    Text(logText)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundColor(Palette.ink2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                }
+                .background(Palette.background.ignoresSafeArea())
+                .navigationTitle("运行日志")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("关闭") { showLogSheet = false } }
+                }
+            }
         }
         .fileImporter(isPresented: $showImport, allowedContentTypes: [.json]) { result in
             handleImport(result)
@@ -70,10 +94,7 @@ struct ProfileView: View {
         Group {
             if let child = store.current {
                 HStack(spacing: 13) {
-                    Text(child.displayAvatar).font(.system(size: 26))
-                        .frame(width: 54, height: 54)
-                        .background(Palette.purpleSoft)
-                        .clipShape(Circle())
+                    AvatarView(child: child, size: 54, fontSize: 26, bg: Palette.purpleSoft)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(child.name).font(.system(size: 16, weight: .bold)).foregroundColor(Palette.ink)
                         Text("\(child.sex.label) · \(GrowthMath.ageText(from: child.birthDate)) · \(GrowthMath.dateString(child.birthDate))")
@@ -162,7 +183,10 @@ struct ProfileView: View {
                     set: { store.setShowFeed($0) })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("喂养模块").font(.system(size: 14)).foregroundColor(Palette.ink)
-                        Text("0–3 岁更常用，可随时隐藏").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                        Text("关闭后隐藏「喂养」Tab、首页今日记录统计与喂养类快捷入口")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .tint(Palette.purple)
@@ -175,6 +199,36 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("接种模块").font(.system(size: 14)).foregroundColor(Palette.ink)
                         Text("广东免疫规划 \(GrowthMath.totalDoses) 剂").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                    }
+                }
+                .tint(Palette.purple)
+                .padding(.vertical, 6)
+                Divider().background(Palette.hairlineSoft)
+
+                Toggle(isOn: Binding(
+                    get: { store.settings.showSize },
+                    set: { store.setShowSize($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("鞋服尺码模块").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text("关闭后隐藏首页「鞋服尺码」入口与尺码记录（记录不会被删除）")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(Palette.purple)
+                .padding(.vertical, 6)
+                Divider().background(Palette.hairlineSoft)
+
+                Toggle(isOn: Binding(
+                    get: { store.settings.showLog == true },
+                    set: { store.setShowLog($0); AppLog.isEnabled = $0 })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("运行日志").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text("独立开关，默认关。开启后记录页面加载等过程；崩溃无论开关都会记录")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .tint(Palette.purple)
@@ -208,7 +262,7 @@ struct ProfileView: View {
                 ForEach(store.state.children) { kid in
                     Button { store.selectChild(kid.id) } label: {
                         HStack(spacing: 10) {
-                            Text(kid.displayAvatar).font(.system(size: 19))
+                            AvatarView(child: kid, size: 28, fontSize: 19)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(kid.name).font(.system(size: 14)).foregroundColor(Palette.ink)
                                 Text(GrowthMath.ageText(from: kid.birthDate)).font(.system(size: 11.5)).foregroundColor(Palette.subtle)
@@ -243,6 +297,10 @@ struct ProfileView: View {
         VStack(spacing: 0) {
             SectionHeader(title: "数据管理")
             VStack(spacing: 0) {
+                row(title: "☁️ 配对同步", subtitle: "两台手机自动同步全部资料") {
+                    showSync = true
+                }
+                Divider().background(Palette.hairlineSoft)
                 row(title: "导出备份", subtitle: "JSON，可换手机恢复") {
                     exportJSON()
                 }
@@ -264,6 +322,42 @@ struct ProfileView: View {
                     .padding(.vertical, 11)
                 }
                 .buttonStyle(.plain)
+                Text("升级 App 直接覆盖安装即可，数据不会丢（不要先删除 App）。换手机前先「导出备份」。")
+                    .font(.system(size: 11))
+                    .foregroundColor(Palette.subtle)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+            }
+            .cardStyle(padding: 14)
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var logSection: some View {
+        VStack(spacing: 0) {
+            SectionHeader(title: "运行日志（排查问题）")
+            VStack(spacing: 0) {
+                row(title: "查看日志", subtitle: "崩溃、异常与过程记录") {
+                    logText = AppLog.readAll()
+                    showLogSheet = true
+                }
+                Divider().background(Palette.hairlineSoft)
+                row(title: "导出日志", subtitle: "用分享面板发给开发者") {
+                    logText = AppLog.readAll()
+                    let url = AppLog.fileURL
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        shareItem = ShareItem(url: url)
+                    } else {
+                        shareItem = nil
+                        importMessage = "暂无日志文件，先开关一次运行日志再试"
+                    }
+                }
+                Divider().background(Palette.hairlineSoft)
+                row(title: "清空日志", subtitle: "删除本机全部日志") {
+                    AppLog.clear()
+                    importMessage = "日志已清空"
+                }
             }
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)
@@ -274,13 +368,13 @@ struct ProfileView: View {
         VStack(spacing: 0) {
             SectionHeader(title: "关于")
             VStack(spacing: 0) {
-                KVRow(key: "版本", value: "1.0.0")
+                KVRow(key: "版本", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "-")
                 Divider().background(Palette.hairlineSoft)
                 KVRow(key: "数据存储", value: "本机，不上传云端")
                 Divider().background(Palette.hairlineSoft)
                 KVRow(key: "生长标准", value: "WHO / 中国 7 岁以下 / WS·T 423")
                 Divider().background(Palette.hairlineSoft)
-                KVRow(key: "接种程序", value: "广东省 · 2025 版")
+                KVRow(key: "接种程序", value: "广东省 · 2026 版")
                 Text(Standards.disclaimer)
                     .font(.system(size: 12)).foregroundColor(Palette.subtle).lineSpacing(3).padding(.top, 10)
             }

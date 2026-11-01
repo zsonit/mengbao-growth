@@ -1,0 +1,13 @@
+# 统一换行符，避免 CI 上脚本带 CRLF 无法执行
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+*.kt text eol=lf
+*.kts text eol=lf
+*.swift text eol=lf
+*.yml text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.ipa binary
+*.apk binary

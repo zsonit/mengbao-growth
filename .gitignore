@@ -12,3 +12,17 @@ Payload/
 # CocoaPods
 Pods/
 MengBao.xcworkspace/
+
+# scratch
+_scratch/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/.kotlin/
+*.apk
+ci-signing/

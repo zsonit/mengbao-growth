@@ -6,6 +6,7 @@ struct FeedView: View {
     @EnvironmentObject private var store: Store
     @State private var showAdd = false
     @State private var addKind: FeedLog.Kind = .sleep
+    @State private var showTrends = false
 
     private var today: [FeedLog] {
         guard let child = store.current else { return [] }
@@ -38,6 +39,9 @@ struct FeedView: View {
                 FeedEditorView(child: child, kind: addKind)
             }
         }
+        .navigationDestination(isPresented: $showTrends) {
+            TrendsView()
+        }
     }
 
     private func content(_ child: Child) -> some View {
@@ -57,6 +61,8 @@ struct FeedView: View {
                 feedCard(.diaper, value: "\(diaperCount)", unit: "次", hint: diaperCount > 0 ? "今日总计" : "点右上角 ＋ 记录")
             }
             .padding(.horizontal, 16)
+
+            SectionHeader(title: "成长趋势", trailing: "查看曲线 ›", action: { showTrends = true })
 
             SectionHeader(title: "最近 7 天")
             VStack(alignment: .leading, spacing: 6) {
@@ -218,24 +224,25 @@ struct FeedEditorView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        ForEach(FeedLog.Kind.allCases) { k in
-                            Button {
-                                kind = k
-                            } label: {
-                                ChipLabel(text: k.title, selected: kind == k, icon: k.icon)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(FeedLog.Kind.allCases) { k in
+                                Button {
+                                    kind = k
+                                } label: {
+                                    ChipLabel(text: k.title, selected: kind == k, icon: k.icon)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(spacing: 10) {
                         if kind == .sleep || kind == .breast {
                             field(title: "时长", text: $minutes, unit: "分钟")
                         }
-                        if kind == .bottle {
-                            field(title: "奶量", text: $ml, unit: "ml")
+                        if kind == .bottle || kind == .pumping {
+                            field(title: kind == .pumping ? "吸出奶量" : "奶量", text: $ml, unit: "ml")
                         }
                         if kind == .breast {
                             HStack(spacing: 8) {
@@ -303,11 +310,14 @@ struct FeedEditorView: View {
         case .breast:
             log.side = side
             log.minutes = Int(minutes)
-        case .bottle:
+        case .bottle, .pumping:
             guard let value = Double(ml), value > 0 else { return }
             log.ml = value
         case .diaper:
             log.diaperKind = diaperKind
+        case .solid, .supplement, .temp, .custom:
+            // 这几类主要靠备注记录，完整体验走首页的快捷入口弹层
+            break
         }
         log.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
         store.addFeed(log)

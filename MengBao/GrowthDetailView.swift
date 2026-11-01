@@ -303,27 +303,76 @@ struct SizeEditorView: View {
     @State private var date = Date()
     @State private var foot: String = ""
     @State private var height: String = ""
+    @State private var shoulder: String = ""
+    @State private var waist: String = ""
+    @State private var hip: String = ""
+    @State private var thigh: String = ""
+    @State private var calf: String = ""
+    @State private var topLength: String = ""
+    @State private var sleeve: String = ""
+    @State private var pantsLength: String = ""
+    @State private var shoeSize: String = ""
+    @State private var shoeInner: String = ""
     @State private var note: String = ""
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    VStack(spacing: 10) {
-                        DatePicker("记录日期", selection: $date, displayedComponents: .date)
-                            .font(.system(size: 14))
-                            .padding(.horizontal, 13).padding(.vertical, 8)
-                            .background(Palette.purpleTint)
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    DatePicker("记录日期", selection: $date, displayedComponents: .date)
+                        .font(.system(size: 14))
+                        .padding(.horizontal, 13).padding(.vertical, 8)
+                        .background(Palette.purpleTint)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                    // 身体尺寸
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("身体尺寸").font(.system(size: 12, weight: .semibold)).foregroundColor(Palette.subtle)
+                        HStack(spacing: 10) {
+                            inputField(title: "身高", text: $height, unit: "cm")
+                            inputField(title: "肩宽", text: $shoulder, unit: "cm")
+                        }
+                        HStack(spacing: 10) {
+                            inputField(title: "腰围", text: $waist, unit: "cm")
+                            inputField(title: "臀围", text: $hip, unit: "cm")
+                        }
+                        HStack(spacing: 10) {
+                            inputField(title: "大腿围", text: $thigh, unit: "cm")
+                            inputField(title: "小腿围", text: $calf, unit: "cm")
+                        }
+                    }
+                    .cardStyle()
+
+                    // 脚与鞋
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("脚与鞋").font(.system(size: 12, weight: .semibold)).foregroundColor(Palette.subtle)
                         HStack(spacing: 10) {
                             inputField(title: "脚长", text: $foot, unit: "cm")
-                            inputField(title: "身高", text: $height, unit: "cm")
+                            inputField(title: "穿鞋码数", text: $shoeSize, unit: "码")
                         }
+                        inputField(title: "鞋内长", text: $shoeInner, unit: "cm")
+                    }
+                    .cardStyle()
+
+                    // 衣物尺寸
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("衣物尺寸").font(.system(size: 12, weight: .semibold)).foregroundColor(Palette.subtle)
+                        HStack(spacing: 10) {
+                            inputField(title: "衣长", text: $topLength, unit: "cm")
+                            inputField(title: "袖长", text: $sleeve, unit: "cm")
+                        }
+                        inputField(title: "裤长", text: $pantsLength, unit: "cm")
                     }
                     .cardStyle()
 
                     let size = GrowthMath.shoeSize(foot: Double(foot), height: Double(height))
                     VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("自动换算").font(.system(size: 12, weight: .semibold)).foregroundColor(Palette.subtle)
+                            Spacer()
+                            Text("填脚长/身高即时更新").font(.system(size: 11)).foregroundColor(Palette.subtle)
+                        }
+                        .padding(.bottom, 6)
                         if size.cn == nil && size.top == nil {
                             Text("填写脚长或身高后自动换算").font(.system(size: 13)).foregroundColor(Palette.subtle)
                         } else {
@@ -353,15 +402,28 @@ struct SizeEditorView: View {
                     .background(Palette.purpleTint)
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-                    Text("鞋码为换算建议：中国码 ≈ 脚长×2−10，欧码 ≈ 脚长×1.5+2。不同品牌版型差异大，买鞋建议预留 0.5–1cm 活动空间。")
+                    Text("鞋码为换算建议：中国码 ≈ 脚长×2−10，欧码 ≈ 脚长×1.5+2。不同品牌版型差异大，买鞋建议预留 0.5–1cm 活动空间。所有项都可留空，只填需要的。")
                         .font(.system(size: 12)).foregroundColor(Palette.subtle).lineSpacing(3)
 
                     Button("保存尺码记录") {
-                        let f = Double(foot)
-                        let h = Double(height)
-                        guard f != nil || h != nil else { return }
-                        store.addSize(SizeRecord(date: date, footLength: f, height: h,
-                                                 note: note.trimmingCharacters(in: .whitespacesAndNewlines)))
+                        let values = [foot, height, shoulder, waist, hip, thigh, calf,
+                                      topLength, sleeve, pantsLength, shoeInner]
+                        guard values.contains(where: { Double($0) != nil }) || Int(shoeSize) != nil else { return }
+                        store.addSize(SizeRecord(
+                            date: date,
+                            footLength: Double(foot),
+                            height: Double(height),
+                            shoulder: Double(shoulder),
+                            waist: Double(waist),
+                            hip: Double(hip),
+                            thigh: Double(thigh),
+                            calf: Double(calf),
+                            topLength: Double(topLength),
+                            sleeve: Double(sleeve),
+                            pantsLength: Double(pantsLength),
+                            shoeSize: Int(shoeSize),
+                            shoeInner: Double(shoeInner),
+                            note: note.trimmingCharacters(in: .whitespacesAndNewlines)))
                         dismiss()
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -375,8 +437,31 @@ struct SizeEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }
             .onAppear {
-                if foot.isEmpty, let last = child.latestRecord?.footLength { foot = String(format: "%.1f", last) }
-                if height.isEmpty, let h = child.latestRecord?.height { height = String(format: "%.1f", h) }
+                // 打开尺码页先跟云端对一次：另一端刚改的尺码不用等轮询就能看到
+                SyncManager.shared.requestSync()
+                // 只取「有内容」的最新一条；同一天有多条时取字段最全的那条（和安卓一致）
+                let latest = child.sizes.filter { $0.hasContent }.max { a, b in
+                    if a.date != b.date { return a.date < b.date }
+                    return a.filledCount < b.filledCount
+                }
+                if foot.isEmpty, let last = child.latestRecord?.footLength ?? latest?.footLength {
+                    foot = String(format: "%.1f", last)
+                }
+                if height.isEmpty, let h = child.latestRecord?.height ?? latest?.height {
+                    height = String(format: "%.1f", h)
+                }
+                if let last = latest {
+                    if shoeSize.isEmpty, let v = last.shoeSize { shoeSize = "\(v)" }
+                    if shoeInner.isEmpty, let v = last.shoeInner { shoeInner = String(format: "%.1f", v) }
+                    if shoulder.isEmpty, let v = last.shoulder { shoulder = String(format: "%.1f", v) }
+                    if waist.isEmpty, let v = last.waist { waist = String(format: "%.1f", v) }
+                    if hip.isEmpty, let v = last.hip { hip = String(format: "%.1f", v) }
+                    if thigh.isEmpty, let v = last.thigh { thigh = String(format: "%.1f", v) }
+                    if calf.isEmpty, let v = last.calf { calf = String(format: "%.1f", v) }
+                    if topLength.isEmpty, let v = last.topLength { topLength = String(format: "%.1f", v) }
+                    if sleeve.isEmpty, let v = last.sleeve { sleeve = String(format: "%.1f", v) }
+                    if pantsLength.isEmpty, let v = last.pantsLength { pantsLength = String(format: "%.1f", v) }
+                }
             }
         }
     }
@@ -406,19 +491,60 @@ struct TodoEditorView: View {
     @State private var title = ""
     @State private var hasDue = false
     @State private var due = Date()
+    @State private var showVoice = false
+    @State private var addedHint: String? = nil
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("要做的事").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
-                        TextField("如：预约 18 月龄体检", text: $title).font(.system(size: 15))
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("要做的事").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                            TextField("如：预约 18 月龄体检", text: $title).font(.system(size: 15))
+                        }
+                        .padding(.horizontal, 13).padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Palette.purpleTint)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                        // 语音加待办：可以一次说好几件，日期也能一起认出来
+                        Button { showVoice = true } label: {
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 46, height: 46)
+                                .background(
+                                    LinearGradient(colors: [Color(hex: 0xFF8FB1), Color(hex: 0xA97BFF)],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                                )
+                                .clipShape(Circle())
+                                .shadow(color: Color(hex: 0xFF8FB1).opacity(0.35), radius: 8, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("语音添加待办")
                     }
-                    .padding(.horizontal, 13).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.purpleTint)
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                    Button { showVoice = true } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "sparkles").font(.system(size: 10))
+                            Text("点 🎤 说话添加：一次说几件都行，会自动拆成多条")
+                                .font(.system(size: 11.5))
+                        }
+                        .foregroundColor(Palette.purple)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                    }
+                    .buttonStyle(.plain)
+
+                    if let hint = addedHint {
+                        Text(hint)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(Palette.ok)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                    }
+
 
                     Toggle("设置截止日期", isOn: $hasDue).font(.system(size: 14))
                     if hasDue {
@@ -434,16 +560,21 @@ struct TodoEditorView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
 
-                    if !child.todos.isEmpty {
+                    if !currentTodos.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("已存在的待办").font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.subtle)
-                            ForEach(child.todos) { todo in
+                            ForEach(currentTodos) { todo in
                                 HStack {
                                     Image(systemName: todo.done ? "checkmark.circle.fill" : "circle")
                                         .foregroundColor(todo.done ? Palette.ok : Palette.subtle)
                                     Text(todo.title).font(.system(size: 13.5))
                                         .foregroundColor(todo.done ? Palette.subtle : Palette.ink)
                                     Spacer()
+                                    if let due = todo.due {
+                                        Text(shortDue(due))
+                                            .font(.system(size: 11))
+                                            .foregroundColor(Palette.purple)
+                                    }
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -460,6 +591,28 @@ struct TodoEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }
         }
+        .sheet(isPresented: $showVoice) {
+            TodoVoiceView { count in
+                addedHint = "已加入 \(count) 条待办"
+            }
+        }
+    }
+
+    /// 直接读 store，语音加完列表立刻刷新（外面传进来的 child 是快照）
+    private var currentTodos: [TodoItem] {
+        store.current?.todos ?? []
+    }
+
+    private func shortDue(_ date: Date) -> String {
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: Date()), to: cal.startOfDay(for: date)).day ?? 0
+        if days == 0 { return "今天" }
+        if days == 1 { return "明天" }
+        if days == 2 { return "后天" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日"
+        return f.string(from: date)
     }
 }
 

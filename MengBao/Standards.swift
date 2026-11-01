@@ -18,8 +18,8 @@ struct Vaccine: Hashable {
     let note: String
 }
 
-struct Clinic: Identifiable, Hashable {
-    var id: String { name }
+struct Clinic: Identifiable, Hashable, Codable {
+    var id: String { "\(name)@\(String(format: "%.4f", lat)),\(String(format: "%.4f", lng))" }
     let name: String
     let city: String
     let district: String
@@ -167,7 +167,7 @@ enum Standards {
         [13, 21.4], [14, 22.2], [15, 22.8], [16, 23.3], [17, 23.7], [18, 24.1]
     ]
 
-    // MARK: 广东省免疫规划程序（2025 版）
+    // MARK: 广东省免疫规划程序（2026 版）
 
     static let vaccineAges: [(String, Int)] = [
         ("出生时", 0), ("1 月龄", 1), ("2 月龄", 2), ("3 月龄", 3), ("4 月龄", 4),
@@ -184,7 +184,7 @@ enum Standards {
             Vaccine(code: "IPV", name: "脊灰灭活疫苗", dose: "第 1 剂", route: "肌内注射", site: "大腿前外侧中部",
                     note: "与下一剂间隔 ≥ 28 天。"),
             Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 1 剂", route: "肌内注射", site: "上臂外侧三角肌 / 大腿前外侧",
-                    note: "2025 年 1 月 1 日起调整为 2、4、6、18 月龄及 6 岁共 5 剂。")
+                    note: "2026 年 1 月 1 日起调整为 2、4、6、18 月龄及 6 岁共 5 剂。")
         ],
         3: [Vaccine(code: "IPV", name: "脊灰灭活疫苗", dose: "第 2 剂", route: "肌内注射", site: "大腿前外侧中部",
                    note: "若后续选择五联疫苗，可替代本剂与百白破。")],
@@ -214,7 +214,7 @@ enum Standards {
                    note: "完成 A 群流脑基础免疫。")],
         18: [
             Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 4 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                    note: "基础免疫后加强 1 剂（2025 版由第 5 剂调整为第 4 剂）。"),
+                    note: "基础免疫后加强 1 剂（2026 版由第 5 剂调整为第 4 剂）。"),
             Vaccine(code: "MMR", name: "麻腮风疫苗", dose: "第 2 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                     note: "两剂麻腮风完成。"),
             Vaccine(code: "HepA-L", name: "甲肝减毒活疫苗", dose: "第 1 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
@@ -232,7 +232,7 @@ enum Standards {
                     note: "完成脊灰 4 剂全程。已打满 4 剂含 IPV 成分疫苗（如五联）者 4 岁不需再打。")],
         72: [
             Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 5 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                    note: "2025 年起 6 岁由白破改为百白破。"),
+                    note: "2026 年起 6 岁由白破改为百白破。"),
             Vaccine(code: "MPV-AC", name: "A 群 C 群流脑多糖疫苗", dose: "第 2 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                     note: "完成流脑全程，小学入学前查验。")
         ]

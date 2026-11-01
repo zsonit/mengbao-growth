@@ -11,8 +11,8 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.7.1"
+    CURRENT_PROJECT_VERSION: "24"
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     ENABLE_MODULE_VERIFIER: NO
 
@@ -52,7 +52,11 @@ targets:
           - UIInterfaceOrientationPortrait
         UIApplicationSupportsIndirectInputEvents: true
         ITSAppUsesNonExemptEncryption: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         NSPhotoLibraryAddUsageDescription: 用于把生长曲线图保存到相册，方便发给医生或家人。
+        NSMicrophoneUsageDescription: 用于语音记录喂养、睡眠、体温等信息，你说一句就自动填好表单；录音不保存、不上传。
+        NSSpeechRecognitionUsageDescription: 用于把你说的话在手机本地转成文字，再自动识别成记录；语音内容不上传服务器。
         NSLocationWhenInUseUsageDescription: 用于在地图上显示你身边最近的预防接种门诊并计算距离；位置只在本机使用，不会上传或保存。
         NSLocationAlwaysAndWhenInUseUsageDescription: 用于在地图上显示你身边最近的预防接种门诊并计算距离；位置只在本机使用，不会上传或保存。
         AMapIOSKey: 5894f3adbdce48b2d6f35afcd8564966

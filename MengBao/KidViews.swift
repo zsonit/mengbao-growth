@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 // MARK: - 宝宝档案编辑
 
@@ -12,6 +13,8 @@ struct KidEditorView: View {
     @State private var sex: Sex
     @State private var birthDate: Date
     @State private var avatar: String
+    @State private var avatarPath: String?
+    @State private var photoItem: PhotosPickerItem?
     @State private var showDeleteAlert = false
     @State private var errorMessage: String?
 
@@ -23,6 +26,7 @@ struct KidEditorView: View {
         _sex = State(initialValue: child?.sex ?? .boy)
         _birthDate = State(initialValue: child?.birthDate ?? Date())
         _avatar = State(initialValue: child?.displayAvatar ?? "👦")
+        _avatarPath = State(initialValue: child?.avatarPath)
     }
 
     var body: some View {
@@ -59,18 +63,54 @@ struct KidEditorView: View {
                             Text("头像").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
                                 ForEach(avatars, id: \.self) { a in
-                                    Button { avatar = a } label: {
+                                    Button {
+                                        if avatarPath != nil { child?.removeAvatarPhoto() }
+                                        avatar = a
+                                        avatarPath = nil
+                                    } label: {
                                         Text(a).font(.system(size: 21))
                                             .frame(width: 40, height: 40)
-                                            .background(avatar == a ? Palette.purpleSoft : Palette.purpleTint)
+                                            .background(avatar == a && avatarPath == nil ? Palette.purpleSoft : Palette.purpleTint)
                                             .clipShape(Circle())
-                                            .overlay(Circle().stroke(avatar == a ? Palette.purple : Palette.hairline, lineWidth: 2))
+                                            .overlay(Circle().stroke(avatar == a && avatarPath == nil ? Palette.purple : Palette.hairline, lineWidth: 2))
                                     }
                                     .buttonStyle(.plain)
                                 }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if child != nil {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                                HStack(spacing: 14) {
+                                    AvatarView(child: previewChild, size: 56, fontSize: 26)
+                                    PhotosPicker(selection: $photoItem, matching: .images) {
+                                        Text(avatarPath == nil ? "📷 从相册选一张照片" : "📷 更换照片")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(Palette.purple)
+                                            .padding(.horizontal, 14).padding(.vertical, 9)
+                                            .background(Palette.purpleTint)
+                                            .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                    if avatarPath != nil {
+                                        Button("移除") {
+                                            child?.removeAvatarPhoto()
+                                            avatarPath = nil
+                                        }
+                                        .font(.system(size: 13))
+                                        .foregroundColor(Palette.bad)
+                                        .padding(.horizontal, 12).padding(.vertical, 9)
+                                        .background(Palette.badBg)
+                                        .clipShape(Capsule())
+                                        .buttonStyle(.plain)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                     .cardStyle()
 
@@ -101,6 +141,18 @@ struct KidEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
             }
+            .onChange(of: photoItem) { item in
+                guard let item, var target = child else { return }
+                item.loadTransferable(type: Data.self) { result in
+                    if case .success(let data?) = result, let img = UIImage(data: data) {
+                        DispatchQueue.main.async {
+                            if target.saveAvatarPhoto(img) != nil {
+                                avatarPath = target.avatarPath
+                            }
+                        }
+                    }
+                }
+            }
             .alert("删除这个宝宝？", isPresented: $showDeleteAlert) {
                 Button("取消", role: .cancel) { }
                 Button("删除", role: .destructive) {
@@ -124,6 +176,12 @@ struct KidEditorView: View {
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
+    private var previewChild: Child? {
+        guard var c = child else { return nil }
+        c.avatarPath = avatarPath
+        return c
+    }
+
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -136,6 +194,7 @@ struct KidEditorView: View {
             updated.sex = sex
             updated.birthDate = birthDate
             updated.avatar = avatar
+            updated.avatarPath = avatarPath
             store.updateChild(updated)
         } else {
             store.addChild(name: trimmed, sex: sex, birthDate: birthDate, avatar: avatar)
@@ -157,10 +216,7 @@ struct KidsListView: View {
                 VStack(spacing: 10) {
                     ForEach(store.state.children) { kid in
                         HStack(spacing: 12) {
-                            Text(kid.displayAvatar).font(.system(size: 24))
-                                .frame(width: 44, height: 44)
-                                .background(Palette.purpleSoft)
-                                .clipShape(Circle())
+                            AvatarView(child: kid, size: 44, fontSize: 24, bg: Palette.purpleSoft)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(kid.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Palette.ink)
                                 Text("\(kid.sex.label) · \(GrowthMath.ageText(from: kid.birthDate))")
