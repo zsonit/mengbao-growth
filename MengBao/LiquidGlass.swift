@@ -40,13 +40,14 @@ struct LiquidGlassModifier<S: Shape>: ViewModifier {
                     )
                     .clipShape(shape)
                     // 内描边：上缘亮、下缘暗，玻璃边缘的受光感
-                    shape.strokeBorder(
-                        LinearGradient(
-                            colors: [.white.opacity(edgeTop), .white.opacity(edgeBottom)],
-                            startPoint: .top, endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
+                    shape
+                        .stroke(
+                            LinearGradient(
+                                colors: [.white.opacity(edgeTop), .white.opacity(edgeBottom)],
+                                startPoint: .top, endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
                 }
             )
             .shadow(color: .black.opacity(light ? 0.10 : 0.30), radius: 14, x: 0, y: 5)
