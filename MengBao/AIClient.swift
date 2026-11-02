@@ -62,11 +62,15 @@ final class AIClient {
         ]
     }
 
-    // MARK: 备用免费通道（额度不限）
+    // MARK: 备用免费通道（额度大）
     //
     // 主通道（WorkBuddy 云网关）每天有免费额度，用完会返回 429。
-    // 备用通道是无密钥、无每日额度的开放接口（OpenAI 兼容，流式 SSE），
-    // 额度用完时自动切过去，家长无感、不用配置任何东西。
+    // 备用链：① Kilo 免费网关（免密钥免注册，kilo-auto/free 自动挑最优免费模型，
+    //            约每小时 200 次/IP，模型比主通道还大）；
+    //         ② Pollinations 开放接口（无密钥无额度）。
+    // 都不用家长配置任何东西。
+    private static let kiloChat = "https://api.kilo.ai/api/gateway/chat/completions"
+    private static let kiloModel = "kilo-auto/free"
     private static let fallbackChat = "https://text.pollinations.ai/openai"
     private static let fallbackModel = "openai"
 
@@ -101,7 +105,16 @@ final class AIClient {
             return try await streamOnce(model: model, messages: messages, onDelta: onDelta)
         } catch let e as AIError {
             if case .quota = e {
-                // 免费额度用完 → 备用通道接着说，不弹"额度用完"
+                // 免费额度用完 → 先走 Kilo 免费网关，不行再走 Pollinations，不弹"额度用完"
+                if let r = try? await streamOnce(
+                    url: Self.kiloChat,
+                    model: Self.kiloModel,
+                    messages: messages,
+                    onDelta: onDelta,
+                    authorized: false
+                ), !r.isEmpty {
+                    return r
+                }
                 return try await streamOnce(
                     url: Self.fallbackChat,
                     model: Self.fallbackModel,

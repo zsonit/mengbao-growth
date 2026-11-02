@@ -510,41 +510,6 @@ struct TodoEditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Palette.purpleTint)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-
-                        // 语音加待办：按住说话、松手就地拆条，不跳转页面
-                        Image(systemName: micHolding ? "waveform" : "mic.fill")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 46, height: 46)
-                            .background(
-                                LinearGradient(colors: [Color(hex: 0xFF8FB1), Color(hex: 0xA97BFF)],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                            )
-                            .clipShape(Circle())
-                            .shadow(color: Color(hex: 0xFF8FB1).opacity(micHolding ? 0.6 : 0.35), radius: micHolding ? 12 : 8, y: 3)
-                            .scaleEffect(micHolding ? 1.12 : 1)
-                            .animation(.easeInOut(duration: 0.18), value: micHolding)
-                            .contentShape(Circle())
-                            .simultaneousGesture(holdToTalkGesture)
-                            .accessibilityLabel("按住语音添加待办")
-                    }
-
-                    HStack(spacing: 5) {
-                        Image(systemName: "sparkles").font(.system(size: 10))
-                        Text(micHolding ? "我在听… 说完松手，几件都行" : "按住 🎤 说话添加：一次说几件都行，会自动拆成多条")
-                            .font(.system(size: 11.5))
-                    }
-                    .foregroundColor(micHolding ? Palette.purple : Palette.purple.opacity(0.85))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
-
-                    // 按住时的实时转写
-                    if micHolding, !mic.transcript.isEmpty {
-                        Text(mic.transcript + " …")
-                            .font(.system(size: 12.5))
-                            .foregroundColor(Palette.purple)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 4)
                     }
 
                     if let hint = addedHint {
@@ -595,17 +560,70 @@ struct TodoEditorView: View {
                 .padding(16)
             }
             .background(Palette.background.ignoresSafeArea())
+            // 语音按钮钉在页面底部中间（和主页一致）：按住说话，不跳页
+            .safeAreaInset(edge: .bottom, spacing: 0) { voiceBottomBar }
             .navigationTitle("新增待办")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }
         }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulseTick = true }
+        }
         .onDisappear {
             mic.stop()
             micHolding = false
         }
     }
+
+    // MARK: 底部语音条（按住说话）
+
+    private var voiceBottomBar: some View {
+        VStack(spacing: 10) {
+            // 按住时的实时转写
+            if micHolding, !mic.transcript.isEmpty {
+                Text(mic.transcript + " …")
+                    .font(.system(size: 13))
+                    .foregroundColor(Palette.purple)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+
+            Text(micHolding ? "我在听… 说完松手，几件都行" : "按住麦克风说话，一次几件都行，自动拆成多条")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(micHolding ? Palette.purple : Palette.subtle)
+
+            ZStack {
+                if micHolding {
+                    Circle()
+                        .stroke(Palette.purple.opacity(0.35), lineWidth: 2)
+                        .frame(width: 58, height: 58)
+                        .scaleEffect(pulseTick ? 1.3 : 1.0)
+                        .opacity(pulseTick ? 0.2 : 0.8)
+                }
+                Circle()
+                    .fill(LinearGradient(colors: [Color(hex: 0xFF8FB1), Color(hex: 0xA97BFF)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 56, height: 56)
+                    .shadow(color: Color(hex: 0xA97BFF).opacity(micHolding ? 0.55 : 0.35), radius: micHolding ? 14 : 9, y: 5)
+                Image(systemName: micHolding ? "waveform" : "mic.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .scaleEffect(micHolding ? 1.08 : 1)
+            .animation(.easeInOut(duration: 0.18), value: micHolding)
+            .contentShape(Circle())
+            .simultaneousGesture(holdToTalkGesture)
+            .accessibilityLabel("按住语音添加待办")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .background(Palette.background.ignoresSafeArea())
+    }
+
+    @State private var pulseTick = false
 
     // MARK: 按住说话（就地录音，不跳页）
 
