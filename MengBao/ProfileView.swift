@@ -25,6 +25,7 @@ struct ProfileView: View {
     @State private var showParents = false
     @State private var showImport = false
     @State private var showReset = false
+    @State private var showResetFinal = false
     @State private var showLogSheet = false
     @State private var showSync = false
     @State private var logText = ""
@@ -76,11 +77,18 @@ struct ProfileView: View {
         .fileImporter(isPresented: $showImport, allowedContentTypes: [.json]) { result in
             handleImport(result)
         }
+        // 清空全部数据：必须连续确认两次才会真正清除（第一次询问、最后一次确认，防误触）
         .alert("清空全部数据？", isPresented: $showReset) {
             Button("取消", role: .cancel) { }
-            Button("清空", role: .destructive) { store.reset() }
+            Button("继续", role: .destructive) { showResetFinal = true }
         } message: {
-            Text("所有宝宝与记录都会被删除，建议先导出备份。")
+            Text("第一次确认：所有宝宝与记录都会被删除，建议先导出备份。")
+        }
+        .alert("最后确认：真的要清空？", isPresented: $showResetFinal) {
+            Button("取消", role: .cancel) { }
+            Button("确认清空", role: .destructive) { store.reset() }
+        } message: {
+            Text("第二次确认：此操作不可恢复！所有宝宝、喂养记录、生长记录、待办都会清空（同步的设备也会一起被清空）。确定请点「确认清空」。")
         }
         .alert("导入结果", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
             Button("好") { importMessage = nil }
