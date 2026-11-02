@@ -68,9 +68,10 @@ struct HomeView: View {
                 HoldToTalkButton { page in
                     openAIPage(page)
                 }
-                // TabView + NavigationStack 下玻璃栏的 inset 传不进来，直接用
-                // 固定值把按钮顶到玻璃栏上方（栏 ≈66pt + 底部指示条 34pt + 间隙）
-                .padding(.bottom, 112)
+                // 停在屏幕最底下：正对玻璃栏中央（栏 54+2pt、指示条 34pt，
+                // 栏中心距屏底 ≈63pt，58pt 的按钮居中 → padding 34）。
+                // 按住说话时玻璃栏会自动收起（RootView），不会互相挡。挪这里是为了好按。
+                .padding(.bottom, 34)
             }
         }
     }

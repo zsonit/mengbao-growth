@@ -491,8 +491,11 @@ struct TodoEditorView: View {
     @State private var title = ""
     @State private var hasDue = false
     @State private var due = Date()
-    @State private var showVoice = false
     @State private var addedHint: String? = nil
+    // 按住就地说话：不跳第二个页面，松手直接拆成待办
+    @StateObject private var mic = SpeechRecorder()
+    @State private var micHolding = false
+    @State private var fingerDown = false
 
     var body: some View {
         NavigationStack {
@@ -508,34 +511,41 @@ struct TodoEditorView: View {
                         .background(Palette.purpleTint)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-                        // 语音加待办：可以一次说好几件，日期也能一起认出来
-                        Button { showVoice = true } label: {
-                            Image(systemName: "mic.fill")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 46, height: 46)
-                                .background(
-                                    LinearGradient(colors: [Color(hex: 0xFF8FB1), Color(hex: 0xA97BFF)],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                                )
-                                .clipShape(Circle())
-                                .shadow(color: Color(hex: 0xFF8FB1).opacity(0.35), radius: 8, y: 3)
-                        }
-                        .buttonStyle(SoftPressStyle())
-                        .accessibilityLabel("语音添加待办")
+                        // 语音加待办：按住说话、松手就地拆条，不跳转页面
+                        Image(systemName: micHolding ? "waveform" : "mic.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 46, height: 46)
+                            .background(
+                                LinearGradient(colors: [Color(hex: 0xFF8FB1), Color(hex: 0xA97BFF)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                            )
+                            .clipShape(Circle())
+                            .shadow(color: Color(hex: 0xFF8FB1).opacity(micHolding ? 0.6 : 0.35), radius: micHolding ? 12 : 8, y: 3)
+                            .scaleEffect(micHolding ? 1.12 : 1)
+                            .animation(.easeInOut(duration: 0.18), value: micHolding)
+                            .contentShape(Circle())
+                            .simultaneousGesture(holdToTalkGesture)
+                            .accessibilityLabel("按住语音添加待办")
                     }
 
-                    Button { showVoice = true } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "sparkles").font(.system(size: 10))
-                            Text("点 🎤 说话添加：一次说几件都行，会自动拆成多条")
-                                .font(.system(size: 11.5))
-                        }
-                        .foregroundColor(Palette.purple)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 4)
+                    HStack(spacing: 5) {
+                        Image(systemName: "sparkles").font(.system(size: 10))
+                        Text(micHolding ? "我在听… 说完松手，几件都行" : "按住 🎤 说话添加：一次说几件都行，会自动拆成多条")
+                            .font(.system(size: 11.5))
                     }
-                    .buttonStyle(SoftPressStyle())
+                    .foregroundColor(micHolding ? Palette.purple : Palette.purple.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+
+                    // 按住时的实时转写
+                    if micHolding, !mic.transcript.isEmpty {
+                        Text(mic.transcript + " …")
+                            .font(.system(size: 12.5))
+                            .foregroundColor(Palette.purple)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                    }
 
                     if let hint = addedHint {
                         Text(hint)
@@ -591,10 +601,73 @@ struct TodoEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }
         }
-        .sheet(isPresented: $showVoice) {
-            TodoVoiceView { count in
-                addedHint = "已加入 \(count) 条待办"
+        .onDisappear {
+            mic.stop()
+            micHolding = false
+        }
+    }
+
+    // MARK: 按住说话（就地录音，不跳页）
+
+    private var holdToTalkGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                guard !fingerDown else { return }
+                fingerDown = true
+                beginHold()
             }
+            .onEnded { _ in
+                fingerDown = false
+                endHold()
+            }
+    }
+
+    private func beginHold() {
+        guard !micHolding else { return }
+        addedHint = nil
+        mic.requestPermission { ok in
+            guard ok else {
+                addedHint = "没有麦克风/语音识别权限，去 设置 → 隐私与安全性 里打开"
+                return
+            }
+            // 权限回调是异步的：手指已抬起（只是点了一下）就不启动录音，防止卡在录音态
+            guard fingerDown else { return }
+            mic.start()
+            if let m = mic.message {
+                addedHint = m
+                return
+            }
+            micHolding = true
+        }
+    }
+
+    private func endHold() {
+        guard micHolding else { return }
+        micHolding = false
+        mic.stop()
+        let said = mic.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard said.count >= 2 else {
+            addedHint = "没听清说什么，按住再说一次"
+            return
+        }
+        let parsed = TodoParser.parse(said)
+        if parsed.isEmpty {
+            // 没拆出待办：把原话填进输入框，改一改再点添加
+            title = said
+            addedHint = "这句没拆出待办，原话已填到上面，改一改再点「添加」"
+        } else {
+            let items = parsed
+                .map { TodoItem(title: $0.title.trimmingCharacters(in: .whitespacesAndNewlines), due: $0.due) }
+                .filter { !$0.title.isEmpty }
+            guard !items.isEmpty else {
+                title = said
+                addedHint = "这句没拆出待办，原话已填到上面，改一改再点「添加」"
+                return
+            }
+            store.addTodos(items)
+            let names = items.prefix(3).map { $0.title }.joined(separator: "、")
+            let more = items.count > 3 ? " 等 \(items.count) 条" : ""
+            addedHint = "已加入 \(items.count) 条：\(names)\(more)"
         }
     }
 

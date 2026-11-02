@@ -37,7 +37,7 @@ enum AIError: LocalizedError {
         switch self {
         case .network(let m): return m.isEmpty ? "网络好像断了，检查一下再试" : "网络问题：\(m)"
         case .auth: return "这个版本的免费通道没鉴权通过，先升级 App 再试"
-        case .quota: return "今天的免费额度用完了，明天再试"
+        case .quota: return "免费模型这会儿忙不过来，稍后再试一次"
         case .http(let code): return "模型服务返回 \(code)，稍后再试一次"
         case .empty: return "模型没有返回内容，再说一次试试"
         }
@@ -62,6 +62,14 @@ final class AIClient {
         ]
     }
 
+    // MARK: 备用免费通道（额度不限）
+    //
+    // 主通道（WorkBuddy 云网关）每天有免费额度，用完会返回 429。
+    // 备用通道是无密钥、无每日额度的开放接口（OpenAI 兼容，流式 SSE），
+    // 额度用完时自动切过去，家长无感、不用配置任何东西。
+    private static let fallbackChat = "https://text.pollinations.ai/openai"
+    private static let fallbackModel = "openai"
+
     // MARK: 模型目录
 
     func models() async throws -> [AIModel] {
@@ -81,7 +89,8 @@ final class AIClient {
 
     // MARK: 流式对话
 
-    /// 发一轮对话，边收边回调，返回完整文本；网络抖动／网关 5xx 自动重试一次
+    /// 发一轮对话，边收边回调，返回完整文本；网络抖动／网关 5xx 自动重试一次。
+    /// 主通道免费额度用完（429）时，自动切到无额度限制的备用免费通道。
     @discardableResult
     func stream(
         model: String,
@@ -91,6 +100,16 @@ final class AIClient {
         do {
             return try await streamOnce(model: model, messages: messages, onDelta: onDelta)
         } catch let e as AIError {
+            if case .quota = e {
+                // 免费额度用完 → 备用通道接着说，不弹"额度用完"
+                return try await streamOnce(
+                    url: Self.fallbackChat,
+                    model: Self.fallbackModel,
+                    messages: messages,
+                    onDelta: onDelta,
+                    authorized: false
+                )
+            }
             guard Self.retryable(e) else { throw e }
             try? await Task.sleep(nanoseconds: 500_000_000)
             return try await streamOnce(model: model, messages: messages, onDelta: onDelta)
@@ -106,15 +125,23 @@ final class AIClient {
     }
 
     private func streamOnce(
+        url base: String = CloudCfg.llmChat,
         model: String,
         messages: [[String: String]],
         onDelta: ((String) -> Void)? = nil,
+        authorized: Bool = true
     ) async throws -> String {
-        guard let url = URL(string: CloudCfg.llmChat) else { throw AIError.network("") }
+        guard let url = URL(string: base) else { throw AIError.network("") }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 60
-        for (k, v) in header { req.setValue(v, forHTTPHeaderField: k) }
+        // 备用通道不需要鉴权头（带了反而可能被当成异常流量）
+        if authorized {
+            for (k, v) in header { req.setValue(v, forHTTPHeaderField: k) }
+        } else {
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        }
         let body: [String: Any] = [
             "model": model,
             "messages": messages,
