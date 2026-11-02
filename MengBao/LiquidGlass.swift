@@ -139,11 +139,6 @@ struct LiquidTabBar: View {
     @Binding var selection: String
 
     @Environment(\.colorScheme) private var scheme
-    /// 高光扫过的位置：切换页签时斜掠一次，营造液体流动感
-    @State private var sweep: CGFloat = -1.2
-    /// 水滴拉伸系数：滑动途中 >1（横向拉长、纵向压扁），落定回 1
-    @State private var stretch: CGFloat = 1.0
-    @State private var stretchWork: DispatchWorkItem?
 
     var body: some View {
         GeometryReader { geo in
@@ -161,56 +156,20 @@ struct LiquidTabBar: View {
         }
         .frame(height: 54)
         .liquidGlass(in: Capsule())
-        .overlay(sheen)
         .padding(.horizontal, 22)
         .padding(.bottom, 2)
-        .onChange(of: selection) { _ in pulse() }
     }
 
     // MARK: 透明玻璃水滴（选中指示）
 
     private func droplet(tabW: CGFloat, h: CGFloat, idx: CGFloat) -> some View {
-        let light = scheme == .light
+        // 选中指示：全透明——不填色、不描边、不投影，
+        // 选中态只靠图标变紫 + 加粗来区分（用户要求全透明胶囊）。
         return Capsule()
-            .fill(.ultraThinMaterial)
-            .overlay(
-                // 注意：保持「透明」——只有很淡的染色，绝不填白
-                Capsule().fill(
-                    LinearGradient(
-                        colors: light
-                            ? [Color.white.opacity(0.28), Color.white.opacity(0.08)]
-                            : [Palette.purple.opacity(0.20), Palette.purple.opacity(0.06)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-            )
-            .overlay(
-                Capsule().strokeBorder(
-                    LinearGradient(
-                        colors: light
-                            ? [Color.white.opacity(0.70), Color.white.opacity(0.15)]
-                            : [Color.white.opacity(0.24), Color.white.opacity(0.04)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-            )
-            .shadow(color: .black.opacity(light ? 0.06 : 0.28), radius: 6, x: 0, y: 3)
+            .fill(Color.clear)
             .frame(width: tabW - 10, height: h - 10)
-            .scaleEffect(x: stretch, y: 1.0 / max(stretch, 0.5), anchor: .center)
             .offset(x: idx * tabW + 5)
             .animation(.spring(response: 0.40, dampingFraction: 0.66), value: idx)
-    }
-
-    /// 水滴落定的挤压回弹：先快速拉长一点，稍后弹回
-    private func pulse() {
-        stretchWork?.cancel()
-        withAnimation(.spring(response: 0.20, dampingFraction: 0.85)) { stretch = 1.22 }
-        let work = DispatchWorkItem {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.62)) { stretch = 1.0 }
-        }
-        stretchWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14, execute: work)
     }
 
     // MARK: 单个页签
@@ -221,9 +180,6 @@ struct LiquidTabBar: View {
             guard !selected else { return }
             Anim.haptic(.soft)
             withAnimation(Anim.tab) { selection = item.id }
-            // 高光斜掠
-            sweep = -1.2
-            withAnimation(.easeOut(duration: 0.55)) { sweep = 1.2 }
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: item.icon)
@@ -240,22 +196,5 @@ struct LiquidTabBar: View {
             .contentShape(Capsule())
         }
         .buttonStyle(SoftPressStyle(scale: 0.93, dim: 0.9))
-    }
-
-    // MARK: 斜掠高光
-    private var sheen: some View {
-        GeometryReader { geo in
-            LinearGradient(
-                colors: [.clear, .white.opacity(scheme == .light ? 0.55 : 0.22), .clear],
-                startPoint: .leading, endPoint: .trailing
-            )
-            .frame(width: geo.size.width * 0.42, height: geo.size.height * 1.6)
-            .blur(radius: 10)
-            .rotationEffect(.degrees(12))
-            .offset(x: sweep * geo.size.width)
-        }
-        .clipShape(Capsule())
-        .allowsHitTesting(false)
-        .blendMode(.plusLighter)
     }
 }
