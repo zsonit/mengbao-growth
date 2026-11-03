@@ -9,8 +9,13 @@ import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
 
-// 免密钥大模型客户端：走 WorkBuddy 云服务的 /.cloud/llm 通道，
-// 家长不需要填任何 API Key，也不额外花钱。接口只支持流式（SSE），所以「要完整结果」也是收完再用。
+// 免密钥大模型客户端：主通道走 WorkBuddy 云服务的 /.cloud/llm，
+// 家长不需要填任何 API Key，也不额外花钱。
+// 主通道每天有免费额度，用完（429）会自动切到免密钥、无每日额度的备用链：
+//   ① Kilo 免费网关 kilo-auto/free（自动挑最优免费模型）
+//   ② Kilo 免费网关 openrouter/free
+//   ③ Pollinations 开放接口
+// 家长无感，不用配置任何东西。
 
 data class AIModel(
     val id: String,
@@ -31,9 +36,18 @@ data class AIModel(
     }
 }
 
-class AIException(message: String, val retry: Boolean = false) : Exception(message)
+class AIException(message: String, val retry: Boolean = false, val quota: Boolean = false) : Exception(message)
 
 object AIClient {
+
+    /** 备用免费链：免密钥、OpenAI 兼容、SSE 流式（与 iOS 保持一致） */
+    private data class Fallback(val url: String, val model: String)
+
+    private val fallbacks = listOf(
+        Fallback("https://api.kilo.ai/api/gateway/chat/completions", "kilo-auto/free"),
+        Fallback("https://api.kilo.ai/api/gateway/chat/completions", "openrouter/free"),
+        Fallback("https://text.pollinations.ai/openai", "openai"),
+    )
 
     private fun conn(url: String, method: String): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
@@ -41,6 +55,15 @@ object AIClient {
             connectTimeout = 20_000
             readTimeout = 90_000
             setRequestProperty("x-wb-webapp-access-key", CloudCfg.PUBLISHABLE_KEY)
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "text/event-stream")
+        }
+
+    private fun plainConn(url: String, method: String): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 20_000
+            readTimeout = 90_000
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "text/event-stream")
         }
@@ -69,29 +92,58 @@ object AIClient {
         }
     }
 
-    /** 发一轮对话，收完流返回完整文本；网络抖动／网关 5xx 自动重试一次 */
-    suspend fun complete(model: String, system: String, user: String): String = try {
-        completeOnce(model, system, user)
-    } catch (e: AIException) {
-        if (!e.retry) throw e
-        delay(500)
-        completeOnce(model, system, user)
+    /**
+     * 发一轮对话，收完流返回完整文本。
+     * 网络抖动／网关 5xx 自动重试一次；免费额度用完（429）自动切备用免费链，不弹「额度用完」。
+     */
+    suspend fun complete(model: String, system: String, user: String): String {
+        try {
+            return completeOnce(model, system, user)
+        } catch (e: AIException) {
+            if (e.retry) {
+                delay(500)
+                try {
+                    return completeOnce(model, system, user)
+                } catch (e2: AIException) {
+                    if (!e2.quota) throw e2
+                    return viaFallbacks(system, user, e2)
+                }
+            }
+            if (!e.quota) throw e
+            return viaFallbacks(system, user, e)
+        }
     }
 
-    private suspend fun completeOnce(model: String, system: String, user: String): String = withContext(Dispatchers.IO) {
-        val body = JSONObject().apply {
-            put("model", model)
-            put("stream", true)
-            put("temperature", 0.6)
-            put(
-                "messages", JSONArray().apply {
-                    put(JSONObject().put("role", "system").put("content", system))
-                    put(JSONObject().put("role", "user").put("content", user))
-                },
-            )
-        }.toString()
+    /** 额度用完后的备用链：Kilo 双车道 → Pollinations 兜底 */
+    private suspend fun viaFallbacks(system: String, user: String, cause: AIException): String {
+        for (f in fallbacks) {
+            runCatching {
+                return withContext(Dispatchers.IO) { postSSE(f.url, f.model, system, user) }
+            }.onFailure {
+                AppLog.w("AI", "备用通道 ${f.model} 失败：${it.message}")
+            }
+        }
+        throw cause
+    }
 
-        val c = conn(CloudCfg.LLM_CHAT, "POST")
+    private fun requestBody(model: String, system: String, user: String): String = JSONObject().apply {
+        put("model", model)
+        put("stream", true)
+        put("temperature", 0.6)
+        put(
+            "messages", JSONArray().apply {
+                put(JSONObject().put("role", "system").put("content", system))
+                put(JSONObject().put("role", "user").put("content", user))
+            },
+        )
+    }.toString()
+
+    private suspend fun completeOnce(model: String, system: String, user: String): String =
+        withContext(Dispatchers.IO) { postSSE(CloudCfg.LLM_CHAT, model, system, user, withAuth = true) }
+
+    private fun postSSE(url: String, model: String, system: String, user: String, withAuth: Boolean = false): String {
+        val body = requestBody(model, system, user)
+        val c = if (withAuth) conn(url, "POST") else plainConn(url, "POST")
         try {
             c.doOutput = true
             c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
@@ -131,7 +183,7 @@ object AIClient {
 
     private fun err(code: Int): AIException = when (code) {
         in 401..403 -> AIException("这个版本的免费通道没鉴权通过，先升级 App 再试")
-        429 -> AIException("今天的免费额度用完了，明天再试")
+        429 -> AIException("今天的免费额度用完了，明天再试", quota = true)
         else -> AIException("模型服务返回 $code，稍后再试一次", retry = code >= 500)
     }
 }

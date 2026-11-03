@@ -65,6 +65,8 @@ object Store {
     fun update(block: (AppState) -> AppState) {
         state = block(state)
         persist()
+        // 提醒与数据保持一致：待办增删改、清空、同步回写都会走到这里（内部 600ms 防抖）
+        appContext?.let { Reminders.reschedule(it) }
         if (!suppressSync) SyncManager.onDataChanged()
     }
 
@@ -175,6 +177,18 @@ object Store {
 
     fun setWeightUnit(unit: String) = update { it.copy(settings = it.settings.copy(weightUnit = unit)) }
     fun setShowFeed(on: Boolean) = update { it.copy(settings = it.settings.copy(showFeed = on)) }
+
+    /** 定期测量提醒（部分修改，null = 保持不变） */
+    fun setGrowthReminder(on: Boolean? = null, days: Int? = null, hour: Int? = null, minute: Int? = null) =
+        update { s -> s.copy(settings = s.settings.copy(
+            growthReminderOn = on ?: s.settings.growthReminderOn,
+            growthReminderDays = days ?: s.settings.growthReminderDays,
+            growthReminderHour = hour ?: s.settings.growthReminderHour,
+            growthReminderMinute = minute ?: s.settings.growthReminderMinute,
+        )) }
+
+    /** 待办到期提醒开关 */
+    fun setTodoReminder(on: Boolean) = update { it.copy(settings = it.settings.copy(todoReminderOn = on)) }
     fun setShowSize(on: Boolean) = update { it.copy(settings = it.settings.copy(showSize = on)) }
     fun setShowLog(on: Boolean) = update { it.copy(settings = it.settings.copy(showLog = on)) }
     fun setShowShot(on: Boolean) = update { it.copy(settings = it.settings.copy(showShot = on)) }

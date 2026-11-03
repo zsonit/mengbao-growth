@@ -8,19 +8,37 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.zsonit.mengbao.data.AppLog
+import com.zsonit.mengbao.data.Reminders
 import com.zsonit.mengbao.data.Store
 import com.zsonit.mengbao.data.SyncManager
 import com.zsonit.mengbao.ui.MengBaoTheme
 import com.zsonit.mengbao.ui.Palette
 
 class MainActivity : ComponentActivity() {
+
+    private val notifPerm = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) Reminders.reschedule(applicationContext)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AppLog.init(applicationContext)
         Store.init(applicationContext)
+        Reminders.init(applicationContext)
+        Reminders.reschedule(applicationContext)
         AppLog.isEnabled = Store.settings.showLog
         AppLog.i("Main", "App 启动：${Store.state.children.size} 个宝宝档案")
+        // Android 13+ 通知权限：排了提醒但没权限时补问一次
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            Store.settings.let { it.growthReminderOn || it.todoReminderOn } &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         setContent {
             val dark = Store.settings.darkMode
             MengBaoTheme(darkOverride = dark) {

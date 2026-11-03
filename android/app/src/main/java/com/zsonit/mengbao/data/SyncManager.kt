@@ -10,6 +10,7 @@ import com.zsonit.mengbao.model.AppState
 import com.zsonit.mengbao.model.Child
 import com.zsonit.mengbao.model.GrowthRecord
 import com.zsonit.mengbao.model.SizeRecord
+import com.zsonit.mengbao.model.ToothDecay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -353,6 +354,7 @@ object SyncManager {
             todos = mergeById(auth.todos, other.todos),
             shots = mergeMaps(auth.shots, other.shots),
             teethFallen = mergeTeeth(auth, other),
+            teethDecay = mergeTeethDecay(auth, other),
         )
     }
 
@@ -413,6 +415,17 @@ object SyncManager {
     private fun mergeTeeth(a: Child, b: Child): Map<Int, LocalDate>? {
         val am = a.teethFallen
         val bm = b.teethFallen
+        if (am == null) return bm
+        if (bm == null) return am
+        val out = am.toMutableMap()
+        bm.forEach { (k, v) -> if (!out.containsKey(k)) out[k] = v }
+        return out.ifEmpty { null }
+    }
+
+    /** 龋齿记录同样按牙位并集，缺失的一侧补上（同一颗牙各自记录时以权威端为准） */
+    private fun mergeTeethDecay(a: Child, b: Child): Map<Int, ToothDecay>? {
+        val am = a.teethDecay
+        val bm = b.teethDecay
         if (am == null) return bm
         if (bm == null) return am
         val out = am.toMutableMap()

@@ -10,6 +10,7 @@ import com.zsonit.mengbao.model.Sex
 import com.zsonit.mengbao.model.ShotRecord
 import com.zsonit.mengbao.model.SizeRecord
 import com.zsonit.mengbao.model.TodoItem
+import com.zsonit.mengbao.model.ToothDecay
 import com.zsonit.mengbao.model.newId
 import org.json.JSONArray
 import org.json.JSONObject
@@ -78,7 +79,20 @@ object JsonCodec {
             }
         })
         child.teethFallen?.takeIf { it.isNotEmpty() }?.let { teeth ->
-            put("teethFallen", JSONObject().apply { teeth.forEach { (code, d) -> put(code.toString(), encodeDate(d)) } })
+            // iOS 的 JSONEncoder 会把 [Int: Date] 编成「键值交替的数组」，这里保持同格式，双端互认
+            put("teethFallen", JSONArray().apply { teeth.forEach { (code, d) -> put(code); put(encodeDate(d)) } })
+        }
+        child.teethDecay?.takeIf { it.isNotEmpty() }?.let { decay ->
+            put("teethDecay", JSONArray().apply {
+                decay.forEach { (code, d) ->
+                    put(code)
+                    put(JSONObject().apply {
+                        put("date", encodeDate(d.date))
+                        put("severity", d.severity)
+                        put("note", d.note)
+                    })
+                }
+            })
         }
         child.optVaccines?.takeIf { it.isNotEmpty() }?.let { ids ->
             put("optVaccines", JSONArray().apply { ids.forEach { put(it) } })
@@ -154,6 +168,12 @@ object JsonCodec {
                 })
             }
         })
+        // 提醒（本机通知）
+        put("growthReminderOn", s.growthReminderOn)
+        put("growthReminderDays", s.growthReminderDays)
+        put("growthReminderHour", s.growthReminderHour)
+        put("growthReminderMinute", s.growthReminderMinute)
+        put("todoReminderOn", s.todoReminderOn)
     }
 
     // MARK: 解码
@@ -191,13 +211,8 @@ object JsonCodec {
             map
         },
         todos = o.optJSONArray("todos").objects().map { decodeTodo(it) },
-        teethFallen = o.optJSONObject("teethFallen")?.let { jo ->
-            val m = mutableMapOf<Int, LocalDate>()
-            jo.keys()?.forEach { key ->
-                key.toIntOrNull()?.let { code -> m[code] = decodeDate(jo.optDoubleOrNull(key)) }
-            }
-            m.ifEmpty { null }
-        },
+        teethFallen = decodeIntKeyedDates(o.optJSONArray("teethFallen"), o.optJSONObject("teethFallen")),
+        teethDecay = decodeTeethDecay(o),
         optVaccines = o.optJSONArray("optVaccines")?.let { arr ->
             (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.ifEmpty { null }
         },
@@ -273,10 +288,59 @@ object JsonCodec {
                 visible = q.optBoolean("visible", true),
             )
         }.filter { it.id.isNotEmpty() },
+        growthReminderOn = o.optBoolean("growthReminderOn", false),
+        growthReminderDays = o.optIntOrNull("growthReminderDays") ?: 30,
+        growthReminderHour = o.optIntOrNull("growthReminderHour") ?: 9,
+        growthReminderMinute = o.optIntOrNull("growthReminderMinute") ?: 0,
+        todoReminderOn = o.optBoolean("todoReminderOn", true),
     )
 }
 
 // MARK: - JSON 小工具
+
+/** [Int: LocalDate]：兼容两种格式——Swift 的「键值交替数组」和安卓老版本的 {"51": date} 对象 */
+private fun decodeIntKeyedDates(arr: JSONArray?, obj: JSONObject?): Map<Int, LocalDate>? {
+    val out = mutableMapOf<Int, LocalDate>()
+    if (obj != null) {
+        obj.keys()?.forEach { key ->
+            key.toIntOrNull()?.let { code -> out[code] = decodeDate(obj.optDoubleOrNull(key)) }
+        }
+    } else if (arr != null) {
+        var i = 0
+        while (i + 1 < arr.length()) {
+            val code = arr.optInt(i, Int.MIN_VALUE)
+            if (code != Int.MIN_VALUE) out[code] = decodeDate(arr.optDoubleOrNull(i + 1))
+            i += 2
+        }
+    }
+    return out.ifEmpty { null }
+}
+
+/** [Int: ToothDecay]：同样兼容「键值交替数组」（iOS）与对象（安卓老备份） */
+private fun decodeTeethDecay(o: JSONObject): Map<Int, ToothDecay>? {
+    val out = mutableMapOf<Int, ToothDecay>()
+    fun put(code: Int, d: JSONObject?) {
+        if (code == Int.MIN_VALUE || d == null) return
+        out[code] = ToothDecay(
+            date = decodeDate(d.optDoubleOrNull("date")),
+            severity = d.optIntOrNull("severity") ?: 1,
+            note = d.optString("note"),
+        )
+    }
+    val arr = o.optJSONArray("teethDecay")
+    if (arr != null) {
+        var i = 0
+        while (i + 1 < arr.length()) {
+            put(arr.optInt(i, Int.MIN_VALUE), arr.optJSONObject(i + 1))
+            i += 2
+        }
+    } else {
+        o.optJSONObject("teethDecay")?.let { jo ->
+            jo.keys()?.forEach { key -> put(key.toIntOrNull() ?: Int.MIN_VALUE, jo.optJSONObject(key)) }
+        }
+    }
+    return out.ifEmpty { null }
+}
 
 private fun JSONArray.objects(): List<JSONObject> =
     (0 until length()).mapNotNull { optJSONObject(it) }

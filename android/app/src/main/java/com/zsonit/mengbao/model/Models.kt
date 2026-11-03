@@ -169,6 +169,25 @@ data class ShotRecord(
     val note: String = "",
 )
 
+// MARK: - 龋齿（换牙档案）
+
+/** 一颗乳牙的龋齿（烂牙）记录，与 iOS ToothDecay 保持一致 */
+data class ToothDecay(
+    val date: LocalDate,          // 发现 / 就诊日期
+    val severity: Int = 1,        // 1=轻度（白斑、浅龋）2=中度（有洞）3=重度（深龋、疼过、需治疗）
+    val note: String = "",        // 备注：哪一面、医生说了什么、是否已补
+) {
+    val severityLabel: String
+        get() = when (severity) {
+            3 -> "重度"
+            2 -> "中度"
+            else -> "轻度"
+        }
+
+    /** 中重度建议尽快看牙医 */
+    val needsVisit: Boolean get() = severity >= 2
+}
+
 // MARK: - 宝宝
 
 data class Child(
@@ -185,6 +204,7 @@ data class Child(
     val shots: Map<String, ShotRecord> = emptyMap(),
     val todos: List<TodoItem> = emptyList(),
     val teethFallen: Map<Int, LocalDate>? = null,  // 换牙档案：乳牙 FDI 编码 -> 脱落日期
+    val teethDecay: Map<Int, ToothDecay>? = null,  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     val optVaccines: List<String>? = null,         // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     val updatedAt: LocalDateTime? = null,          // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
 ) {
@@ -246,6 +266,12 @@ data class AppSettings(
     val motherHeight: Double? = null,
     /** 空列表 = 用内置默认顺序；用户改过之后写入完整列表 */
     val quickEntries: List<QuickEntry> = emptyList(),
+    // MARK: 提醒（本机通知），与 iOS AppSettings 字段一致
+    val growthReminderOn: Boolean = false,   // 定期测量提醒开关
+    val growthReminderDays: Int = 30,        // 间隔天数：7=一周、30=一个月、90=三个月
+    val growthReminderHour: Int = 9,         // 提醒时间（时）
+    val growthReminderMinute: Int = 0,       // 提醒时间（分）
+    val todoReminderOn: Boolean = true,      // 待办到期提醒开关
 ) {
     val resolvedQuickEntries: List<QuickEntry>
         get() = if (quickEntries.isEmpty()) QuickEntry.builtins else quickEntries

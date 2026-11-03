@@ -46,11 +46,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zsonit.mengbao.data.Store
 import com.zsonit.mengbao.model.Child
+import com.zsonit.mengbao.model.ToothDecay
 import com.zsonit.mengbao.ui.DateField
 import com.zsonit.mengbao.ui.DividerLine
 import com.zsonit.mengbao.ui.Palette
+import com.zsonit.mengbao.ui.PrimaryButton
 import com.zsonit.mengbao.ui.TopBar
 import com.zsonit.mengbao.ui.cardStyle
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.OutlinedTextField
 import java.time.LocalDate
 import java.time.Period
 import java.time.format.DateTimeFormatter
@@ -101,7 +106,22 @@ enum class ToothStatus(val label: String, val color: Color) {
     NORMAL("未到换牙期", Color(0xFF8B86A4));
 }
 
-data class ToothState(val def: ToothDef, val status: ToothStatus, val fallenDate: LocalDate?)
+data class ToothState(val def: ToothDef, val status: ToothStatus, val fallenDate: LocalDate?, val decay: ToothDecay? = null)
+
+/** 龋齿程度配色，与 iOS DecayTone 保持一致 */
+object DecayTone {
+    fun color(severity: Int): Color = when (severity) {
+        3 -> Color(0xFFE0513A)
+        2 -> Color(0xFFD97706)
+        else -> Color(0xFFC08A2E)
+    }
+
+    fun bg(severity: Int): Color = when (severity) {
+        3 -> Color(0x1AE0513A)
+        2 -> Color(0x1AD97706)
+        else -> Color(0x12D97706)
+    }
+}
 
 // MARK: - 主屏
 
@@ -109,6 +129,8 @@ data class ToothState(val def: ToothDef, val status: ToothStatus, val fallenDate
 fun ToothChartScreen(onBack: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf<ToothDef?>(null) }
+    var decayEditFor by remember { mutableStateOf<Int?>(null) }
+    var decayAddOpen by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(Palette.background)) {
         TopBar(title = "换牙档案", onBack = onBack)
@@ -119,10 +141,10 @@ fun ToothChartScreen(onBack: () -> Unit) {
                 .padding(vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SummaryCard()
+            SummaryCard(onOpenDecay = { tab = 2 })
             TabBar(tab) { tab = it }
-            if (tab == 0) {
-                Column(
+            when (tab) {
+                0 -> Column(
                     Modifier
                         .padding(horizontal = 16.dp)
                         .fillMaxWidth()
@@ -133,15 +155,26 @@ fun ToothChartScreen(onBack: () -> Unit) {
                     ArchChart(isUpper = false) { selected = ToothDef.all[it] }
                     LegendRow()
                 }
-            } else {
-                ScheduleSection { selected = ToothDef.all[it] }
+                1 -> ScheduleSection { selected = ToothDef.all[it] }
+                else -> DecaySection(onOpen = { selected = it }, onAdd = { decayAddOpen = true })
             }
             HintCard()
         }
     }
 
     selected?.let { def ->
-        ToothDialog(def = def, onDismiss = { selected = null })
+        ToothDialog(
+            def = def,
+            onDismiss = { selected = null },
+            onEditDecay = { decayEditFor = def.code },
+        )
+    }
+    // 记录/修改龋齿：从「龋齿记录」页添加，或从单颗牙详情进来
+    val editCode = decayEditFor
+    if (editCode != null) {
+        DecayDialog(initialCode = editCode, onDismiss = { decayEditFor = null })
+    } else if (decayAddOpen) {
+        DecayDialog(initialCode = null, onDismiss = { decayAddOpen = false })
     }
 }
 
@@ -169,7 +202,7 @@ private fun toothState(code: Int): ToothState {
             }
         }
     }
-    return ToothState(def, status, fallen)
+    return ToothState(def, status, fallen, child?.teethDecay?.get(code))
 }
 
 @Composable
@@ -179,11 +212,14 @@ private fun allStates(): List<ToothState> =
 // MARK: 顶部统计卡
 
 @Composable
-private fun SummaryCard() {
+private fun SummaryCard(onOpenDecay: () -> Unit) {
     val states = allStates()
     val counts = states.groupingBy { it.status }.eachCount()
     val child = Store.current
     val years = child?.let { Period.between(it.birthDate, LocalDate.now()).years } ?: 0
+    val decayMap = child?.teethDecay ?: emptyMap()
+    val decayCount = decayMap.size
+    val needVisit = decayMap.values.count { it.needsVisit }
 
     Column(
         Modifier
@@ -221,6 +257,35 @@ private fun SummaryCard() {
                 )
             }
         }
+        Spacer(Modifier.height(10.dp))
+        // 龋齿（烂牙）入口
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (decayCount > 0) Color(0x1AE0513A) else Palette.purpleTint)
+                .clickable { onOpenDecay() }
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (decayCount > 0) {
+                    "已记录 $decayCount 颗龋齿（烂牙）" + if (needVisit > 0) " · $needVisit 颗建议就诊" else ""
+                } else {
+                    "还没有记录龋齿（烂牙）"
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (decayCount > 0) DecayTone.color(3) else Palette.purple,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (decayCount > 0) "查看 →" else "去记录 →",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (decayCount > 0) DecayTone.color(3) else Palette.purple,
+            )
+        }
     }
 }
 
@@ -247,7 +312,7 @@ private fun TabBar(tab: Int, onSelect: (Int) -> Unit) {
             .background(Palette.hairlineSoft)
             .padding(3.dp),
     ) {
-        listOf("拟真牙弓图", "换牙时间表").forEachIndexed { i, title ->
+        listOf("牙弓图", "换牙时间表", "龋齿记录").forEachIndexed { i, title ->
             val active = tab == i
             Box(
                 Modifier
@@ -260,9 +325,10 @@ private fun TabBar(tab: Int, onSelect: (Int) -> Unit) {
             ) {
                 Text(
                     title,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (active) Palette.ink else Palette.subtle,
+                    maxLines = 1,
                 )
             }
         }
@@ -278,7 +344,7 @@ private val TOOTH_CELL_H = 51.dp
 private val ARCH_HEIGHT = 210.dp
 
 @Composable
-private fun ArchChart(isUpper: Boolean, onTap: (Int) -> Unit) {
+private fun ArchChart(isUpper: Boolean, selected: Int? = null, onTap: (Int) -> Unit) {
     val density = LocalDensity.current
     BoxWithConstraints(
         Modifier
@@ -327,7 +393,7 @@ private fun ArchChart(isUpper: Boolean, onTap: (Int) -> Unit) {
                     .align(Alignment.TopStart)
                     .offset(x = xDp - 22.dp, y = yDp - TOOTH_CELL_H / 2),
             ) {
-                ToothCell(code = code, isUpper = isUpper, onTap = onTap)
+                ToothCell(code = code, isUpper = isUpper, onTap = onTap, selected = selected == code)
             }
         }
 
@@ -342,78 +408,122 @@ private fun ArchChart(isUpper: Boolean, onTap: (Int) -> Unit) {
 }
 
 @Composable
-private fun ToothCell(code: Int, isUpper: Boolean, onTap: (Int) -> Unit) {
+private fun ToothCell(code: Int, isUpper: Boolean, onTap: (Int) -> Unit, selected: Boolean = false) {
     val st = toothState(code)
+    val decayed = st.decay != null
     Column(
         Modifier
             .width(44.dp)
             .clickable { onTap(code) },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (isUpper) ToothNumber(st)
-        Box(
-            Modifier
-                .size(width = 28.dp, height = 34.dp)
-                .shadow(
-                    elevation = if (st.status == ToothStatus.WARN || st.status == ToothStatus.OVERDUE) 7.dp else 0.dp,
-                    shape = RoundedCornerShape(9.dp),
-                    ambientColor = st.status.color,
-                    spotColor = st.status.color,
+        if (isUpper) ToothNumber(st, selected)
+        Box {
+            Box(
+                Modifier
+                    .size(width = 28.dp, height = 34.dp)
+                    .shadow(
+                        elevation = if (selected || st.status == ToothStatus.WARN || st.status == ToothStatus.OVERDUE) 7.dp else 0.dp,
+                        shape = RoundedCornerShape(9.dp),
+                        ambientColor = if (selected) Palette.purple else st.status.color,
+                        spotColor = if (selected) Palette.purple else st.status.color,
+                    )
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(
+                        when {
+                            selected -> Palette.purple
+                            st.status == ToothStatus.NORMAL -> Palette.card
+                            else -> st.status.color
+                        },
+                    )
+                    .then(
+                        if (st.status == ToothStatus.NORMAL && !selected) {
+                            Modifier.border(
+                                if (decayed) 1.8.dp else 1.5.dp,
+                                if (decayed) DecayTone.color(3) else Palette.hairline,
+                                RoundedCornerShape(9.dp),
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                when (st.status) {
+                    ToothStatus.FALLEN -> Text(
+                        "✓",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    ToothStatus.WARN, ToothStatus.OVERDUE ->
+                        Text("!", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    ToothStatus.NORMAL -> {}
+                }
+            }
+            // 龋齿标记：右上角小红点（不影响脱落/预警状态）
+            if (decayed) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 0.dp, end = 0.dp)
+                        .size(9.dp)
+                        .background(Color.White, CircleShape)
+                        .padding(1.dp)
+                        .background(DecayTone.color(3), CircleShape),
                 )
-                .clip(RoundedCornerShape(9.dp))
-                .background(if (st.status == ToothStatus.NORMAL) Palette.card else st.status.color)
-                .then(
-                    if (st.status == ToothStatus.NORMAL) {
-                        Modifier.border(1.5.dp, Palette.hairline, RoundedCornerShape(9.dp))
-                    } else {
-                        Modifier
-                    },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            when (st.status) {
-                ToothStatus.FALLEN -> Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                ToothStatus.WARN, ToothStatus.OVERDUE ->
-                    Text("!", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                ToothStatus.NORMAL -> {}
             }
         }
-        if (!isUpper) ToothNumber(st)
+        if (!isUpper) ToothNumber(st, selected)
     }
 }
 
 @Composable
-private fun ToothNumber(st: ToothState) {
+private fun ToothNumber(st: ToothState, selected: Boolean = false) {
     Text(
         "${st.def.code}",
         fontSize = 10.5.sp,
         fontWeight = FontWeight.SemiBold,
-        color = if (st.status == ToothStatus.NORMAL) Palette.subtle else st.status.color,
+        color = when {
+            selected -> Palette.purple
+            st.decay != null -> DecayTone.color(3)
+            st.status == ToothStatus.NORMAL -> Palette.subtle
+            else -> st.status.color
+        },
         modifier = Modifier.height(15.dp),
     )
 }
 
 @Composable
 private fun LegendRow() {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        listOf(
-            ToothStatus.NORMAL, ToothStatus.WARN, ToothStatus.FALLEN, ToothStatus.OVERDUE,
-        ).forEach { s ->
-            Row(
-                Modifier.padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier
-                        .size(10.dp)
-                        .border(1.5.dp, s.color, CircleShape),
-                )
-                Text(" ${s.label}", fontSize = 10.5.sp, color = Palette.subtle)
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(
+                ToothStatus.NORMAL, ToothStatus.WARN, ToothStatus.FALLEN, ToothStatus.OVERDUE,
+            ).forEach { s ->
+                Row(
+                    Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(10.dp)
+                            .border(1.5.dp, s.color, CircleShape),
+                    )
+                    Text(" ${s.label}", fontSize = 10.5.sp, color = Palette.subtle)
+                }
             }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(DecayTone.color(3), CircleShape),
+            )
+            Text("  龋齿（烂牙）· 牙冠右上角红点", fontSize = 10.5.sp, color = Palette.subtle)
         }
     }
 }
@@ -457,14 +567,24 @@ private fun ScheduleGroup(title: String, codes: List<Int>, onTap: (Int) -> Unit)
                         Text(st.def.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Palette.ink)
                         Text("换牙期 ${st.def.windowLabel}", fontSize = 11.5.sp, color = Palette.subtle)
                     }
-                    if (st.fallenDate != null) {
-                        Text("已脱落 · ${st.fallenDate.format(fmt)}", fontSize = 11.5.sp, color = ToothStatus.FALLEN.color)
-                    } else {
-                        Text(
-                            st.status.label,
-                            fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
-                            color = if (st.status == ToothStatus.NORMAL) Palette.subtle else st.status.color,
-                        )
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (st.fallenDate != null) {
+                            Text("已脱落 · ${st.fallenDate.format(fmt)}", fontSize = 11.5.sp, color = ToothStatus.FALLEN.color)
+                        } else {
+                            Text(
+                                st.status.label,
+                                fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
+                                color = if (st.status == ToothStatus.NORMAL) Palette.subtle else st.status.color,
+                            )
+                        }
+                        st.decay?.let { d ->
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "🦷 龋齿 · ${d.severityLabel}",
+                                fontSize = 10.5.sp, fontWeight = FontWeight.Medium,
+                                color = DecayTone.color(d.severity),
+                            )
+                        }
                     }
                 }
                 if (i != codes.lastIndex) DividerLine()
@@ -476,7 +596,7 @@ private fun ScheduleGroup(title: String, codes: List<Int>, onTap: (Int) -> Unit)
 @Composable
 private fun HintCard() {
     Text(
-        "点击牙弓图上的任意一颗牙，可以记录脱落日期或恢复。换牙期为大多数孩子的普遍规律，个体差异 ±6 个月都属正常；" +
+        "点击牙弓图上的任意一颗牙，可以记录脱落日期、标记龋齿（烂牙）或恢复。换牙期为大多数孩子的普遍规律，个体差异 ±6 个月都属正常；" +
             "「超期未换」建议请口腔科医生看看，确认恒牙萌出情况。",
         fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 17.sp,
         modifier = Modifier
@@ -488,10 +608,10 @@ private fun HintCard() {
     )
 }
 
-// MARK: 单颗牙弹窗
+// MARK: 单颗牙弹窗（脱落 + 龋齿）
 
 @Composable
-private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit) {
+private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit, onEditDecay: () -> Unit) {
     val st = toothState(def.code)
     var pickDate by remember { mutableStateOf(LocalDate.now()) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -510,9 +630,41 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit) {
         },
         text = {
             Column {
+                // 龋齿（烂牙）
+                Text("🦷 龋齿（烂牙）", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle)
+                Spacer(Modifier.height(6.dp))
+                val decay = st.decay
+                if (decay != null) {
+                    Text(
+                        "${decay.severityLabel} · ${decay.date.format(fmt)}" + if (decay.needsVisit) " · 建议就诊" else "",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DecayTone.color(decay.severity),
+                    )
+                    if (decay.note.isNotEmpty()) {
+                        Text(decay.note, fontSize = 12.sp, color = Palette.ink2, lineHeight = 17.sp)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = onEditDecay) { Text("修改记录", color = Palette.purple) }
+                        TextButton(onClick = {
+                            Store.updateCurrent { c -> c.copy(teethDecay = (c.teethDecay ?: emptyMap()) - def.code) }
+                        }) { Text("清除", color = Palette.bad) }
+                    }
+                } else {
+                    Text(
+                        "有黑点、蛀洞、牙齿发黄发黑或孩子喊牙疼时，记一下这颗牙。",
+                        fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 16.sp,
+                    )
+                    TextButton(onClick = onEditDecay) { Text("这颗牙有蛀牙 / 烂了", color = Palette.purple) }
+                }
+                DividerLine()
+                Spacer(Modifier.height(6.dp))
+                // 脱落记录
+                Text("脱落记录", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle)
+                Spacer(Modifier.height(6.dp))
                 if (st.fallenDate != null) {
                     Text(
-                        "记录的脱落日期：${st.fallenDate.format(fmt)}",
+                        "脱落日期：${st.fallenDate.format(fmt)}",
                         fontSize = 13.sp, color = ToothStatus.FALLEN.color,
                     )
                 } else {
@@ -543,4 +695,241 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit) {
             TextButton(onClick = onDismiss) { Text("关闭", color = Palette.subtle) }
         },
     )
+}
+
+// MARK: 龋齿记录页
+
+@Composable
+private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
+    val decayMap = Store.current?.teethDecay ?: emptyMap()
+    val rows = ToothDef.all.keys.sorted().filter { decayMap.containsKey(it) }
+
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().cardStyle(padding = 6.dp)) {
+            if (rows.isEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 22.dp, horizontal = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("🦷", fontSize = 30.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text("还没有记录龋齿", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
+                    Text(
+                        "发现哪颗牙有黑点、蛀洞或者孩子喊牙疼，就在这里记下来，复诊时一目了然。",
+                        fontSize = 12.sp, color = Palette.subtle, lineHeight = 17.sp,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            } else {
+                rows.forEachIndexed { i, code ->
+                    val d = decayMap[code] ?: return@forEachIndexed
+                    val def = ToothDef.all[code] ?: return@forEachIndexed
+                    val tone = DecayTone.color(d.severity)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpen(def) }
+                            .padding(horizontal = 8.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(
+                            Modifier
+                                .size(width = 42.dp, height = 46.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(DecayTone.bg(d.severity)),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text("$code", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = tone)
+                            Text(def.name.removePrefix("上乳").removePrefix("下乳"), fontSize = 8.sp, color = tone.copy(alpha = 0.8f), maxLines = 1)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(def.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Palette.ink)
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    d.severityLabel,
+                                    fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = tone,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(DecayTone.bg(d.severity))
+                                        .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                )
+                            }
+                            Text(
+                                "记录于 ${d.date.format(fmt)}" + if (d.needsVisit) " · 建议就诊" else "",
+                                fontSize = 11.5.sp,
+                                color = if (d.needsVisit) ToothStatus.WARN.color else Palette.subtle,
+                            )
+                            if (d.note.isNotEmpty()) {
+                                Text(d.note, fontSize = 11.5.sp, color = Palette.ink2, maxLines = 2, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                    if (i != rows.lastIndex) DividerLine()
+                }
+            }
+        }
+
+        PrimaryButton(
+            text = if (rows.isEmpty()) "记录一颗龋齿（烂牙）" else "再记录一颗",
+            onClick = onAdd,
+        )
+
+        if (rows.isNotEmpty()) {
+            Text(
+                "点任意一条可以补充备注或清除记录。中重度蛀牙建议尽快看儿童口腔科，乳牙龋坏会影响恒牙萌出和咀嚼。",
+                fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+    }
+}
+
+// MARK: 记录龋齿弹窗（点牙弓图选牙）
+
+@Composable
+private fun DecayDialog(initialCode: Int?, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val existing = Store.current?.teethDecay?.get(initialCode)
+
+    var code by remember { mutableStateOf(initialCode) }
+    var date by remember { mutableStateOf(existing?.date ?: LocalDate.now()) }
+    var severity by remember { mutableStateOf(existing?.severity ?: 1) }
+    var note by remember { mutableStateOf(existing?.note ?: "") }
+
+    val dayFmt = java.time.format.DateTimeFormatter.ofPattern("M月d日")
+    val base = Store.current?.records?.maxByOrNull { it.date }?.date
+    val next = nextMeasureReminder(base)
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .fillMaxWidth(0.94f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Palette.card)
+                .verticalScroll(rememberScrollState())
+                .padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    code?.let { "记录龋齿 · $it" } ?: "记录龋齿",
+                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Palette.ink,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    code?.let { c -> ToothDef.all[c]?.name ?: "" } ?: "点牙弓图上的牙齿",
+                    fontSize = 11.5.sp, color = if (code == null) Palette.subtle else Palette.purple,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "✕", fontSize = 15.sp, color = Palette.subtle,
+                    modifier = Modifier.clickable { onDismiss() }.padding(6.dp),
+                )
+            }
+
+            // 与「牙弓图」同款排布：直接点牙齿选
+            ArchChart(isUpper = true, selected = code) { code = it }
+            ArchChart(isUpper = false, selected = code) { code = it }
+            Text(
+                "红点 = 已有记录 · ✓ = 已脱落 · 紫色 = 当前选择",
+                fontSize = 10.5.sp, color = Palette.subtle,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            DateField(
+                label = "发现日期",
+                date = date,
+                onDate = { date = it },
+            )
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                "程度（${listOf("轻度：白斑发黑没洞，加强刷牙+涂氟", "中度：有蛀洞，1~2 周内补牙", "重度：深龋/疼过，尽快就诊")[severity - 1]}）",
+                fontSize = 11.sp, color = DecayTone.color(severity),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1 to "轻度", 2 to "中度", 3 to "重度").forEach { (v, label) ->
+                    val on = severity == v
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) DecayTone.color(v) else Palette.hairlineSoft)
+                            .clickable { severity = v }
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (on) Color.White else Palette.ink2,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text("备注（可选）") },
+                placeholder = { Text("如：咬合面有洞，医生已补") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (next != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "提醒：下次测量提醒排在 ${next.format(dayFmt)}",
+                    fontSize = 10.5.sp, color = Palette.subtle,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextButton(onClick = onDismiss) { Text("取消", color = Palette.subtle) }
+                Box(Modifier.weight(1f)) {
+                    val enabled = code != null
+                    PrimaryButton(
+                        text = if (enabled) "保存" else "先选一颗牙",
+                        enabled = enabled,
+                        onClick = {
+                            val c = code
+                            if (c != null) {
+                                Store.updateCurrent { child ->
+                                    child.copy(
+                                        teethDecay = (child.teethDecay ?: emptyMap()) +
+                                            (c to ToothDecay(date = date, severity = severity, note = note.trim())),
+                                    )
+                                }
+                                android.widget.Toast.makeText(context, "已记录 $c 号牙龋齿", android.widget.Toast.LENGTH_SHORT).show()
+                                onDismiss()
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 测量提醒的下次日期（开着的才显示），与 Reminders 的算法一致 */
+private fun nextMeasureReminder(base: LocalDate?): LocalDate? {
+    val s = Store.settings
+    if (!s.growthReminderOn) return null
+    var cursor = base ?: LocalDate.now()
+    var guard = 0
+    while (guard < 400) {
+        guard += 1
+        cursor = cursor.plusDays(maxOf(1, s.growthReminderDays).toLong())
+        if (cursor.atTime(s.growthReminderHour, s.growthReminderMinute).isAfter(java.time.LocalDateTime.now())) return cursor
+    }
+    return null
 }

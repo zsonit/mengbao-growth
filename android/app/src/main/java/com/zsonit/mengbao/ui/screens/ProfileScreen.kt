@@ -1,5 +1,6 @@
 package com.zsonit.mengbao.ui.screens
 
+import android.Manifest
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,6 +30,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zsonit.mengbao.data.GrowthMath
+import com.zsonit.mengbao.data.Reminders
 import com.zsonit.mengbao.data.Standards
 import com.zsonit.mengbao.data.Store
 import com.zsonit.mengbao.ui.DividerLine
@@ -73,6 +77,7 @@ fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
 
     var showImport by remember { mutableStateOf(false) }
     var showReset by remember { mutableStateOf(false) }
+    var showFinalReset by remember { mutableStateOf(false) }
     var showParents by remember { mutableStateOf(false) }
     var showSync by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
@@ -107,6 +112,7 @@ fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
             ProfileCard(onOpenKids)
             StatsGrid()
             AISection(onOpenAI = onOpenAI)
+            ReminderSection()
             SettingsSection(
                 onOpenParents = { showParents = true },
             )
@@ -186,13 +192,30 @@ fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
             text = { Text("所有宝宝与记录都会被删除，建议先导出备份。") },
             confirmButton = {
                 TextButton(onClick = {
-                    Store.reset()
                     showReset = false
-                    Toast.makeText(context, "已清空全部数据", Toast.LENGTH_SHORT).show()
-                }) { Text("清空", color = Palette.bad) }
+                    showFinalReset = true
+                }) { Text("继续", color = Palette.bad) }
             },
             dismissButton = {
                 TextButton(onClick = { showReset = false }) { Text("取消") }
+            },
+        )
+    }
+
+    if (showFinalReset) {
+        AlertDialog(
+            onDismissRequest = { showFinalReset = false },
+            title = { Text("最后确认：真的要清空吗？") },
+            text = { Text("删除后无法恢复（除非之前导出过备份）。点击「确定清空」后所有宝宝与记录立即删除。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    Store.reset()
+                    showFinalReset = false
+                    Toast.makeText(context, "已清空全部数据", Toast.LENGTH_SHORT).show()
+                }) { Text("确定清空", color = Palette.bad) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFinalReset = false }) { Text("再想想") }
             },
         )
     }
@@ -306,6 +329,155 @@ private fun AISection(onOpenAI: () -> Unit) {
 // MARK: 记录设置
 
 @Composable
+// MARK: - 提醒（本机通知）
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderSection() {
+    val context = LocalContext.current
+    val settings = Store.settings
+
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            Reminders.rescheduleNow(context)
+        } else {
+            Toast.makeText(context, "没开通知权限，提醒发不出来；可在系统设置 → 应用 → 萌宝成长 → 通知里打开", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun toggle(on: Boolean, set: (Boolean) -> Unit) {
+        set(on)
+        if (on && !Reminders.permissionGranted(context)) {
+            permLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    SectionHeader(title = "提醒")
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().cardStyle(padding = 14.dp)) {
+        SettingToggle(
+            title = "待办到期提醒",
+            subtitle = "截止前一天 20:00 与当天 9:00 各提醒一次",
+            checked = settings.todoReminderOn,
+            onChange = { toggle(it) { Store.setTodoReminder(it) } },
+        )
+        DividerLine()
+        SettingToggle(
+            title = "定期测量提醒",
+            subtitle = "到点提醒量身高体重，间隔和时间可调",
+            checked = settings.growthReminderOn,
+            onChange = { toggle(it) { Store.setGrowthReminder(on = it) } },
+        )
+        if (settings.growthReminderOn) {
+            DividerLine()
+            val base = Store.current?.records?.maxByOrNull { it.date }?.date
+            val dayFmt = java.time.format.DateTimeFormatter.ofPattern("M月d日")
+
+            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("提醒间隔", fontSize = 14.sp, color = Palette.ink)
+                Spacer(Modifier.weight(1f))
+                Segmented(
+                    options = listOf("一周", "两周", "一个月", "三个月"),
+                    selected = when (settings.growthReminderDays) {
+                        7 -> "一周"
+                        14 -> "两周"
+                        90 -> "三个月"
+                        else -> "一个月"
+                    },
+                    onSelect = { v ->
+                        Store.setGrowthReminder(days = when (v) {
+                            "一周" -> 7
+                            "两周" -> 14
+                            "三个月" -> 90
+                            else -> 30
+                        })
+                    },
+                    modifier = Modifier.width(215.dp),
+                )
+            }
+            DividerLine()
+
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("自定义天数", fontSize = 14.sp, color = Palette.ink)
+                    Text("不用上面的档位，就自己定（1～180 天）", fontSize = 11.5.sp, color = Palette.subtle)
+                }
+                TextButton(onClick = { Store.setGrowthReminder(days = (settings.growthReminderDays - 1).coerceIn(1, 180)) }) {
+                    Text("−", fontSize = 18.sp, color = Palette.purple)
+                }
+                Text(
+                    "${settings.growthReminderDays} 天",
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                TextButton(onClick = { Store.setGrowthReminder(days = (settings.growthReminderDays + 1).coerceIn(1, 180)) }) {
+                    Text("＋", fontSize = 18.sp, color = Palette.purple)
+                }
+            }
+            DividerLine()
+
+            var showTime by remember { mutableStateOf(false) }
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 9.dp).clickable { showTime = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("提醒时间", fontSize = 14.sp, color = Palette.ink)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    String.format(Locale.US, "%02d:%02d", settings.growthReminderHour, settings.growthReminderMinute),
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
+                    tint = Palette.subtle, modifier = Modifier.size(16.dp),
+                )
+            }
+            DividerLine()
+
+            val next = nextGrowthReminderDate(settings, base)
+            Text(
+                "上次测量：" + (base?.format(dayFmt) ?: "还没有记录") +
+                    " · 下次提醒：" + (next?.format(dayFmt) ?: "—"),
+                fontSize = 11.5.sp, color = Palette.subtle,
+            )
+
+            if (showTime) {
+                val state = rememberTimePickerState(
+                    initialHour = settings.growthReminderHour,
+                    initialMinute = settings.growthReminderMinute,
+                    is24Hour = true,
+                )
+                AlertDialog(
+                    onDismissRequest = { showTime = false },
+                    title = { Text("提醒时间") },
+                    text = { TimePicker(state = state) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            Store.setGrowthReminder(hour = state.hour, minute = state.minute)
+                            showTime = false
+                        }) { Text("好") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showTime = false }) { Text("取消") }
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun nextGrowthReminderDate(s: com.zsonit.mengbao.model.AppSettings, base: LocalDate?): LocalDate? {
+    if (!s.growthReminderOn) return null
+    var cursor = base ?: LocalDate.now()
+    var guard = 0
+    while (guard < 400) {
+        guard += 1
+        cursor = cursor.plusDays(maxOf(1, s.growthReminderDays).toLong())
+        val fire = cursor.atTime(s.growthReminderHour, s.growthReminderMinute)
+        if (fire.isAfter(java.time.LocalDateTime.now())) return cursor
+    }
+    return null
+}
+
 private fun SettingsSection(onOpenParents: () -> Unit) {
     val settings = Store.settings
 
