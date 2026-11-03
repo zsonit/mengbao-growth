@@ -62,6 +62,7 @@ import com.zsonit.mengbao.ui.Routes
 import com.zsonit.mengbao.ui.screens.ClinicDetailScreen
 import com.zsonit.mengbao.ui.screens.ClinicListScreen
 import com.zsonit.mengbao.ui.screens.FeedScreen
+import com.zsonit.mengbao.ui.screens.FoodScreen
 import com.zsonit.mengbao.ui.screens.GrowthDetailScreen
 import com.zsonit.mengbao.ui.screens.HistoryScreen
 import com.zsonit.mengbao.ui.screens.HomeScreen

@@ -132,7 +132,7 @@ fun FoodScreen(onBack: () -> Unit) {
         TopBar(title = "辅食推荐", onBack = onBack)
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 10.dp, bottom = 20.dp),
+            contentPadding = PaddingValues(top = 10.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 月龄段选择

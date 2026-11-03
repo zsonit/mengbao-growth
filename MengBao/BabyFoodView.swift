@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - 辅食推荐（按月龄）
 
 struct BabyFood: Identifiable {
-    let id: String          // 名称
+    var id: String { name }  // 同一阶段内名称唯一
     let emoji: String
     let name: String
     let benefit: String     // 对宝宝的作用 / 健康好处
