@@ -139,6 +139,9 @@ struct LiquidTabBar: View {
     @Binding var selection: String
 
     @Environment(\.colorScheme) private var scheme
+    /// 水滴拉伸系数：滑动途中 >1（横向拉长、纵向压扁），落定回 1 ——「又透又 Q 弹」
+    @State private var stretch: CGFloat = 1.0
+    @State private var stretchWork: DispatchWorkItem?
 
     var body: some View {
         GeometryReader { geo in
@@ -155,21 +158,52 @@ struct LiquidTabBar: View {
             }
         }
         .frame(height: 54)
-        .liquidGlass(in: Capsule())
+        // 对齐官方液态玻璃观感：比默认更透，能看透到底下的内容
+        .liquidGlass(in: Capsule(), intensity: 0.45)
         .padding(.horizontal, 22)
         .padding(.bottom, 2)
+        .onChange(of: selection) { _ in pulse() }
     }
 
     // MARK: 透明玻璃水滴（选中指示）
 
     private func droplet(tabW: CGFloat, h: CGFloat, idx: CGFloat) -> some View {
-        // 选中指示：全透明——不填色、不描边、不投影，
-        // 选中态只靠图标变紫 + 加粗来区分（用户要求全透明胶囊）。
+        let light = scheme == .light
+        // 选中指示：像一滴水——能看见但高度透明，绝不填白成块
         return Capsule()
-            .fill(Color.clear)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                Capsule().fill(
+                    LinearGradient(
+                        colors: light
+                            ? [Color.white.opacity(0.14), Color.white.opacity(0.03)]
+                            : [Color.white.opacity(0.08), Color.white.opacity(0.02)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+            )
+            .overlay(
+                // 极淡的水滴轮廓
+                Capsule().strokeBorder(
+                    Color.white.opacity(light ? 0.30 : 0.12),
+                    lineWidth: 0.8
+                )
+            )
             .frame(width: tabW - 10, height: h - 10)
+            .scaleEffect(x: stretch, y: 1.0 / max(stretch, 0.5), anchor: .center)
             .offset(x: idx * tabW + 5)
-            .animation(.spring(response: 0.40, dampingFraction: 0.66), value: idx)
+            .animation(.spring(response: 0.40, dampingFraction: 0.60), value: idx)
+    }
+
+    /// 水滴落定的挤压回弹：先快速拉长一点，稍后弹回（Q 弹感）
+    private func pulse() {
+        stretchWork?.cancel()
+        withAnimation(.spring(response: 0.20, dampingFraction: 0.85)) { stretch = 1.18 }
+        let work = DispatchWorkItem {
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.60)) { stretch = 1.0 }
+        }
+        stretchWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14, execute: work)
     }
 
     // MARK: 单个页签
