@@ -394,6 +394,11 @@ struct HomeView: View {
                 }
                 .buttonStyle(SoftPressStyle())
 
+                NavigationLink { BabyFoodView(child: store.current) } label: {
+                    toolItem("🥣", "辅食推荐", Palette.okBg)
+                }
+                .buttonStyle(SoftPressStyle())
+
                 Button { showTodo = true } label: {
                     toolItem("📋", "待办", Palette.purpleSoft)
                 }

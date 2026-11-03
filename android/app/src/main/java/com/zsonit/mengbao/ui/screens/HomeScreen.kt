@@ -488,6 +488,7 @@ private fun QuickGrid(showFeed: Boolean, showSize: Boolean, showTrends: Boolean,
         add(Triple("🕘", "历史记录", { onNavigate(Routes.HISTORY) }))
         if (showSize) add(Triple("👟", "鞋服尺码", { onNavigate(Routes.SIZE) }))
         add(Triple("🦷", "换牙档案", { onNavigate(Routes.TEETH) }))
+        add(Triple("🥣", "辅食推荐", { onNavigate(Routes.FOOD) }))
         add(Triple("📋", "待办", { onNavigate(Routes.TODO) }))
         add(Triple("⭐", "阶段重点", { onNavigate(Routes.STAGE) }))
     }

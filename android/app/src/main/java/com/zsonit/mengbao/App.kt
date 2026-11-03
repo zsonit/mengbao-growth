@@ -174,6 +174,7 @@ fun MengBaoApp() {
             composable(Routes.TEETH) { ToothChartScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.TODO) { TodoEditorScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.STAGE) { StageScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.FOOD) { FoodScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.QUICK_ENTRIES) { QuickEntryManagerScreen(onBack = { nav.popBackStack() }) }
 
             composable(Routes.CLINICS) {

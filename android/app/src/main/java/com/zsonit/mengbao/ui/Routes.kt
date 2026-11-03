@@ -16,6 +16,7 @@ object Routes {
     const val TEETH = "teeth"   // 换牙档案
     const val TODO = "todo"
     const val STAGE = "stage"
+    const val FOOD = "food"   // 辅食推荐（按月龄）
     const val QUICK_ENTRIES = "quick_entries"
     const val CLINICS = "clinics"
     const val CLINIC_DETAIL = "clinic"
