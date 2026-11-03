@@ -124,8 +124,9 @@ final class NotificationManager {
 
         // 只排未完成、有截止日期的；按截止时间由近到远
         var jobs: [(child: Child, todo: TodoItem)] = []
+        let muted = settings.mutedTodoReminders
         for child in children {
-            for todo in child.todos where !todo.done && todo.due != nil {
+            for todo in child.todos where !todo.done && todo.due != nil && !muted.contains(todo.id.uuidString) {
                 jobs.append((child, todo))
             }
         }

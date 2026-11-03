@@ -677,6 +677,15 @@ private fun TodoCard(child: Child, onOpen: () -> Unit) {
                             )
                         }
                     }
+                    // 本机提醒开关：🔔 会在到期时响，🔕 本机静音（不影响另一台手机，待办内容照样同步）
+                    if (todo.due != null && !todo.done) {
+                        val muted = todo.id in Store.settings.mutedTodoReminders
+                        Text(
+                            if (muted) "🔕" else "🔔",
+                            fontSize = 13.sp,
+                            modifier = Modifier.clickable { Store.toggleTodoMute(todo.id) }.padding(6.dp),
+                        )
+                    }
                     Text(
                         "✕", fontSize = 12.sp, color = Palette.subtle,
                         modifier = Modifier.clickable { Store.deleteTodo(todo.id) }.padding(8.dp),

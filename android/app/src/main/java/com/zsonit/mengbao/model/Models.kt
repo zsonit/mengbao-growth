@@ -273,6 +273,8 @@ data class AppSettings(
     val growthReminderHour: Int = 9,         // 提醒时间（时）
     val growthReminderMinute: Int = 0,       // 提醒时间（分）
     val todoReminderOn: Boolean = true,      // 待办到期提醒开关
+    /** 本机静音的待办 id（不随同步走：每台手机各自决定哪些待办不响，内容照样同步） */
+    val mutedTodoReminders: Set<String> = emptySet(),
 ) {
     val resolvedQuickEntries: List<QuickEntry>
         get() = if (quickEntries.isEmpty()) QuickEntry.builtins else quickEntries

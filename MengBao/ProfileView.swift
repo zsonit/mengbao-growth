@@ -343,7 +343,7 @@ struct ProfileView: View {
                     })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("待办到期提醒").font(.system(size: 14)).foregroundColor(Palette.ink)
-                        Text("到期前一天 20:00、当天 9:00 各通知一次；做完打勾后不再提醒")
+                        Text("到期前一天 20:00、当天 9:00 各通知一次；做完打勾后不再提醒。只影响本手机：另一台照常提醒，待办内容仍会同步")
                             .font(.system(size: 11.5))
                             .foregroundColor(Palette.subtle)
                             .fixedSize(horizontal: false, vertical: true)

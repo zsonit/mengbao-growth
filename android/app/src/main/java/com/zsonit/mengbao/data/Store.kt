@@ -203,6 +203,13 @@ object Store {
 
     fun deleteTodo(id: String) = deleteInCurrent("todo:$id") { c -> c.copy(todos = c.todos.filterNot { it.id == id }) }
 
+    /** 本机静音/恢复某条待办的到期提醒（不随同步走：另一台手机不受影响，待办内容照样同步） */
+    fun toggleTodoMute(id: String) = update { s ->
+        val muted = s.settings.mutedTodoReminders
+        val next = if (id in muted) muted - id else muted + id
+        s.copy(settings = s.settings.copy(mutedTodoReminders = next))
+    }
+
     // MARK: 设置
 
     fun setWeightUnit(unit: String) = update { it.copy(settings = it.settings.copy(weightUnit = unit)) }

@@ -178,6 +178,9 @@ object JsonCodec {
         put("growthReminderHour", s.growthReminderHour)
         put("growthReminderMinute", s.growthReminderMinute)
         put("todoReminderOn", s.todoReminderOn)
+        if (s.mutedTodoReminders.isNotEmpty()) {
+            put("mutedTodoReminders", JSONArray().apply { s.mutedTodoReminders.forEach { put(it) } })
+        }
     }
 
     // MARK: 解码
@@ -301,6 +304,9 @@ object JsonCodec {
         growthReminderHour = o.optIntOrNull("growthReminderHour") ?: 9,
         growthReminderMinute = o.optIntOrNull("growthReminderMinute") ?: 0,
         todoReminderOn = o.optBoolean("todoReminderOn", true),
+        mutedTodoReminders = o.optJSONArray("mutedTodoReminders")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.toSet()
+        } ?: emptySet(),
     )
 }
 

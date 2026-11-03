@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 首页
 
@@ -574,6 +575,20 @@ struct HomeView: View {
                                 .clipShape(Capsule())
                         }
                         Spacer(minLength: 6)
+                        // 本机提醒开关：🔔 会在到期时响，🔕 本机静音（不影响另一台手机，待办内容照样同步）
+                        if todo.due != nil && !todo.done {
+                            let muted = store.settings.mutedTodoReminders.contains(todo.id.uuidString)
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                store.toggleTodoMute(todo.id)
+                            } label: {
+                                Image(systemName: muted ? "bell.slash" : "bell.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(muted ? Palette.subtle : Palette.purple)
+                                    .frame(width: 26, height: 26)
+                            }
+                            .buttonStyle(SoftPressStyle())
+                        }
                         Button { store.deleteTodo(todo.id) } label: {
                             Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(Palette.subtle)
                         }

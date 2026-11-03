@@ -306,6 +306,8 @@ struct AppSettings: Codable, Hashable {
     var growthReminderHour: Int = 9          // 提醒时间（时）
     var growthReminderMinute: Int = 0        // 提醒时间（分）
     var todoReminderOn: Bool = true          // 待办到期提醒开关
+    /// 本机静音的待办 id（不随同步走：每台手机各自决定哪些待办不响，内容照样同步）
+    var mutedTodoReminders: Set<String> = []
 
     // 宽松解码：老版本备份缺哪个字段都用默认值兜底，避免升级/恢复备份时整份数据解不出来
     init(weightUnit: String = "kg", showFeed: Bool = true, showShot: Bool = true,
@@ -340,6 +342,7 @@ struct AppSettings: Codable, Hashable {
         growthReminderHour = try c.decodeIfPresent(Int.self, forKey: .growthReminderHour) ?? 9
         growthReminderMinute = try c.decodeIfPresent(Int.self, forKey: .growthReminderMinute) ?? 0
         todoReminderOn = try c.decodeIfPresent(Bool.self, forKey: .todoReminderOn) ?? true
+        mutedTodoReminders = try c.decodeIfPresent(Set<String>.self, forKey: .mutedTodoReminders) ?? []
     }
 
     var resolvedQuickEntries: [QuickEntry] {

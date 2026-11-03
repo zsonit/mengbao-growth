@@ -355,7 +355,7 @@ private fun ReminderSection() {
     Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().cardStyle(padding = 14.dp)) {
         SettingToggle(
             title = "待办到期提醒",
-            subtitle = "截止前一天 20:00 与当天 9:00 各提醒一次",
+            subtitle = "截止前一天 20:00 与当天 9:00 各提醒一次。只影响本手机：另一台照常提醒，待办内容仍会同步",
             checked = settings.todoReminderOn,
             onChange = { toggle(it) { Store.setTodoReminder(it) } },
         )

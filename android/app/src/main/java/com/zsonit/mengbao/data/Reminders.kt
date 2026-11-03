@@ -156,6 +156,7 @@ object Reminders {
             for (todo in child.todos) {
                 if (todo.done) continue
                 val due = todo.due ?: continue
+                if (todo.id in s.mutedTodoReminders) continue  // 本机静音的待办不响
                 if (ids.size >= TODO_LIMIT) break@outer
 
                 // 截止前一天 20:00 先预告一次

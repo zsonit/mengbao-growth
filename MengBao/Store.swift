@@ -298,6 +298,20 @@ final class Store: ObservableObject {
 
     func setTodoReminder(_ on: Bool) { update { $0.settings.todoReminderOn = on } }
 
+    /// 本机静音/恢复某条待办的到期提醒（不随同步走：另一台手机不受影响，待办内容照样同步）
+    func toggleTodoMute(_ id: UUID) {
+        update { s in
+            let key = id.uuidString
+            if s.settings.mutedTodoReminders.contains(key) {
+                s.settings.mutedTodoReminders.remove(key)
+            } else {
+                s.settings.mutedTodoReminders.insert(key)
+            }
+        }
+    }
+
+    var isTodoMuted: (UUID) -> Bool { { Store.shared.state.settings.mutedTodoReminders.contains($0.uuidString) } }
+
     /// 下次定期测量提醒的时间（首页 / 生长页展示用）
     func nextGrowthReminderDate(for child: Child) -> Date? {
         let s = settings
