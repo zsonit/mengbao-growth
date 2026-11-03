@@ -115,20 +115,42 @@ struct HistoryView: View {
                     .padding(.horizontal, -0)
             }
         case .feed(let log):
-            HStack(spacing: 10) {
-                Text(log.kind.icon).font(.system(size: 18))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(log.kind.title) · \(log.summary)").font(.system(size: 14)).foregroundColor(Palette.ink)
-                    Text("\(GrowthMath.dateString(log.date)) \(log.date.formatted(date: .omitted, time: .shortened))")
-                        .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    Text(log.kind.icon).font(.system(size: 18))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(log.kind.title) · \(log.summary)").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text("\(GrowthMath.dateString(log.date)) \(log.date.formatted(date: .omitted, time: .shortened))")
+                            .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                    }
+                    Spacer()
+                    Button { store.deleteFeed(log.id) } label: {
+                        Image(systemName: "trash").font(.system(size: 12)).foregroundColor(Palette.bad)
+                    }
+                    .buttonStyle(SoftPressStyle())
                 }
-                Spacer()
-                Button { store.deleteFeed(log.id) } label: {
-                    Image(systemName: "trash").font(.system(size: 12)).foregroundColor(Palette.bad)
+                .padding(14)
+
+                // 瓶喂/睡眠/尿布：显示已过去时间（实时计时），出现新的同类型记录后固定为间隔
+                if let next = Self.feedNextDate(of: log, in: child.feeds) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock").font(.system(size: 9.5))
+                        Text("间隔 \(Self.gapText(next.timeIntervalSince(log.date)))")
+                    }
+                    .font(.system(size: 11)).foregroundColor(Palette.subtle)
+                    .padding(.horizontal, 14).padding(.bottom, 11)
+                } else if Self.isElapsedTracked(log.kind) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill").font(.system(size: 9.5))
+                        TimelineView(.periodic(from: .now, by: 30)) { _ in
+                            Text("已过去 \(Self.gapText(Date().timeIntervalSince(log.date)))")
+                                .font(.system(size: 11, weight: .medium)).foregroundColor(Palette.purple)
+                        }
+                    }
+                    .font(.system(size: 11)).foregroundColor(Palette.purple)
+                    .padding(.horizontal, 14).padding(.bottom, 11)
                 }
-                .buttonStyle(SoftPressStyle())
             }
-            .padding(14)
             .background(Palette.card)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
@@ -184,5 +206,31 @@ struct HistoryView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
         }
+    }
+
+    // MARK: 已过去时间辅助
+
+    /// 瓶喂/睡眠/尿布三类记录显示计时
+    private static func isElapsedTracked(_ kind: FeedLog.Kind) -> Bool {
+        kind == .bottle || kind == .sleep || kind == .diaper
+    }
+
+    /// 返回同类型中晚于该记录的最近一条时间；为 nil 表示该记录是最新一条（仍在计时中）
+    private static func feedNextDate(of log: FeedLog, in feeds: [FeedLog]) -> Date? {
+        guard isElapsedTracked(log.kind) else { return nil }
+        return feeds
+            .filter { $0.kind == log.kind && $0.id != log.id && $0.date > log.date }
+            .map(\.date)
+            .min()
+    }
+
+    private static func gapText(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        if total < 60 { return "\(total) 秒" }
+        let m = total / 60
+        if m < 60 { return "\(m) 分钟" }
+        let h = m / 60
+        if h < 48 { return "\(h) 小时 \(m % 60) 分" }
+        return "\(h / 24) 天 \(h % 24) 小时"
     }
 }

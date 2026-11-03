@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -131,8 +132,20 @@ private fun HistoryContent(child: Child, filter: String, onFilter: (String) -> U
         if (visible.isEmpty()) {
             EmptyHint(text = "该分类下还没有记录")
         } else {
+            // 瓶喂/睡眠/尿布：显示已过去时间（最新一条实时计时），出现新的同类型记录后固定为间隔
+            val tracked = setOf(FeedLog.Kind.BOTTLE, FeedLog.Kind.SLEEP, FeedLog.Kind.DIAPER)
             visible.forEach { item ->
-                HistoryItemView(item, child, modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp))
+                var gapNext: java.time.LocalDateTime? = null
+                var showGap = false
+                if (item is HistoryItem.Feed && item.log.kind in tracked) {
+                    showGap = true
+                    val start = item.log.date.atTime(item.log.time ?: LocalTime.MIN)
+                    gapNext = child.feeds.filter { it.kind == item.log.kind && it.id != item.log.id }
+                        .map { it.date.atTime(it.time ?: LocalTime.MIN) }
+                        .filter { it > start }
+                        .minOrNull()
+                }
+                HistoryItemView(item, child, gapNext, showGap, modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp))
             }
         }
         Spacer(Modifier.height(28.dp))
@@ -140,10 +153,10 @@ private fun HistoryContent(child: Child, filter: String, onFilter: (String) -> U
 }
 
 @Composable
-private fun HistoryItemView(item: HistoryItem, child: Child, modifier: Modifier = Modifier) {
+private fun HistoryItemView(item: HistoryItem, child: Child, gapNext: java.time.LocalDateTime?, showGap: Boolean, modifier: Modifier = Modifier) {
     when (item) {
         is HistoryItem.Record -> RecordItem(item.record, child, modifier)
-        is HistoryItem.Feed -> FeedItem(item.log, modifier)
+        is HistoryItem.Feed -> FeedItem(item.log, gapNext, showGap, modifier)
         is HistoryItem.Size -> SizeItem(item.size, modifier)
     }
 }
@@ -189,19 +202,60 @@ private fun Metric(name: String, value: String, unit: String) {
 }
 
 @Composable
-private fun FeedItem(log: FeedLog, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth().cardStyle(padding = 14.dp, radius = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(log.kind.icon, fontSize = 18.sp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text("${log.kind.title} · ${log.summary}", fontSize = 14.sp, color = Palette.ink)
-            Text("${GrowthMath.dateString(log.date)} ${GrowthMath.timeText(log.time)}".trim(), fontSize = 11.5.sp, color = Palette.subtle)
+private fun FeedItem(log: FeedLog, gapNext: java.time.LocalDateTime?, showGap: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().cardStyle(padding = 0.dp, radius = 14.dp)) {
+        Row(
+            Modifier.fillMaxWidth()
+                .padding(start = 14.dp, end = 6.dp, top = 14.dp, bottom = if (showGap) 6.dp else 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(log.kind.icon, fontSize = 18.sp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("${log.kind.title} · ${log.summary}", fontSize = 14.sp, color = Palette.ink)
+                Text("${GrowthMath.dateString(log.date)} ${GrowthMath.timeText(log.time)}".trim(), fontSize = 11.5.sp, color = Palette.subtle)
+            }
+            DeleteButton { Store.deleteFeed(log.id) }
         }
-        DeleteButton { Store.deleteFeed(log.id) }
+        if (showGap) {
+            val start = log.date.atTime(log.time ?: LocalTime.MIN)
+            Row(Modifier.padding(start = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (gapNext == null) {
+                    // 最新一条：实时计时
+                    var now by remember(log.id) { mutableStateOf(java.time.LocalDateTime.now()) }
+                    LaunchedEffect(log.id) {
+                        while (true) {
+                            kotlinx.coroutines.delay(30_000)
+                            now = java.time.LocalDateTime.now()
+                        }
+                    }
+                    Text("⏱", fontSize = 10.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "已过去 ${gapText(java.time.Duration.between(start, now).seconds)}",
+                        fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Palette.purple,
+                    )
+                } else {
+                    Text("🕒", fontSize = 10.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "间隔 ${gapText(java.time.Duration.between(start, gapNext).seconds)}",
+                        fontSize = 11.sp, color = Palette.subtle,
+                    )
+                }
+            }
+        }
     }
+}
+
+/** 已过去时间的友好格式 */
+private fun gapText(seconds: Long): String {
+    val total = seconds.coerceAtLeast(0)
+    if (total < 60) return "$total 秒"
+    val m = total / 60
+    if (m < 60) return "$m 分钟"
+    val h = m / 60
+    return if (h < 48) "$h 小时 ${m % 60} 分" else "${h / 24} 天 ${h % 24} 小时"
 }
 
 @Composable
