@@ -158,8 +158,9 @@ struct LiquidTabBar: View {
             }
         }
         .frame(height: 54)
-        // 对齐官方液态玻璃观感：比默认更透，能看透到底下的内容
-        .liquidGlass(in: Capsule(), intensity: 0.45)
+        // 对齐 iOS 26 官方液态玻璃：玻璃要「清透」——后面的内容颜色能透出来，
+        // 只留极淡的受光和描边（强度 0.30，绝不是奶白磨砂）
+        .liquidGlass(in: Capsule(), intensity: 0.30)
         .padding(.horizontal, 22)
         .padding(.bottom, 2)
         .onChange(of: selection) { _ in pulse() }
@@ -169,26 +170,19 @@ struct LiquidTabBar: View {
 
     private func droplet(tabW: CGFloat, h: CGFloat, idx: CGFloat) -> some View {
         let light = scheme == .light
-        // 选中指示：像一滴水——能看见但高度透明，绝不填白成块
+        // 选中指示：官方那种浅灰磨砂水滴——看得见、软边、不发白块
         return Capsule()
             .fill(.ultraThinMaterial)
             .overlay(
-                Capsule().fill(
-                    LinearGradient(
-                        colors: light
-                            ? [Color.white.opacity(0.14), Color.white.opacity(0.03)]
-                            : [Color.white.opacity(0.08), Color.white.opacity(0.02)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
+                Capsule().fill(Color.white.opacity(light ? 0.30 : 0.10))
             )
             .overlay(
-                // 极淡的水滴轮廓
                 Capsule().strokeBorder(
-                    Color.white.opacity(light ? 0.30 : 0.12),
+                    Color.white.opacity(light ? 0.45 : 0.15),
                     lineWidth: 0.8
                 )
             )
+            .shadow(color: .black.opacity(light ? 0.08 : 0.25), radius: 5, x: 0, y: 2)
             .frame(width: tabW - 10, height: h - 10)
             .scaleEffect(x: stretch, y: 1.0 / max(stretch, 0.5), anchor: .center)
             .offset(x: idx * tabW + 5)
