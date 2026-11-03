@@ -195,6 +195,26 @@ struct ShotRecord: Codable, Hashable {
     var note: String = ""
 }
 
+// MARK: - 龋齿（换牙档案）
+
+/// 一颗乳牙的龋齿（烂牙）记录
+struct ToothDecay: Codable, Hashable {
+    var date: Date              // 发现 / 就诊日期
+    var severity: Int = 1       // 1=轻度（白斑、浅龋）2=中度（有洞）3=重度（深龋、疼过、需治疗）
+    var note: String = ""       // 备注：哪一面、医生说了什么、是否已补
+
+    var severityLabel: String {
+        switch severity {
+        case 3: return "重度"
+        case 2: return "中度"
+        default: return "轻度"
+        }
+    }
+
+    /// 中重度建议尽快看牙医
+    var needsVisit: Bool { severity >= 2 }
+}
+
 // MARK: - 宝宝
 
 struct Child: Identifiable, Codable, Hashable {
@@ -212,6 +232,7 @@ struct Child: Identifiable, Codable, Hashable {
     var shots: [String: ShotRecord] = [:]
     var todos: [TodoItem] = []
     var teethFallen: [Int: Date]? = nil   // 换牙档案：乳牙 FDI 编码 -> 脱落日期
+    var teethDecay: [Int: ToothDecay]? = nil  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     var optVaccines: [String]? = nil      // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     var updatedAt: Date? = nil            // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
 

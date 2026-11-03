@@ -383,6 +383,10 @@ final class SyncManager: ObservableObject {
         var teeth = auth.teethFallen ?? [:]
         for (k, v) in (other.teethFallen ?? [:]) where teeth[k] == nil { teeth[k] = v }
         out.teethFallen = teeth.isEmpty ? nil : teeth
+        // 龋齿记录同样按牙位并集，缺失的一侧补上（同一颗牙各自记录时以权威端为准）
+        var decay = auth.teethDecay ?? [:]
+        for (k, v) in (other.teethDecay ?? [:]) where decay[k] == nil { decay[k] = v }
+        out.teethDecay = decay.isEmpty ? nil : decay
         return out
     }
 

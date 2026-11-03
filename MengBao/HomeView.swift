@@ -752,7 +752,7 @@ struct OnboardingView: View {
                     KVRow(key: "💉 接种计划", value: "广东免疫规划 \(GrowthMath.totalDoses) 剂")
                     KVRow(key: "🍼 喂养记录", value: "睡眠 · 奶量 · 尿布")
                     KVRow(key: "👟 鞋服尺码", value: "脚长换算 + 身高对应码")
-                    KVRow(key: "🦷 换牙档案", value: "20 颗乳牙脱落记录 + 换牙时间表")
+                    KVRow(key: "🦷 换牙档案", value: "乳牙脱落 + 换牙时间表 + 龋齿记录")
                     KVRow(key: "🔒 数据归属", value: "只存本机，可导出备份")
                 }
                 .cardStyle()

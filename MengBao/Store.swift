@@ -210,6 +210,24 @@ final class Store: ObservableObject {
         updateCurrent { $0.todos.append(contentsOf: items) }
     }
 
+    /// 换牙档案：标记 / 取消某颗乳牙的脱落
+    func setToothFallen(_ code: Int, date: Date?) {
+        updateCurrent { c in
+            var map = c.teethFallen ?? [:]
+            if let d = date { map[code] = d } else { map.removeValue(forKey: code) }
+            c.teethFallen = map.isEmpty ? nil : map
+        }
+    }
+
+    /// 换牙档案：记录 / 清除 / 修改某颗乳牙的龋齿（烂牙）
+    func setToothDecay(_ code: Int, decay: ToothDecay?) {
+        updateCurrent { c in
+            var map = c.teethDecay ?? [:]
+            if let d = decay { map[code] = d } else { map.removeValue(forKey: code) }
+            c.teethDecay = map.isEmpty ? nil : map
+        }
+    }
+
     func toggleTodo(_ id: UUID) {
         updateCurrent { child in
             if let idx = child.todos.firstIndex(where: { $0.id == id }) {
