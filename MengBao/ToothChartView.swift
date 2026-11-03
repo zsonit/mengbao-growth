@@ -783,64 +783,53 @@ private struct ToothDecayEditorView: View {
     }
 
     private var pickerCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("哪颗牙有龋齿（烂牙）？")
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(Palette.ink)
-            toothGrid(title: "上颌", codes: ToothDef.upperOrder)
-            toothGrid(title: "下颌", codes: ToothDef.lowerOrder)
-            Text("红点 = 这颗牙已经有过记录；已脱落的牙位也可以记录。")
-                .font(.system(size: 11))
-                .foregroundColor(Palette.subtle)
-        }
-        .cardStyle()
-    }
-
-    private func toothGrid(title: String, codes: [Int]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 11.5)).foregroundColor(Palette.subtle)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
-                ForEach(codes, id: \.self) { c in
-                    let def = ToothDef.all[c]
-                    let on = code == c
-                    Button {
-                        select(c)
-                    } label: {
-                        VStack(spacing: 1) {
-                            Text("\(c)")
-                                .font(.system(size: 12.5, weight: .bold, design: .monospaced))
-                            Text(def?.shortName ?? "")
-                                .font(.system(size: 9))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .foregroundColor(on ? .white : Palette.ink2)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background(on ? Palette.purple : Palette.hairlineSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .overlay(alignment: .topTrailing) {
-                            if decayMap[c] != nil {
-                                Circle()
-                                    .fill(Palette.bad)
-                                    .frame(width: 7, height: 7)
-                                    .overlay(Circle().strokeBorder(Color.white, lineWidth: 1))
-                                    .offset(x: 2, y: -2)
-                            }
-                        }
-                        .overlay(alignment: .bottomLeading) {
-                            if fallenMap[c] != nil {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(on ? .white.opacity(0.9) : Palette.ok)
-                                    .offset(x: 3, y: 3)
-                            }
-                        }
-                    }
-                    .buttonStyle(SoftPressStyle())
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("哪颗牙有龋齿（烂牙）？")
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundColor(Palette.ink)
+                Spacer(minLength: 8)
+                Text(selectedLabel)
+                    .font(.system(size: 11.5, weight: code == nil ? .regular : .semibold))
+                    .foregroundColor(code == nil ? Palette.subtle : Palette.purple)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            // 和「牙弓图」一样的拟真牙弓，直接点牙齿选，不用对编码
+            ArchPickerView(codes: ToothDef.upperOrder,
+                           isUpper: true,
+                           selected: code,
+                           decayed: Set(decayMap.keys),
+                           fallen: Set(fallenMap.keys)) { select($0) }
+            ArchPickerView(codes: ToothDef.lowerOrder,
+                           isUpper: false,
+                           selected: code,
+                           decayed: Set(decayMap.keys),
+                           fallen: Set(fallenMap.keys)) { select($0) }
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Circle().fill(Palette.bad).frame(width: 8, height: 8)
+                    Text("已有记录").font(.system(size: 10.5)).foregroundColor(Palette.subtle)
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundColor(Palette.ok)
+                    Text("已脱落").font(.system(size: 10.5)).foregroundColor(Palette.subtle)
+                }
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Palette.purple).frame(width: 10, height: 10)
+                    Text("当前选择").font(.system(size: 10.5)).foregroundColor(Palette.subtle)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 2)
         }
+        .cardStyle(padding: 12)
+    }
+
+    private var selectedLabel: String {
+        guard let c = code, let def = ToothDef.all[c] else { return "点牙齿选择" }
+        return "已选 \(c) \(def.name)"
     }
 
     private var detailCard: some View {
@@ -1021,5 +1010,110 @@ struct ToothCell: View {
         case .normal:
             EmptyView()
         }
+    }
+}
+
+// MARK: - 选牙用的牙弓图（与「牙弓图」同款排布，直接点牙齿选中）
+
+struct ArchPickerView: View {
+    let codes: [Int]
+    let isUpper: Bool
+    let selected: Int?
+    let decayed: Set<Int>
+    let fallen: Set<Int>
+    let onTap: (Int) -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = ArchChartView.arcHeight
+            let cx = w / 2
+            let rx = w / 2 - 40
+            let ry: CGFloat = 120
+            // 上颌弧顶朝上、两端在下；下颌相反（与「牙弓图」完全一致）
+            let cy = isUpper ? h - 35 : 35
+            let step = codes.count > 1 ? 170.0 / Double(codes.count - 1) : 0
+
+            ZStack {
+                // 牙龈弧
+                Path { p in
+                    var first = true
+                    var deg = 175.0
+                    while deg >= 5 {
+                        let t = deg * .pi / 180
+                        let gx = cx + (rx + 14) * CGFloat(cos(t))
+                        let gy = isUpper
+                            ? cy - (ry + 14) * CGFloat(sin(t))
+                            : cy + (ry + 14) * CGFloat(sin(t))
+                        if first {
+                            p.move(to: CGPoint(x: gx, y: gy))
+                            first = false
+                        } else {
+                            p.addLine(to: CGPoint(x: gx, y: gy))
+                        }
+                        deg -= 5
+                    }
+                }
+                .stroke(isUpper ? Color.pink.opacity(0.16) : Color.pink.opacity(0.13),
+                        style: StrokeStyle(lineWidth: 28, lineCap: .round, lineJoin: .round))
+
+                ForEach(Array(codes.enumerated()), id: \.element) { idx, code in
+                    let theta = (175.0 - Double(idx) * step) * .pi / 180
+                    let x = cx + rx * CGFloat(cos(theta))
+                    let y = isUpper
+                        ? cy - ry * CGFloat(sin(theta))
+                        : cy + ry * CGFloat(sin(theta))
+
+                    pickerCell(code)
+                        .position(x: x, y: y + (isUpper ? -9 : 9))
+                        .onTapGesture { onTap(code) }
+                }
+
+                Text(isUpper ? "上颌（Maxillary）" : "下颌（Mandibular）")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Palette.subtle)
+                    .position(x: cx, y: cy + (isUpper ? -46 : 46))
+            }
+        }
+        .frame(height: ArchChartView.arcHeight)
+    }
+
+    private func pickerCell(_ code: Int) -> some View {
+        let on = selected == code
+        return VStack(spacing: 3) {
+            if isUpper { number(code, on) }
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(on ? Palette.purple : Palette.card)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(on ? Palette.purpleDeep : Palette.hairline, lineWidth: on ? 2 : 1.5)
+                if fallen.contains(code) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(on ? .white : Palette.ok)
+                }
+            }
+            .frame(width: 30, height: 36)
+            .overlay(alignment: .topTrailing) {
+                if decayed.contains(code) {
+                    Circle()
+                        .fill(Palette.bad)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().strokeBorder(Color.white, lineWidth: 1.2))
+                        .offset(x: 3, y: -3)
+                }
+            }
+            .shadow(color: on ? Palette.purple.opacity(0.45) : .clear, radius: 8, y: 2)
+            if !isUpper { number(code, on) }
+        }
+        .scaleEffect(on ? 1.06 : 1)
+        .contentShape(Rectangle())
+        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: on)
+    }
+
+    private func number(_ code: Int, _ on: Bool) -> some View {
+        Text("\(code)")
+            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+            .foregroundColor(on ? Palette.purpleDeep : Palette.subtle)
     }
 }
