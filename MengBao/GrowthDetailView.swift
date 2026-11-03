@@ -866,6 +866,11 @@ struct StageSheet: View {
     @Environment(\.dismiss) private var dismiss
     let child: Child
 
+    /// 直接读 store，加入后 ⊕ 立即变 ✓（外面传进来的 child 是快照）
+    private var currentTodos: [TodoItem] {
+        store.current?.todos ?? []
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -873,18 +878,23 @@ struct StageSheet: View {
                     Text("\(child.name) · \(GrowthMath.ageText(from: child.birthDate))")
                         .font(.system(size: 13)).foregroundColor(Palette.subtle)
                     ForEach(GrowthMath.milestones(for: child), id: \.self) { item in
+                        // 实时读待办列表：已加入显示 ✓，避免重复添加且无反馈
+                        let added = currentTodos.contains { $0.title == item }
                         HStack(alignment: .top, spacing: 8) {
                             Text(item).font(.system(size: 14)).foregroundColor(Palette.ink)
                             Spacer(minLength: 8)
                             Button {
-                                if !child.todos.contains(where: { $0.title == item }) {
-                                    store.addTodo(TodoItem(title: item))
-                                }
+                                guard !added else { return }
+                                store.addTodo(TodoItem(title: item))
                             } label: {
-                                Image(systemName: "plus.circle")
-                                    .foregroundColor(Palette.purple)
+                                Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
+                                    .font(.system(size: 19))
+                                    .foregroundColor(added ? Palette.ok : Palette.purple)
+                                    .frame(width: 38, height: 38)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(SoftPressStyle())
+                            .disabled(added)
                         }
                         .padding(14)
                         .background(Palette.card)

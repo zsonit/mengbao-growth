@@ -44,13 +44,18 @@ struct EntrySheet: View {
                     content
                     dateRows
                     if showsExtraNote { noteField }
-                    Button("保存") { save() }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .padding(.top, 2)
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+                .padding(.top, 2)
+                .padding(.bottom, 8)
             }
+
+            // 保存按钮固定在弹层底部，不随内容滚动，半屏高度也不会被挡住
+            Button("保存") { save() }
+                .buttonStyle(PrimaryButtonStyle())
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
         }
         .background(Palette.background.ignoresSafeArea())
         .presentationDetents([.medium, .large])

@@ -671,19 +671,24 @@ fun StageScreen(onBack: () -> Unit) {
                     fontSize = 13.sp, color = Palette.subtle,
                 )
                 milestones.forEach { milestone ->
+                    // 实时读待办列表：已加入显示 ✓，避免重复添加
+                    val added = Store.current?.todos?.any { it.title == milestone } == true
                     Column(Modifier.fillMaxWidth().cardStyle(padding = 14.dp, radius = 14.dp)) {
-                        Text(milestone, fontSize = 14.sp, color = Palette.ink)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "＋ 加入待办清单", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    Store.addTodo(TodoItem(title = milestone))
-                                    Toast.makeText(context, "已加入待办清单", Toast.LENGTH_SHORT).show()
-                                }
-                                .padding(vertical = 4.dp),
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(milestone, fontSize = 14.sp, color = Palette.ink, modifier = Modifier.weight(1f))
+                            Text(
+                                if (added) "✓ 已加入" else "＋ 加入待办",
+                                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (added) Palette.ok else Palette.purple,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !added) {
+                                        Store.addTodo(TodoItem(title = milestone))
+                                        Toast.makeText(context, "已加入待办清单", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                            )
+                        }
                     }
                 }
             }
