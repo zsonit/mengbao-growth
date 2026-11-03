@@ -284,4 +284,6 @@ data class AppState(
     val children: List<Child> = emptyList(),
     val currentId: String? = null,
     val settings: AppSettings = AppSettings(),
+    /** 删除墓碑：记录已删除条目的 key（如 "todo:<id>"），同步合并时据此过滤，防止旧副本复活 */
+    val tombstones: Set<String> = emptySet(),
 )

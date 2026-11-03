@@ -56,6 +56,9 @@ object JsonCodec {
         root.put("children", JSONArray().apply { state.children.forEach { put(encodeChild(it)) } })
         state.currentId?.let { root.put("currentID", it) }
         root.put("settings", encodeSettings(state.settings))
+        if (state.tombstones.isNotEmpty()) {
+            root.put("tombstones", JSONArray().apply { state.tombstones.forEach { put(it) } })
+        }
         return root.toString(2)
     }
 
@@ -190,6 +193,9 @@ object JsonCodec {
             children = children,
             currentId = root.optStringOrNull("currentID"),
             settings = root.optJSONObject("settings")?.let { decodeSettings(it) } ?: AppSettings(),
+            tombstones = root.optJSONArray("tombstones")?.let { arr ->
+                (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.toSet()
+            } ?: emptySet(),
         )
     }
 

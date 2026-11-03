@@ -82,6 +82,16 @@ final class Store: ObservableObject {
         BackupManager.shared.noteChange()
     }
 
+    /// 删除当前宝宝下的某条数据，同时写入删除墓碑（防止同步把条目并集合并回来）
+    private func deleteInCurrent(_ tombstoneKey: String, _ block: (inout Child) -> Void) {
+        update { s in
+            s.tombstones.insert(tombstoneKey)
+            guard let id = s.currentID, let idx = s.children.firstIndex(where: { $0.id == id }) else { return }
+            block(&s.children[idx])
+            s.children[idx].updatedAt = Date()
+        }
+    }
+
     /// 落盘放到串行后台队列：数据量大时编码 + 写盘不再卡主线程（录音、滚动时的卡顿来源之一）
     private let ioQueue = DispatchQueue(label: "mengbao.store.io", qos: .utility)
 
@@ -127,6 +137,7 @@ final class Store: ObservableObject {
 
     func deleteChild(_ id: UUID) {
         update { s in
+            s.tombstones.insert("child:\(id.uuidString)")
             s.children.removeAll { $0.id == id }
             if s.currentID == id { s.currentID = s.children.first?.id }
         }
@@ -150,7 +161,7 @@ final class Store: ObservableObject {
     }
 
     func deleteRecord(_ id: UUID) {
-        updateCurrent { $0.records.removeAll { $0.id == id } }
+        deleteInCurrent("rec:\(id.uuidString)") { $0.records.removeAll { $0.id == id } }
     }
 
     // MARK: 喂养
@@ -160,7 +171,7 @@ final class Store: ObservableObject {
     }
 
     func deleteFeed(_ id: UUID) {
-        updateCurrent { $0.feeds.removeAll { $0.id == id } }
+        deleteInCurrent("feed:\(id.uuidString)") { $0.feeds.removeAll { $0.id == id } }
     }
 
     // MARK: 尺码
@@ -180,7 +191,7 @@ final class Store: ObservableObject {
     }
 
     func deleteSize(_ id: UUID) {
-        updateCurrent { $0.sizes.removeAll { $0.id == id } }
+        deleteInCurrent("size:\(id.uuidString)") { $0.sizes.removeAll { $0.id == id } }
     }
 
     // MARK: 接种
@@ -191,12 +202,16 @@ final class Store: ObservableObject {
     }
 
     func toggleShot(key: String) {
-        updateCurrent { child in
-            if child.shots[key] != nil {
-                child.shots.removeValue(forKey: key)
+        update { s in
+            guard let id = s.currentID, let idx = s.children.firstIndex(where: { $0.id == id }) else { return }
+            if s.children[idx].shots[key] != nil {
+                s.children[idx].shots.removeValue(forKey: key)
+                s.tombstones.insert("shot:\(key)")
             } else {
-                child.shots[key] = ShotRecord(date: Date())
+                s.children[idx].shots[key] = ShotRecord(date: Date())
+                s.tombstones.remove("shot:\(key)")
             }
+            s.children[idx].updatedAt = Date()
         }
     }
 
@@ -239,7 +254,7 @@ final class Store: ObservableObject {
     }
 
     func deleteTodo(_ id: UUID) {
-        updateCurrent { $0.todos.removeAll { $0.id == id } }
+        deleteInCurrent("todo:\(id.uuidString)") { $0.todos.removeAll { $0.id == id } }
     }
 
     // MARK: 设置

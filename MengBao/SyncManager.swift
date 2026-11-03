@@ -347,18 +347,21 @@ final class SyncManager: ObservableObject {
     // MARK: 合并（与安卓保持一致）
 
     static func mergeState(local: AppState, remote: AppState) -> AppState {
+        // 删除墓碑：两端取并集，一旦某条被删除，任何一侧的旧副本都不能再合并回来
+        let tom = local.tombstones.union(remote.tombstones)
         var children: [Child] = []
         let remoteById = Dictionary(uniqueKeysWithValues: remote.children.map { ($0.id, $0) })
         var seen = Set<UUID>()
-        for l in local.children {
+        for l in local.children where !tom.contains("child:\(l.id.uuidString)") {
             seen.insert(l.id)
-            children.append(remoteById[l.id].map { mergeChild(l, $0) } ?? l)
+            children.append(remoteById[l.id].map { mergeChild(l, $0, tombstones: tom) } ?? l)
         }
-        for r in remote.children where !seen.contains(r.id) {
+        for r in remote.children where !seen.contains(r.id) && !tom.contains("child:\(r.id.uuidString)") {
             children.append(r)
         }
         var out = local
         out.children = children
+        out.tombstones = tom
         return out
     }
 
@@ -368,18 +371,23 @@ final class SyncManager: ObservableObject {
         return lt >= rt
     }
 
-    static func mergeChild(_ l: Child, _ r: Child) -> Child {
+    static func mergeChild(_ l: Child, _ r: Child, tombstones tom: Set<String> = []) -> Child {
         let authIsL = authIsLocal(l, r)
         let auth = authIsL ? l : r
         let other = authIsL ? r : l
         var out = auth
-        out.records = mergeRecords(auth.records, other.records)
-        out.feeds = mergeById(auth.feeds, other.feeds)
-        out.sizes = dedupeSizes(mergeById(auth.sizes, other.sizes))
-        out.todos = mergeById(auth.todos, other.todos)
+        // 合并前先按墓碑过滤，删除过的条目不会从另一端/云端旧快照里复活
+        func alive(_ records: [GrowthRecord]) -> [GrowthRecord] { records.filter { !tom.contains("rec:\($0.id.uuidString)") } }
+        func aliveFeeds(_ list: [FeedLog]) -> [FeedLog] { list.filter { !tom.contains("feed:\($0.id.uuidString)") } }
+        func aliveSizes(_ list: [SizeRecord]) -> [SizeRecord] { list.filter { !tom.contains("size:\($0.id.uuidString)") } }
+        func aliveTodos(_ list: [TodoItem]) -> [TodoItem] { list.filter { !tom.contains("todo:\($0.id.uuidString)") } }
+        out.records = mergeRecords(alive(auth.records), alive(other.records))
+        out.feeds = mergeById(aliveFeeds(auth.feeds), aliveFeeds(other.feeds))
+        out.sizes = dedupeSizes(mergeById(aliveSizes(auth.sizes), aliveSizes(other.sizes)))
+        out.todos = mergeById(aliveTodos(auth.todos), aliveTodos(other.todos))
         var shots = auth.shots
         for (k, v) in other.shots where shots[k] == nil { shots[k] = v }
-        out.shots = shots
+        out.shots = shots.filter { !tom.contains("shot:\($0.key)") }
         var teeth = auth.teethFallen ?? [:]
         for (k, v) in (other.teethFallen ?? [:]) where teeth[k] == nil { teeth[k] = v }
         out.teethFallen = teeth.isEmpty ? nil : teeth

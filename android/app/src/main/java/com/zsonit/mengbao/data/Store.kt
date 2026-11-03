@@ -84,6 +84,19 @@ object Store {
         runCatching { f.writeText(JsonCodec.encode(state)) }
     }
 
+    /** 删除当前宝宝下的某条数据，同时写入删除墓碑（防止同步并集把条目合回来） */
+    private fun deleteInCurrent(tombstoneKey: String, block: (Child) -> Child) {
+        val id = state.currentId ?: return
+        update { s ->
+            s.copy(
+                tombstones = s.tombstones + tombstoneKey,
+                children = s.children.map {
+                    if (it.id == id) block(it).copy(updatedAt = java.time.LocalDateTime.now()) else it
+                },
+            )
+        }
+    }
+
     // MARK: 孩子
 
     fun addChild(name: String, sex: Sex, birthDate: LocalDate, avatar: String): String {
@@ -100,7 +113,11 @@ object Store {
 
     fun deleteChild(id: String) = update { s ->
         val rest = s.children.filterNot { it.id == id }
-        s.copy(children = rest, currentId = if (s.currentId == id) rest.firstOrNull()?.id else s.currentId)
+        s.copy(
+            children = rest,
+            currentId = if (s.currentId == id) rest.firstOrNull()?.id else s.currentId,
+            tombstones = s.tombstones + "child:$id",
+        )
     }
 
     // MARK: 生长记录
@@ -116,13 +133,13 @@ object Store {
         child.copy(records = list.sortedBy { it.date })
     }
 
-    fun deleteRecord(id: String) = updateCurrent { c -> c.copy(records = c.records.filterNot { it.id == id }) }
+    fun deleteRecord(id: String) = deleteInCurrent("rec:$id") { c -> c.copy(records = c.records.filterNot { it.id == id }) }
 
     // MARK: 喂养
 
     fun addFeed(log: FeedLog) = updateCurrent { c -> c.copy(feeds = c.feeds + log) }
 
-    fun deleteFeed(id: String) = updateCurrent { c -> c.copy(feeds = c.feeds.filterNot { it.id == id }) }
+    fun deleteFeed(id: String) = deleteInCurrent("feed:$id") { c -> c.copy(feeds = c.feeds.filterNot { it.id == id }) }
 
     // MARK: 尺码
 
@@ -142,7 +159,7 @@ object Store {
         c.copy(sizes = list.sortedBy { it.date })
     }
 
-    fun deleteSize(id: String) = updateCurrent { c -> c.copy(sizes = c.sizes.filterNot { it.id == id }) }
+    fun deleteSize(id: String) = deleteInCurrent("size:$id") { c -> c.copy(sizes = c.sizes.filterNot { it.id == id }) }
 
     // MARK: 接种
 
@@ -151,10 +168,23 @@ object Store {
         child.copy(optVaccines = ids.ifEmpty { null })
     }
 
-    fun toggleShot(key: String) = updateCurrent { child ->
-        val shots = child.shots.toMutableMap()
-        if (shots.containsKey(key)) shots.remove(key) else shots[key] = ShotRecord(LocalDate.now())
-        child.copy(shots = shots)
+    fun toggleShot(key: String) = update { s ->
+        val id = s.currentId ?: return@update s
+        updateCurrentShot(s, id, key)
+    }
+
+    private fun updateCurrentShot(s: AppState, childId: String, key: String): AppState {
+        val removed = s.children.firstOrNull { it.id == childId }?.shots?.containsKey(key) == true
+        return s.copy(
+            tombstones = if (removed) s.tombstones + "shot:$key" else s.tombstones - "shot:$key",
+            children = s.children.map { c ->
+                if (c.id != childId) c else {
+                    val shots = c.shots.toMutableMap()
+                    if (removed) shots.remove(key) else shots[key] = ShotRecord(LocalDate.now())
+                    c.copy(shots = shots, updatedAt = java.time.LocalDateTime.now())
+                }
+            },
+        )
     }
 
     // MARK: 待办
@@ -171,7 +201,7 @@ object Store {
         child.copy(todos = child.todos.map { if (it.id == id) it.copy(done = !it.done) else it })
     }
 
-    fun deleteTodo(id: String) = updateCurrent { c -> c.copy(todos = c.todos.filterNot { it.id == id }) }
+    fun deleteTodo(id: String) = deleteInCurrent("todo:$id") { c -> c.copy(todos = c.todos.filterNot { it.id == id }) }
 
     // MARK: 设置
 

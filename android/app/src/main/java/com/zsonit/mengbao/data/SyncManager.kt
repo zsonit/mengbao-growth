@@ -325,17 +325,20 @@ object SyncManager {
     // MARK: 合并
 
     private fun mergeState(local: AppState, remote: AppState): AppState {
+        // 删除墓碑：两端取并集，条目一旦删除，任何一侧的旧副本都不能再合并回来
+        val tom = local.tombstones + remote.tombstones
         val children = mutableListOf<Child>()
         val remoteById = remote.children.associateBy { it.id }
         val seen = mutableSetOf<String>()
         for (l in local.children) {
+            if ("child:${l.id}" in tom) continue
             seen.add(l.id)
-            children.add(remoteById[l.id]?.let { mergeChild(l, it) } ?: l)
+            children.add(remoteById[l.id]?.let { mergeChild(l, it, tom) } ?: l)
         }
         for (r in remote.children) {
-            if (r.id !in seen) children.add(r)
+            if (r.id !in seen && "child:${r.id}" !in tom) children.add(r)
         }
-        return local.copy(children = children)
+        return local.copy(children = children, tombstones = tom)
     }
 
     private fun authIsLocal(l: Child, r: Child): Boolean {
@@ -344,15 +347,16 @@ object SyncManager {
         return lt >= rt
     }
 
-    private fun mergeChild(l: Child, r: Child): Child {
+    private fun mergeChild(l: Child, r: Child, tom: Set<String> = emptySet()): Child {
         val auth = if (authIsLocal(l, r)) l else r
         val other = if (auth === l) r else l
+        // 合并前先按墓碑过滤，删除过的条目不会从另一端/云端旧快照里复活
         return auth.copy(
-            records = mergeRecords(auth.records, other.records),
-            feeds = mergeById(auth.feeds, other.feeds),
-            sizes = dedupeSizes(mergeById(auth.sizes, other.sizes)),
-            todos = mergeById(auth.todos, other.todos),
-            shots = mergeMaps(auth.shots, other.shots),
+            records = mergeRecords(auth.records.filter { "rec:${it.id}" !in tom }, other.records.filter { "rec:${it.id}" !in tom }),
+            feeds = mergeById(auth.feeds.filter { "feed:${it.id}" !in tom }, other.feeds.filter { "feed:${it.id}" !in tom }),
+            sizes = dedupeSizes(mergeById(auth.sizes.filter { "size:${it.id}" !in tom }, other.sizes.filter { "size:${it.id}" !in tom })),
+            todos = mergeById(auth.todos.filter { "todo:${it.id}" !in tom }, other.todos.filter { "todo:${it.id}" !in tom }),
+            shots = mergeMaps(auth.shots, other.shots).filterKeys { "shot:$it" !in tom },
             teethFallen = mergeTeeth(auth, other),
             teethDecay = mergeTeethDecay(auth, other),
         )
