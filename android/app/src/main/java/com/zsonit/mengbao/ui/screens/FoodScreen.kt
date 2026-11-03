@@ -446,6 +446,12 @@ fun FoodScreen(onBack: () -> Unit) {
     }
 }
 
+@Composable
+private fun FoodBlock(title: String, body: String) {
+    Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple)
+    Text(body, fontSize = 12.5.sp, color = Palette.ink2, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
+}
+
 /** 把图片 key 转成 drawable 资源 id（资源已放入 res/drawable-nodpi） */
 private val drawableIds = mutableMapOf<String, Int>()
 
