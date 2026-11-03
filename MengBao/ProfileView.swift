@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 // MARK: - 分享面板
@@ -31,6 +32,7 @@ struct ProfileView: View {
     @State private var logText = ""
     @State private var shareItem: ShareItem?
     @State private var importMessage: String?
+    @State private var notifyDenied = false
 
     var body: some View {
         ScrollView {
@@ -39,6 +41,7 @@ struct ProfileView: View {
                 statsGrid
                 aiSection
                 settingsSection
+                reminderSection
                 childrenSection
                 dataSection
                 logSection
@@ -94,6 +97,16 @@ struct ProfileView: View {
             Button("好") { importMessage = nil }
         } message: {
             Text(importMessage ?? "")
+        }
+        .alert("通知权限没打开", isPresented: $notifyDenied) {
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("稍后", role: .cancel) { }
+        } message: {
+            Text("要收到提醒，需要在「设置 → 通知 → 萌宝成长」里允许通知。")
         }
     }
 
@@ -291,6 +304,62 @@ struct ProfileView: View {
             }
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)
+        }
+    }
+
+    // MARK: 提醒
+
+    private var reminderSection: some View {
+        let s = store.settings
+        let timeText = String(format: "%02d:%02d", s.growthReminderHour, s.growthReminderMinute)
+        return VStack(spacing: 0) {
+            SectionHeader(title: "提醒")
+            VStack(spacing: 0) {
+                Toggle(isOn: Binding(
+                    get: { s.todoReminderOn },
+                    set: { on in
+                        if on { askNotifyAuth() }
+                        store.setTodoReminder(on)
+                    })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("待办到期提醒").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text("到期前一天 20:00、当天 9:00 各通知一次；做完打勾后不再提醒")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(Palette.purple)
+                .padding(.vertical, 6)
+                Divider().background(Palette.hairlineSoft)
+
+                Toggle(isOn: Binding(
+                    get: { s.growthReminderOn },
+                    set: { on in
+                        if on { askNotifyAuth() }
+                        store.setGrowthReminder(on: on)
+                    })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("量身高体重提醒").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text(s.growthReminderOn
+                             ? "每 \(s.growthReminderDays) 天 · \(timeText) 提醒（间隔在「生长曲线」页改）"
+                             : "关闭中。打开后到「生长曲线」页选间隔：一周 / 一个月 / 自定义天数")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(Palette.purple)
+                .padding(.vertical, 6)
+            }
+            .cardStyle(padding: 14)
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func askNotifyAuth() {
+        NotificationManager.shared.ensureAuthorized { ok in
+            if !ok { notifyDenied = true }
         }
     }
 

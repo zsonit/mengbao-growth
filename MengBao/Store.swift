@@ -43,6 +43,8 @@ final class Store: ObservableObject {
         if state.currentID == nil {
             state.currentID = state.children.first?.id
         }
+        // 启动时按当前数据重排一遍本机提醒（含之前排过、已完成的待办清理）
+        refreshNotifications()
     }
 
     // MARK: 只读派生
@@ -62,6 +64,7 @@ final class Store: ObservableObject {
         block(&copy)
         state = copy
         persist()
+        refreshNotifications()
         if !silent { SyncManager.shared.onDataChanged() }
     }
 
@@ -73,6 +76,7 @@ final class Store: ObservableObject {
         copy.children[idx].updatedAt = Date()
         state = copy
         persist()
+        refreshNotifications()
         SyncManager.shared.onDataChanged()
     }
 
@@ -230,6 +234,54 @@ final class Store: ObservableObject {
         update { $0.settings.fatherHeight = father; $0.settings.motherHeight = mother }
     }
 
+    // MARK: 提醒（本机通知）
+
+    private var notifyWork: DispatchWorkItem?
+
+    /// 数据一变就重排提醒；0.6 秒防抖，语音批量加待办只排一次
+    func refreshNotifications() {
+        notifyWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            NotificationManager.shared.reschedule(children: self.state.children,
+                                                  settings: self.state.settings)
+        }
+        notifyWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+    }
+
+    /// 定期测量提醒（间隔按天存：7 一周、14 两周、30 一个月、90 三个月）
+    func setGrowthReminder(on: Bool, days: Int? = nil, hour: Int? = nil, minute: Int? = nil) {
+        update { s in
+            s.settings.growthReminderOn = on
+            if let days = days { s.settings.growthReminderDays = max(1, days) }
+            if let hour = hour { s.settings.growthReminderHour = hour }
+            if let minute = minute { s.settings.growthReminderMinute = minute }
+        }
+    }
+
+    func setTodoReminder(_ on: Bool) { update { $0.settings.todoReminderOn = on } }
+
+    /// 下次定期测量提醒的时间（首页 / 生长页展示用）
+    func nextGrowthReminderDate(for child: Child) -> Date? {
+        let s = settings
+        guard s.growthReminderOn else { return nil }
+        let cal = Calendar.current
+        let base = child.records.map { $0.date }.max() ?? Date()
+        var cursor = cal.startOfDay(for: base)
+        var guardCount = 0
+        while guardCount < 400 {
+            guardCount += 1
+            guard let day = cal.date(byAdding: .day, value: max(1, s.growthReminderDays), to: cursor) else { return nil }
+            cursor = day
+            var comps = cal.dateComponents([.year, .month, .day], from: day)
+            comps.hour = s.growthReminderHour
+            comps.minute = s.growthReminderMinute
+            if let fire = cal.date(from: comps), fire > Date() { return fire }
+        }
+        return nil
+    }
+
     // MARK: 快捷入口
 
     var quickEntries: [QuickEntry] { state.settings.resolvedQuickEntries }
@@ -310,6 +362,7 @@ final class Store: ObservableObject {
     }
 
     func reset() {
+        NotificationManager.shared.cancelAll()
         update { s in
             s.children = []
             s.currentID = nil

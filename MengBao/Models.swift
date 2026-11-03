@@ -278,6 +278,13 @@ struct AppSettings: Codable, Hashable {
     /// 空数组 = 用内置默认顺序；用户改过之后写入完整列表
     var quickEntries: [QuickEntry] = []
 
+    // MARK: 提醒（本机通知）
+    var growthReminderOn: Bool = false       // 定期测量提醒开关
+    var growthReminderDays: Int = 30         // 间隔天数：7 = 一周、30 = 一个月、90 = 三个月
+    var growthReminderHour: Int = 9          // 提醒时间（时）
+    var growthReminderMinute: Int = 0        // 提醒时间（分）
+    var todoReminderOn: Bool = true          // 待办到期提醒开关
+
     // 宽松解码：老版本备份缺哪个字段都用默认值兜底，避免升级/恢复备份时整份数据解不出来
     init(weightUnit: String = "kg", showFeed: Bool = true, showShot: Bool = true,
          showSize: Bool = true, darkMode: Bool? = nil, fatherHeight: Double? = nil,
@@ -304,6 +311,11 @@ struct AppSettings: Codable, Hashable {
         motherHeight = try c.decodeIfPresent(Double.self, forKey: .motherHeight)
         quickEntries = try c.decodeIfPresent([QuickEntry].self, forKey: .quickEntries) ?? []
         showLog = try c.decodeIfPresent(Bool.self, forKey: .showLog)
+        growthReminderOn = try c.decodeIfPresent(Bool.self, forKey: .growthReminderOn) ?? false
+        growthReminderDays = try c.decodeIfPresent(Int.self, forKey: .growthReminderDays) ?? 30
+        growthReminderHour = try c.decodeIfPresent(Int.self, forKey: .growthReminderHour) ?? 9
+        growthReminderMinute = try c.decodeIfPresent(Int.self, forKey: .growthReminderMinute) ?? 0
+        todoReminderOn = try c.decodeIfPresent(Bool.self, forKey: .todoReminderOn) ?? true
     }
 
     var resolvedQuickEntries: [QuickEntry] {

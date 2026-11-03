@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 // MARK: - 应用入口
 
@@ -15,6 +16,16 @@ struct MengBaoApp: App {
         AppLog.i("Main", "App 启动：\(store.state.children.count) 个宝宝档案")
         // 触发同步引擎初始化（已配对时启动后会自动拉一次云端）
         _ = SyncManager.shared
+
+        // 本机提醒：前台也显示横幅（否则 App 开着时提醒会被系统吞掉）
+        UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        // 用户确实用到提醒（开了量身高提醒 / 有待办设了截止日期）才请求权限，避免一上来就弹窗
+        let hasDueTodo = store.state.children.contains { child in
+            child.todos.contains { !$0.done && $0.due != nil }
+        }
+        if store.settings.growthReminderOn || (store.settings.todoReminderOn && hasDueTodo) {
+            NotificationManager.shared.ensureAuthorized()
+        }
     }
 
     var body: some Scene {

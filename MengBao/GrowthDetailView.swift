@@ -1,10 +1,12 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 生长曲线详情
 
 struct GrowthDetailView: View {
     @EnvironmentObject private var store: Store
     @State private var metric: GrowthMetric = .height
+    @State private var reminderDenied = false
 
     var body: some View {
         ScrollView {
@@ -17,6 +19,16 @@ struct GrowthDetailView: View {
         .background(Palette.background.ignoresSafeArea())
         .navigationTitle("生长曲线")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("通知权限没打开", isPresented: $reminderDenied) {
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("稍后", role: .cancel) { }
+        } message: {
+            Text("要收到提醒，需要在「设置 → 通知 → 萌宝成长」里允许通知。")
+        }
     }
 
     private func content(_ child: Child) -> some View {
@@ -76,6 +88,8 @@ struct GrowthDetailView: View {
             } else {
                 EmptyHint(text: "录入 1 条以上测量数据后显示评估")
             }
+
+            reminderCard(child)
 
             VStack(spacing: 0) {
                 SectionHeader(title: "变化与速度")
@@ -146,6 +160,130 @@ struct GrowthDetailView: View {
                 .opacity(dash ? 0.85 : 1)
             Text(text).font(.system(size: 10.5)).foregroundColor(Palette.subtle)
         }
+    }
+
+    // MARK: - 定期测量提醒
+
+    private struct IntervalPreset: Identifiable {
+        let days: Int
+        let label: String
+        var id: Int { days }
+    }
+
+    private static let intervalPresets: [IntervalPreset] = [
+        IntervalPreset(days: 7, label: "一周"),
+        IntervalPreset(days: 14, label: "两周"),
+        IntervalPreset(days: 30, label: "一个月"),
+        IntervalPreset(days: 90, label: "三个月")
+    ]
+
+    private static let reminderFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日 HH:mm"
+        return f
+    }()
+
+    @ViewBuilder
+    private func reminderCard(_ child: Child) -> some View {
+        let s = store.settings
+        VStack(spacing: 0) {
+            SectionHeader(title: "定期测量提醒")
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: Binding(
+                    get: { s.growthReminderOn },
+                    set: { on in
+                        if on {
+                            NotificationManager.shared.ensureAuthorized { ok in
+                                if !ok { reminderDenied = true }
+                            }
+                        }
+                        store.setGrowthReminder(on: on)
+                    })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("到点提醒我量身高体重").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text("本机通知，不联网；关掉就不再提醒")
+                            .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                    }
+                }
+                .tint(Palette.purple)
+
+                if s.growthReminderOn {
+                    // 间隔（常用档位）
+                    HStack(spacing: 8) {
+                        ForEach(Self.intervalPresets) { preset in
+                            Button {
+                                store.setGrowthReminder(on: true, days: preset.days)
+                            } label: {
+                                ChipLabel(text: preset.label, selected: s.growthReminderDays == preset.days)
+                            }
+                            .buttonStyle(SoftPressStyle())
+                        }
+                        Spacer(minLength: 0)
+                    }
+
+                    // 自定义天数
+                    HStack {
+                        Text("自定义间隔").font(.system(size: 13.5)).foregroundColor(Palette.ink2)
+                        Spacer()
+                        Stepper(value: Binding(
+                            get: { s.growthReminderDays },
+                            set: { store.setGrowthReminder(on: true, days: $0) }),
+                                in: 1...180) {
+                            Text("\(s.growthReminderDays) 天")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Palette.purple)
+                        }
+                        .fixedSize()
+                    }
+
+                    // 提醒时间
+                    HStack {
+                        Text("提醒时间").font(.system(size: 13.5)).foregroundColor(Palette.ink2)
+                        Spacer()
+                        DatePicker("", selection: Binding(
+                            get: {
+                                Calendar.current.date(bySettingHour: s.growthReminderHour,
+                                                      minute: s.growthReminderMinute,
+                                                      second: 0, of: Date()) ?? Date()
+                            },
+                            set: { d in
+                                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+                                store.setGrowthReminder(on: true, hour: c.hour, minute: c.minute)
+                            }), displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                    }
+
+                    // 上次 / 下次
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let last = child.latestRecord?.date {
+                            Text("上次测量：\(GrowthMath.dateString(last))")
+                        } else {
+                            Text("还没有测量记录，第一次提醒从今天起算")
+                        }
+                        if let next = store.nextGrowthReminderDate(for: child) {
+                            Text("下次提醒：\(Self.reminderFormatter.string(from: next))")
+                                .foregroundColor(Palette.purple)
+                        }
+                    }
+                    .font(.system(size: 12))
+                    .foregroundColor(Palette.subtle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(Palette.purpleTint)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                } else {
+                    Text("开启后按「上次测量日期 + 间隔」自动计算，到点收到本机通知。0–3 岁建议一个月量一次。")
+                        .font(.system(size: 12))
+                        .foregroundColor(Palette.subtle)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .cardStyle()
+            .padding(.horizontal, 16)
+        }
+        .padding(.top, 4)
     }
 }
 
@@ -525,11 +663,22 @@ struct TodoEditorView: View {
                     if hasDue {
                         DatePicker("截止日期", selection: $due, displayedComponents: .date)
                             .font(.system(size: 14))
+                        HStack(spacing: 5) {
+                            Image(systemName: "bell.badge.fill").font(.system(size: 10))
+                            Text(store.settings.todoReminderOn
+                                 ? "到期前一天 20:00、当天 9:00 各提醒一次"
+                                 : "待办提醒已关闭（可在「我的 → 提醒」里打开）")
+                                .font(.system(size: 11.5))
+                        }
+                        .foregroundColor(store.settings.todoReminderOn ? Palette.purple : Palette.subtle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 2)
                     }
 
                     Button("添加") {
                         let text = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !text.isEmpty else { return }
+                        if hasDue { NotificationManager.shared.ensureAuthorized() }
                         store.addTodo(TodoItem(title: text, due: hasDue ? due : nil))
                         dismiss()
                     }
@@ -683,6 +832,9 @@ struct TodoEditorView: View {
                 return
             }
             store.addTodos(items)
+            if items.contains(where: { $0.due != nil }) {
+                NotificationManager.shared.ensureAuthorized()
+            }
             let names = items.prefix(3).map { $0.title }.joined(separator: "、")
             let more = items.count > 3 ? " 等 \(items.count) 条" : ""
             addedHint = "已加入 \(items.count) 条：\(names)\(more)"
