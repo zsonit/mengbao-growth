@@ -9,7 +9,7 @@ struct BabyFood: Identifiable {
     let benefit: String      // 对宝宝的作用 / 健康好处
     let bestTime: String     // 建议食用时段
     let steps: [String]      // 烹饪步骤
-    let note: String? = nil  // 小提示
+    let note: String?       // 小提示
 
     init(name: String, img: String, benefit: String, bestTime: String, steps: [String], note: String? = nil) {
         self.name = name; self.img = img; self.benefit = benefit
