@@ -482,7 +482,7 @@ private fun QuickGrid(showFeed: Boolean, showSize: Boolean, showTrends: Boolean,
         add(Triple("🎙️", "AI 助手", { onNavigate(Routes.AI) }))
         add(Triple("📝", "记录数据", { onNewRecord() }))
         add(Triple("📈", "生长曲线", { onNavigate(Routes.GROWTH) }))
-        if (showTrends) add(Triple("📊", "成长趋势", { onNavigate(Routes.TRENDS) }))
+        if (showTrends && showFeed) add(Triple("📊", "成长趋势", { onNavigate(Routes.TRENDS) }))
         add(Triple("💉", "接种计划", { onNavigate(Routes.VACCINE) }))
         if (showFeed) add(Triple("🍼", "喂养记录", { onNavigate(Routes.FEED) }))
         add(Triple("🕘", "历史记录", { onNavigate(Routes.HISTORY) }))

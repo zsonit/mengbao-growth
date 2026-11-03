@@ -277,7 +277,7 @@ struct ProfileView: View {
                     set: { store.setShowTrends($0) })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("成长趋势模块").font(.system(size: 14)).foregroundColor(Palette.ink)
-                        Text("关闭后隐藏首页「成长趋势」入口（已录的身高体重不受影响）")
+                        Text("关闭后隐藏首页「成长趋势」入口；喂养模块关闭时也一并隐藏（已录的身高体重不受影响）")
                             .font(.system(size: 11.5))
                             .foregroundColor(Palette.subtle)
                             .fixedSize(horizontal: false, vertical: true)

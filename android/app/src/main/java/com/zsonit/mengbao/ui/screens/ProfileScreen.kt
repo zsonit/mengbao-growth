@@ -541,7 +541,7 @@ private fun SettingsSection(onOpenParents: () -> Unit) {
 
         SettingToggle(
             title = "成长趋势模块",
-            subtitle = "关闭后隐藏首页「成长趋势」入口（已录的身高体重不受影响）",
+            subtitle = "关闭后隐藏首页「成长趋势」入口；喂养模块关闭时也一并隐藏（已录的身高体重不受影响）",
             checked = settings.showTrends,
             onChange = { Store.setShowTrends(it) },
         )

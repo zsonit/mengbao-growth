@@ -357,7 +357,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(SoftPressStyle())
 
-                if store.settings.showTrends {
+                if store.settings.showFeed && store.settings.showTrends {
                     NavigationLink { TrendsView() } label: {
                         toolItem("📊", "成长趋势", Palette.blueBg)
                     }
