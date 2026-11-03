@@ -303,13 +303,13 @@ private fun decodeIntKeyedDates(arr: JSONArray?, obj: JSONObject?): Map<Int, Loc
     val out = mutableMapOf<Int, LocalDate>()
     if (obj != null) {
         obj.keys()?.forEach { key ->
-            key.toIntOrNull()?.let { code -> out[code] = decodeDate(obj.optDoubleOrNull(key)) }
+            key.toIntOrNull()?.let { code -> out[code] = JsonCodec.decodeDate(obj.optDoubleOrNull(key)) }
         }
     } else if (arr != null) {
         var i = 0
         while (i + 1 < arr.length()) {
             val code = arr.optInt(i, Int.MIN_VALUE)
-            if (code != Int.MIN_VALUE) out[code] = decodeDate(arr.optDoubleOrNull(i + 1))
+            if (code != Int.MIN_VALUE) out[code] = JsonCodec.decodeDate(arr.optDoubleOrNull(i + 1))
             i += 2
         }
     }
@@ -322,7 +322,7 @@ private fun decodeTeethDecay(o: JSONObject): Map<Int, ToothDecay>? {
     fun put(code: Int, d: JSONObject?) {
         if (code == Int.MIN_VALUE || d == null) return
         out[code] = ToothDecay(
-            date = decodeDate(d.optDoubleOrNull("date")),
+            date = JsonCodec.decodeDate(d.optDoubleOrNull("date")),
             severity = d.optIntOrNull("severity") ?: 1,
             note = d.optString("note"),
         )
@@ -350,6 +350,9 @@ private fun JSONObject.optStringOrNull(key: String): String? =
 
 private fun JSONObject.optDoubleOrNull(key: String): Double? =
     if (has(key) && !isNull(key)) optDouble(key) else null
+
+private fun JSONArray.optDoubleOrNull(index: Int): Double? =
+    if (index in 0 until length() && !isNull(index)) optDouble(index) else null
 
 private fun JSONObject.optIntOrNull(key: String): Int? =
     if (has(key) && !isNull(key)) optInt(key) else null

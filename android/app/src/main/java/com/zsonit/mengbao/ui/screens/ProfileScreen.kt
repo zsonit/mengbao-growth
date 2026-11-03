@@ -328,7 +328,6 @@ private fun AISection(onOpenAI: () -> Unit) {
 
 // MARK: 记录设置
 
-@Composable
 // MARK: - 提醒（本机通知）
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -478,6 +477,7 @@ private fun nextGrowthReminderDate(s: com.zsonit.mengbao.model.AppSettings, base
     return null
 }
 
+@Composable
 private fun SettingsSection(onOpenParents: () -> Unit) {
     val settings = Store.settings
 

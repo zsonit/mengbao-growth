@@ -144,7 +144,7 @@ object AIClient {
     private fun postSSE(url: String, model: String, system: String, user: String, withAuth: Boolean = false): String {
         val body = requestBody(model, system, user)
         val c = if (withAuth) conn(url, "POST") else plainConn(url, "POST")
-        try {
+        return try {
             c.doOutput = true
             c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = c.responseCode
