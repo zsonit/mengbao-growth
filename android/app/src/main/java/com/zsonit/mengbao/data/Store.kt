@@ -190,6 +190,7 @@ object Store {
     /** 待办到期提醒开关 */
     fun setTodoReminder(on: Boolean) = update { it.copy(settings = it.settings.copy(todoReminderOn = on)) }
     fun setShowSize(on: Boolean) = update { it.copy(settings = it.settings.copy(showSize = on)) }
+    fun setShowTrends(on: Boolean) = update { it.copy(settings = it.settings.copy(showTrends = on)) }
     fun setShowLog(on: Boolean) = update { it.copy(settings = it.settings.copy(showLog = on)) }
     fun setShowShot(on: Boolean) = update { it.copy(settings = it.settings.copy(showShot = on)) }
     fun setDarkMode(value: Boolean?) = update { it.copy(settings = it.settings.copy(darkMode = value)) }

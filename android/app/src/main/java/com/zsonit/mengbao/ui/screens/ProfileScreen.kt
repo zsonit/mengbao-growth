@@ -539,6 +539,14 @@ private fun SettingsSection(onOpenParents: () -> Unit) {
         )
         DividerLine()
 
+        SettingToggle(
+            title = "成长趋势模块",
+            subtitle = "关闭后隐藏首页「成长趋势」入口（已录的身高体重不受影响）",
+            checked = settings.showTrends,
+            onChange = { Store.setShowTrends(it) },
+        )
+        DividerLine()
+
         Row(
             Modifier.fillMaxWidth().padding(vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,

@@ -153,6 +153,7 @@ object JsonCodec {
         put("showFeed", s.showFeed)
         put("showShot", s.showShot)
         put("showSize", s.showSize)
+        put("showTrends", s.showTrends)
         put("showLog", s.showLog)
         s.darkMode?.let { put("darkMode", it) }
         s.fatherHeight?.let { put("fatherHeight", it) }
@@ -275,6 +276,7 @@ object JsonCodec {
         showFeed = o.optBoolean("showFeed", true),
         showShot = o.optBoolean("showShot", true),
         showSize = o.optBoolean("showSize", true),
+        showTrends = o.optBoolean("showTrends", true),
         showLog = o.optBoolean("showLog", false),
         darkMode = if (o.has("darkMode") && !o.isNull("darkMode")) o.optBoolean("darkMode") else null,
         fatherHeight = o.optDoubleOrNull("fatherHeight"),

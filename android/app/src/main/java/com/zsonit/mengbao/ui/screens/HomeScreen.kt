@@ -137,6 +137,7 @@ fun HomeScreen(
                         QuickGrid(
                             showFeed = settings.showFeed,
                             showSize = settings.showSize,
+                            showTrends = settings.showTrends,
                             onNavigate = onNavigate,
                             onNewRecord = onNewRecord,
                         )
@@ -476,12 +477,12 @@ private fun QuickEntryChip(icon: String, title: String, onClick: () -> Unit) {
 // MARK: 常用工具
 
 @Composable
-private fun QuickGrid(showFeed: Boolean, showSize: Boolean, onNavigate: (String) -> Unit, onNewRecord: () -> Unit) {
+private fun QuickGrid(showFeed: Boolean, showSize: Boolean, showTrends: Boolean, onNavigate: (String) -> Unit, onNewRecord: () -> Unit) {
     val entries = buildList {
         add(Triple("🎙️", "AI 助手", { onNavigate(Routes.AI) }))
         add(Triple("📝", "记录数据", { onNewRecord() }))
         add(Triple("📈", "生长曲线", { onNavigate(Routes.GROWTH) }))
-        add(Triple("📊", "成长趋势", { onNavigate(Routes.TRENDS) }))
+        if (showTrends) add(Triple("📊", "成长趋势", { onNavigate(Routes.TRENDS) }))
         add(Triple("💉", "接种计划", { onNavigate(Routes.VACCINE) }))
         if (showFeed) add(Triple("🍼", "喂养记录", { onNavigate(Routes.FEED) }))
         add(Triple("🕘", "历史记录", { onNavigate(Routes.HISTORY) }))

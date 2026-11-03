@@ -260,6 +260,7 @@ data class AppSettings(
     val showFeed: Boolean = true,
     val showShot: Boolean = true,
     val showSize: Boolean = true,      // 鞋服尺码模块
+    val showTrends: Boolean = true,    // 成长趋势模块
     val showLog: Boolean = false,      // 运行日志（独立开关，默认关）
     val darkMode: Boolean? = null,
     val fatherHeight: Double? = null,

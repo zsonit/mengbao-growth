@@ -357,10 +357,12 @@ struct HomeView: View {
                 }
                 .buttonStyle(SoftPressStyle())
 
-                NavigationLink { TrendsView() } label: {
-                    toolItem("📊", "成长趋势", Palette.blueBg)
+                if store.settings.showTrends {
+                    NavigationLink { TrendsView() } label: {
+                        toolItem("📊", "成长趋势", Palette.blueBg)
+                    }
+                    .buttonStyle(SoftPressStyle())
                 }
-                .buttonStyle(SoftPressStyle())
 
                 NavigationLink { VaccineView() } label: {
                     toolItem("💉", "接种计划", Palette.pinkBg)

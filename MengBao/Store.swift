@@ -245,6 +245,7 @@ final class Store: ObservableObject {
     func setWeightUnit(_ unit: String) { update { $0.settings.weightUnit = unit } }
     func setShowFeed(_ on: Bool) { update { $0.settings.showFeed = on } }
     func setShowSize(_ on: Bool) { update { $0.settings.showSize = on } }
+    func setShowTrends(_ on: Bool) { update { $0.settings.showTrends = on } }
     func setShowLog(_ on: Bool) { update { $0.settings.showLog = on } }
     func setShowShot(_ on: Bool) { update { $0.settings.showShot = on } }
     func setDarkMode(_ value: Bool?) { update { $0.settings.darkMode = value } }

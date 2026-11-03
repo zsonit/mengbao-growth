@@ -273,6 +273,21 @@ struct ProfileView: View {
                 Divider().background(Palette.hairlineSoft)
 
                 Toggle(isOn: Binding(
+                    get: { store.settings.showTrends },
+                    set: { store.setShowTrends($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("成长趋势模块").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        Text("关闭后隐藏首页「成长趋势」入口（已录的身高体重不受影响）")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(Palette.purple)
+                .padding(.vertical, 6)
+                Divider().background(Palette.hairlineSoft)
+
+                Toggle(isOn: Binding(
                     get: { store.settings.showLog == true },
                     set: { store.setShowLog($0); AppLog.isEnabled = $0 })) {
                     VStack(alignment: .leading, spacing: 2) {

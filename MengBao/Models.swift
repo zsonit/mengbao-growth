@@ -292,6 +292,7 @@ struct AppSettings: Codable, Hashable {
     var showFeed: Bool = true
     var showShot: Bool = true
     var showSize: Bool = true              // 鞋服尺码模块
+    var showTrends: Bool = true            // 成长趋势模块
     var showLog: Bool? = nil               // 运行日志（独立开关；可选类型保证旧数据可解码）
     var darkMode: Bool? = nil              // nil = 跟随系统
     var fatherHeight: Double? = nil
@@ -308,12 +309,13 @@ struct AppSettings: Codable, Hashable {
 
     // 宽松解码：老版本备份缺哪个字段都用默认值兜底，避免升级/恢复备份时整份数据解不出来
     init(weightUnit: String = "kg", showFeed: Bool = true, showShot: Bool = true,
-         showSize: Bool = true, darkMode: Bool? = nil, fatherHeight: Double? = nil,
+         showSize: Bool = true, showTrends: Bool = true, darkMode: Bool? = nil, fatherHeight: Double? = nil,
          motherHeight: Double? = nil, quickEntries: [QuickEntry] = [], showLog: Bool? = nil) {
         self.weightUnit = weightUnit
         self.showFeed = showFeed
         self.showShot = showShot
         self.showSize = showSize
+        self.showTrends = showTrends
         self.darkMode = darkMode
         self.fatherHeight = fatherHeight
         self.motherHeight = motherHeight
@@ -327,6 +329,7 @@ struct AppSettings: Codable, Hashable {
         showFeed = try c.decodeIfPresent(Bool.self, forKey: .showFeed) ?? true
         showShot = try c.decodeIfPresent(Bool.self, forKey: .showShot) ?? true
         showSize = try c.decodeIfPresent(Bool.self, forKey: .showSize) ?? true
+        showTrends = try c.decodeIfPresent(Bool.self, forKey: .showTrends) ?? true
         darkMode = try c.decodeIfPresent(Bool.self, forKey: .darkMode)
         fatherHeight = try c.decodeIfPresent(Double.self, forKey: .fatherHeight)
         motherHeight = try c.decodeIfPresent(Double.self, forKey: .motherHeight)
