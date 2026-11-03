@@ -21,6 +21,7 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 struct ProfileView: View {
     @EnvironmentObject private var store: Store
+    @ObservedObject private var backup = BackupManager.shared
 
     @State private var showKidEditor = false
     @State private var showParents = false
@@ -29,6 +30,7 @@ struct ProfileView: View {
     @State private var showResetFinal = false
     @State private var showLogSheet = false
     @State private var showSync = false
+    @State private var showICloud = false
     @State private var logText = ""
     @State private var shareItem: ShareItem?
     @State private var importMessage: String?
@@ -59,6 +61,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showSync) {
             SyncView()
+        }
+        .sheet(isPresented: $showICloud) {
+            ICloudBackupView()
         }
         .sheet(isPresented: $showLogSheet) {
             NavigationStack {
@@ -424,6 +429,10 @@ struct ProfileView: View {
                     showSync = true
                 }
                 Divider().background(Palette.hairlineSoft)
+                row(title: "☁️ iCloud 备份", subtitle: iCloudSubtitle) {
+                    showICloud = true
+                }
+                Divider().background(Palette.hairlineSoft)
                 row(title: "导出备份", subtitle: "JSON，可换手机恢复") {
                     exportJSON()
                 }
@@ -522,6 +531,13 @@ struct ProfileView: View {
     }
 
     // MARK: 辅助
+
+    private var iCloudSubtitle: String {
+        if backup.hasFolder, let name = backup.folderName {
+            return "自动备份到「\(name)」，重装可一键恢复"
+        }
+        return "自动备份到 iCloud 云盘，换手机可恢复"
+    }
 
     private var parentsText: String {
         guard let f = store.settings.fatherHeight, let m = store.settings.motherHeight else { return "未填写" }

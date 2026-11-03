@@ -42,6 +42,8 @@ struct MengBaoApp: App {
                     case .background:
                         // 退到后台：停止自动检查，不耗电不耗流量
                         SyncManager.shared.appDidEnterBackground()
+                        // 还没写进 iCloud 的改动立刻备份掉（锁屏、来电都不会丢）
+                        BackupManager.shared.flush()
                     default:
                         break
                     }

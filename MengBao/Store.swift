@@ -66,6 +66,7 @@ final class Store: ObservableObject {
         persist()
         refreshNotifications()
         if !silent { SyncManager.shared.onDataChanged() }
+        BackupManager.shared.noteChange()
     }
 
     func updateCurrent(_ block: (inout Child) -> Void) {
@@ -78,6 +79,7 @@ final class Store: ObservableObject {
         persist()
         refreshNotifications()
         SyncManager.shared.onDataChanged()
+        BackupManager.shared.noteChange()
     }
 
     /// 落盘放到串行后台队列：数据量大时编码 + 写盘不再卡主线程（录音、滚动时的卡顿来源之一）
