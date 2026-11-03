@@ -89,10 +89,16 @@ fun HistoryScreen(onBack: () -> Unit) {
 
 @Composable
 private fun HistoryContent(child: Child, filter: String, onFilter: (String) -> Unit) {
-    val items = remember(child, Store.settings.showSize) {
+    val items = remember(child, Store.settings.showSize, Store.settings.showFeed) {
         buildList {
             addAll(child.records.map { HistoryItem.Record(it) })
-            addAll(child.feeds.map { HistoryItem.Feed(it) })
+            // 喂养模块隐藏后，喂养类历史（奶量/亲喂/吸奶/尿布/睡眠/辅食/补剂）一并隐藏；体温和自定义记录保留
+            if (Store.settings.showFeed) {
+                addAll(child.feeds.map { HistoryItem.Feed(it) })
+            } else {
+                addAll(child.feeds.filter { it.kind == com.zsonit.mengbao.model.FeedLog.Kind.TEMP || it.kind == com.zsonit.mengbao.model.FeedLog.Kind.CUSTOM }
+                    .map { HistoryItem.Feed(it) })
+            }
             if (Store.settings.showSize) addAll(child.sizes.map { HistoryItem.Size(it) })
         }.sortedWith(
             compareByDescending<HistoryItem> { it.date }
@@ -100,7 +106,7 @@ private fun HistoryContent(child: Child, filter: String, onFilter: (String) -> U
         )
     }
     val visible = if (filter == "全部") items else items.filter { it.kind == filter }
-    val filters = listOf("全部", "生长", "喂养", "鞋服")
+    val filters = if (Store.settings.showFeed) listOf("全部", "生长", "喂养", "鞋服") else listOf("全部", "生长", "鞋服")
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(

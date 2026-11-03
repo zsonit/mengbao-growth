@@ -52,12 +52,17 @@ struct HistoryView: View {
     private func content(_ child: Child) -> some View {
         var items: [Item] = []
         items.append(contentsOf: child.records.map { Item.record($0) })
-        items.append(contentsOf: child.feeds.map { Item.feed($0) })
+        // 喂养模块隐藏后，喂养类历史（奶量/亲喂/吸奶/尿布/睡眠/辅食/补剂）一并隐藏；体温和自定义记录保留
+        if store.settings.showFeed {
+            items.append(contentsOf: child.feeds.map { Item.feed($0) })
+        } else {
+            items.append(contentsOf: child.feeds.filter { $0.kind == .temp || $0.kind == .custom }.map { Item.feed($0) })
+        }
         if store.settings.showSize { items.append(contentsOf: child.sizes.filter { $0.hasContent }.map { Item.size($0) }) }
         items.sort { $0.date > $1.date }
 
         let visible = filter == "全部" ? items : items.filter { $0.kind == filter }
-        let filters = ["全部", "生长", "喂养", "鞋服"]
+        let filters = store.settings.showFeed ? ["全部", "生长", "喂养", "鞋服"] : ["全部", "生长", "鞋服"]
 
         return VStack(spacing: 0) {
             HStack {
