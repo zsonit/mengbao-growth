@@ -72,6 +72,15 @@ struct AvatarView: View {
     var size: CGFloat = 50
     var fontSize: CGFloat = 26
     var bg: Color = Palette.pinkBg
+    /// 传值则显示为圆角方形（如成长页大头像），nil 为圆形
+    var cornerRadius: CGFloat? = nil
+
+    private var shape: AnyShape {
+        if let cornerRadius {
+            return AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        return AnyShape(Circle())
+    }
 
     var body: some View {
         if let child, let img = child.avatarImage {
@@ -79,12 +88,12 @@ struct AvatarView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: size, height: size)
-                .clipShape(Circle())
+                .clipShape(shape)
         } else {
             Text(child?.displayAvatar ?? "👶")
                 .font(.system(size: fontSize))
                 .frame(width: size, height: size)
-                .background(Circle().fill(bg))
+                .background(shape.fill(bg))
         }
     }
 }

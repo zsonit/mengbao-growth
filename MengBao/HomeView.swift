@@ -116,7 +116,7 @@ struct HomeView: View {
                                       to: cal.startOfDay(for: Date())).day ?? 0
         let dayNumber = max(0, days)
         return HStack(spacing: 12) {
-            AvatarView(child: child, size: 50, fontSize: 26)
+            AvatarView(child: child, size: 64, fontSize: 34, cornerRadius: 21)
             VStack(alignment: .leading, spacing: 4) {
                 Text(child.name)
                     .font(.system(size: 20, weight: .bold))

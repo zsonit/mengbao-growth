@@ -207,12 +207,12 @@ private fun HomeHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (child != null) {
-            Avatar(child = child, size = 56.dp, fontSize = 26.sp)
+            Avatar(child = child, size = 64.dp, fontSize = 32.sp, shape = RoundedCornerShape(21.dp))
         } else {
             Box(
-                Modifier.size(56.dp).clip(CircleShape).background(Palette.pinkBg),
+                Modifier.size(64.dp).clip(RoundedCornerShape(21.dp)).background(Palette.pinkBg),
                 contentAlignment = Alignment.Center,
-            ) { Text("👶", fontSize = 26.sp) }
+            ) { Text("👶", fontSize = 32.sp) }
         }
 
         Spacer(Modifier.width(12.dp))
