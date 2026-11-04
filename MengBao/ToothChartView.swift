@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 乳牙标准（与安卓 Kotlin 版 ToothStandard 保持一致）
 
@@ -170,6 +171,7 @@ struct ToothChartView: View {
     @State private var tab = 0
     @State private var selected: ToothSelection? = nil
     @State private var showDecayPicker = false
+    @State private var revealedDecayCode: Int? = nil
 
     private var ageMonths: Int {
         Calendar.current.dateComponents([.month], from: child.birthDate, to: Date()).month ?? 0
@@ -469,7 +471,11 @@ struct ToothChartView: View {
                     .padding(.horizontal, 18)
                 } else {
                     ForEach(rows) { row in
-                        decayRow(row)
+                        SwipeToDeleteRow(revealedId: $revealedDecayCode, id: row.code) {
+                            store.setToothDecay(row.code, decay: nil)
+                        } content: {
+                            decayRow(row)
+                        }
                         if row.code != rows.last?.code {
                             Divider().background(Palette.hairlineSoft)
                         }
@@ -491,7 +497,7 @@ struct ToothChartView: View {
             .padding(.horizontal, 16)
 
             if !rows.isEmpty {
-                Text("点任意一条可以补充备注或清除记录。中重度蛀牙建议尽快看儿童口腔科，乳牙龋坏会影响恒牙萌出和咀嚼。")
+                Text("点任意一条可以补充备注或清除记录，左滑一条记录可直接删除。中重度蛀牙建议尽快看儿童口腔科，乳牙龋坏会影响恒牙萌出和咀嚼。")
                     .font(.system(size: 11.5))
                     .foregroundColor(Palette.subtle)
                     .lineSpacing(4)
@@ -591,6 +597,76 @@ private struct DecayRow: Identifiable {
     let code: Int
     let decay: ToothDecay
     var id: Int { code }
+}
+
+/// 龋齿记录行的左滑删除包装：向左拖出红色删除按钮，点击即清除该牙的龋齿记录
+private struct SwipeToDeleteRow<Content: View>: View {
+    @Binding var revealedId: Int?
+    let id: Int
+    let onDelete: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var offset: CGFloat = 0
+    @State private var dragBase: CGFloat?
+
+    private let revealWidth: CGFloat = 76
+    private let spring = Animation.spring(response: 0.3, dampingFraction: 0.85)
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                withAnimation(spring) { offset = 0 }
+                if revealedId == id { revealedId = nil }
+                onDelete()
+            } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("删除")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(width: revealWidth - 14)
+                .frame(maxHeight: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(red: 0.90, green: 0.31, blue: 0.30))
+                )
+            }
+            .buttonStyle(SoftPressStyle(scale: 0.96, dim: 0.9))
+            .opacity(offset < -6 ? 1 : 0)
+
+            content()
+                .offset(x: offset)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 14)
+                        .onChanged { v in
+                            if dragBase == nil { dragBase = offset }
+                            let target = (dragBase ?? 0) + v.translation.width
+                            offset = min(0, max(-revealWidth - 24, target))
+                        }
+                        .onEnded { v in
+                            dragBase = nil
+                            let shouldReveal = offset < -revealWidth * 0.55
+                                || v.predictedEndTranslation.width < -revealWidth * 1.4
+                            withAnimation(spring) {
+                                offset = shouldReveal ? -revealWidth : 0
+                            }
+                            if shouldReveal {
+                                revealedId = id
+                            } else if revealedId == id {
+                                revealedId = nil
+                            }
+                        }
+                )
+        }
+        .onChange(of: revealedId) { newId in
+            if newId != id, offset != 0 {
+                withAnimation(spring) { offset = 0 }
+            }
+        }
+    }
 }
 
 // MARK: - 单颗牙详情（标记脱落 / 记录龋齿）
