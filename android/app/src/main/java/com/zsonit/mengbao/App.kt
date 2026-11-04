@@ -63,6 +63,7 @@ import com.zsonit.mengbao.ui.screens.ClinicDetailScreen
 import com.zsonit.mengbao.ui.screens.ClinicListScreen
 import com.zsonit.mengbao.ui.screens.FeedScreen
 import com.zsonit.mengbao.ui.screens.FoodScreen
+import com.zsonit.mengbao.ui.screens.DietGuideScreen
 import com.zsonit.mengbao.ui.screens.GrowthDetailScreen
 import com.zsonit.mengbao.ui.screens.HistoryScreen
 import com.zsonit.mengbao.ui.screens.HomeScreen
@@ -176,6 +177,7 @@ fun MengBaoApp() {
             composable(Routes.TODO) { TodoEditorScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.STAGE) { StageScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.FOOD) { FoodScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.DIET) { DietGuideScreen(child = Store.current, onBack = { nav.popBackStack() }) }
             composable(Routes.QUICK_ENTRIES) { QuickEntryManagerScreen(onBack = { nav.popBackStack() }) }
 
             composable(Routes.CLINICS) {

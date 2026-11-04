@@ -394,8 +394,15 @@ struct HomeView: View {
                 }
                 .buttonStyle(SoftPressStyle())
 
-                NavigationLink { BabyFoodView(child: store.current) } label: {
-                    toolItem("🥣", "辅食推荐", Palette.okBg)
+                if store.settings.showFeed {
+                    NavigationLink { BabyFoodView(child: store.current) } label: {
+                        toolItem("🥣", "辅食推荐", Palette.okBg)
+                    }
+                    .buttonStyle(SoftPressStyle())
+                }
+
+                NavigationLink { DietGuideView(child: store.current) } label: {
+                    toolItem("🍽️", "饮食指南", Palette.blueBg)
                 }
                 .buttonStyle(SoftPressStyle())
 
