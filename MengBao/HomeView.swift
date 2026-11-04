@@ -702,6 +702,11 @@ struct RecordMiniCard: View {
 
     var body: some View {
         let evaluation = GrowthMath.evaluate(child: child, record: record)
+        let bmiJudge = GrowthMath.bmiJudgeLabel(
+            ageYears: Calendar.current.dateComponents([.year], from: child.birthDate, to: record.date).year ?? 0,
+            bmi: evaluation.bmi,
+            percentile: evaluation.bmiPercentile,
+        )
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Text(GrowthMath.dateString(record.date))
@@ -717,7 +722,7 @@ struct RecordMiniCard: View {
             HStack(spacing: 8) {
                 mini(value: record.height.map { String(format: "%.1f", $0) } ?? "—", unit: "身高cm")
                 mini(value: record.weight.map { String(format: "%.1f", weightUnit == "斤" ? $0 * 2 : $0) } ?? "—", unit: "体重\(weightUnit)")
-                mini(value: evaluation.bmi.map { String(format: "%.1f", $0) } ?? "—", unit: "BMI·体重指数")
+                mini(value: evaluation.bmi.map { String(format: "%.1f", $0) } ?? "—", unit: "BMI·体重指数" + (bmiJudge.map { " · \($0)" } ?? ""))
                 mini(value: record.footLength.map { String(format: "%.0f", $0) } ?? "—", unit: "脚长cm")
             }
             if !record.note.isEmpty {

@@ -556,44 +556,62 @@ private val fmt: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 @Composable
 private fun ScheduleSection(onTap: (Int) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // 换牙时间表：直接用牙弓图展示，点牙看详情（含换牙期）
-        Column(Modifier.fillMaxWidth().cardStyle(padding = 6.dp)) {
-            ArchChart(isUpper = true, onTap = onTap)
-            ArchChart(isUpper = false, onTap = onTap)
-        }
-
-        // 按牙类速查：同一类牙（左右不分）换牙期一致
-        val groups = ToothDef.all.values
-            .groupBy { it.name.removePrefix("上乳").removePrefix("下乳") }
-            .map { (type, defs) ->
-                val up = defs.filter { it.isUpper }
-                val low = defs.filter { !it.isUpper }
-                Triple(type, up.minOf { it.earlyMonths }..up.maxOf { it.lateMonths }, low.minOf { it.earlyMonths }..low.maxOf { it.lateMonths })
-            }
-            .sortedBy { it.second.first }
-        Column(Modifier.fillMaxWidth().cardStyle(padding = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("换牙期速查（按牙类）", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle)
-            groups.forEach { (type, up, low) ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(type, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Palette.ink)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "上 ${yearRange(up)} · 下 ${yearRange(low)}",
-                        fontSize = 11.5.sp, color = Palette.subtle,
-                    )
-                }
-            }
-            Text(
-                "左右同名牙换牙期基本相同；点上方牙弓图上的任意一颗牙可看单牙状态。",
-                fontSize = 10.5.sp, color = Palette.subtle, lineHeight = 15.sp,
-            )
-        }
+        // 换牙时间表：文字列表（按用户反馈从牙图版改回）
+        ScheduleGroup("上颌（Maxillary）", ToothDef.upperOrder, onTap)
+        ScheduleGroup("下颌（Mandibular）", ToothDef.lowerOrder, onTap)
     }
 }
 
-private fun yearRange(range: IntRange): String {
-    fun y(m: Int) = if (m % 12 == 0) "${m / 12}岁" else "${m / 12}岁半"
-    return "${y(range.first)} ~ ${y(range.last)}"
+@Composable
+private fun ScheduleGroup(title: String, codes: List<Int>, onTap: (Int) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle)
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.fillMaxWidth().cardStyle(padding = 4.dp)) {
+            codes.forEachIndexed { idx, code ->
+                val st = toothState(code)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onTap(code) }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "$code",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.purple,
+                        modifier = Modifier.width(34.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(st.def.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Palette.ink)
+                        Text("换牙期 ${st.def.windowLabel}", fontSize = 11.5.sp, color = Palette.subtle)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (st.fallenDate != null) {
+                            Text("已脱落 · ${st.fallenDate.format(fmt)}", fontSize = 11.5.sp, color = Palette.ok)
+                        } else {
+                            Text(
+                                st.status.label,
+                                fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
+                                color = if (st.status == ToothStatus.NORMAL) Palette.subtle else st.status.color,
+                            )
+                        }
+                        st.decay?.let { d ->
+                            Text(
+                                "🦷 龋齿 · ${d.severityLabel}",
+                                fontSize = 10.5.sp, fontWeight = FontWeight.Medium,
+                                color = DecayTone.color(d.severity),
+                            )
+                        }
+                    }
+                }
+                if (idx != codes.lastIndex) {
+                    androidx.compose.material3.HorizontalDivider(color = Palette.hairlineSoft)
+                }
+            }
+        }
+    }
 }
 
 @Composable

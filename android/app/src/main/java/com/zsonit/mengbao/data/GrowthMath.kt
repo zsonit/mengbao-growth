@@ -412,6 +412,26 @@ object GrowthMath {
         return if (m == 0) "$y 岁" else "$y 岁 $m 个月"
     }
 
+    /** BMI 判定标签：<18 岁按同龄同性别百分位（偏瘦<P15 · 正常P15~P85 · 超重P85~P95 · 肥胖≥P95）；≥18 岁按中国成人标准（18.5/24/28）。返回 null 表示无法判定 */
+    fun bmiJudgeLabel(ageYears: Int, bmi: Double?, percentile: Double?): String? {
+        if (bmi == null || bmi <= 0) return null
+        if (ageYears >= 18) {
+            return when {
+                bmi < 18.5 -> "偏瘦"
+                bmi < 24 -> "正常"
+                bmi < 28 -> "超重"
+                else -> "肥胖"
+            }
+        }
+        val p = percentile ?: return null
+        return when {
+            p < 15 -> "偏瘦"
+            p < 85 -> "正常"
+            p < 95 -> "超重"
+            else -> "肥胖"
+        }
+    }
+
     fun doneCount(child: Child): Int = schedule(child).count { it.status == Dose.Status.DONE }
 
     // MARK: 尺码
