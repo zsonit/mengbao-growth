@@ -3,6 +3,7 @@ name: Build APK
 on:
   push:
     branches: [main]
+    tags: ["v*"]
     paths:
       - "android/**"
       - ".github/workflows/build-apk.yml"
@@ -82,3 +83,9 @@ jobs:
           name: apk-build-log
           path: android/build.log
           if-no-files-found: ignore
+
+      - name: Attach to release (tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: 萌宝成长-安卓版-*.apk
