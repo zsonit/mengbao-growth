@@ -40,7 +40,11 @@ struct HomeView: View {
                     Button { showKidEditor = true } label: { Label("编辑当前档案", systemImage: "pencil") }
                     Button { showSwitcher = true } label: { Label("管理宝宝", systemImage: "person.2") }
                 } label: {
-                    AvatarView(child: store.current, size: 40, fontSize: 20)
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(Palette.ink)
+                        .frame(width: 38, height: 38)
+                        .contentShape(Rectangle())
                 }
             }
         }
@@ -116,7 +120,7 @@ struct HomeView: View {
                                       to: cal.startOfDay(for: Date())).day ?? 0
         let dayNumber = max(0, days)
         return HStack(spacing: 12) {
-            AvatarView(child: child, size: 64, fontSize: 34, cornerRadius: 21)
+            AvatarView(child: child, size: 72, fontSize: 36, cornerRadius: 24)
             VStack(alignment: .leading, spacing: 4) {
                 Text(child.name)
                     .font(.system(size: 20, weight: .bold))
