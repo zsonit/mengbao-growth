@@ -311,7 +311,7 @@ enum Standards {
         defer { if !locked { schedLock.unlock() } }
         guard r.year > cachedYear else { return nil }
         cachedAges = r.ages.map { ($0.label, $0.months) }
-        cachedByAge = r.byAge.mapKeys { Int($0) ?? -1 }
+        cachedByAge = Dictionary(uniqueKeysWithValues: r.byAge.map { (Int($0.key) ?? -1, $0.value) })
         cachedYear = r.year
         UserDefaults.standard.set(String(data: data, encoding: .utf8), forKey: schedJSONKey)
         return r.year

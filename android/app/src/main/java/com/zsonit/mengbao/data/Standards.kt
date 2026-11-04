@@ -250,8 +250,11 @@ object Standards {
     val vaccineAges: List<Pair<String, Int>> get() = synchronized(schedLock) { cachedAges }
     val vaccineByAge: Map<Int, List<Vaccine>> get() = synchronized(schedLock) { cachedByAge }
 
+    private var savedContext: android.content.Context? = null
+
     /** 启动时调用：应用上次拉取的远程程序表 + 每年首次启动检查一次更新 */
     fun bootScheduleSync(context: android.content.Context) {
+        savedContext = context.applicationContext
         try {
             val f = java.io.File(java.io.File(context.filesDir, "MengBao"), "vaccine-schedule.json")
             if (f.exists()) applyRemote(f.readBytes())
@@ -318,7 +321,7 @@ object Standards {
                 cachedByAge = byAge
                 cachedYear = year
             }
-            val dir = java.io.File(appDir(), "MengBao")
+            val dir = java.io.File(savedContext?.filesDir ?: return year, "MengBao")
             dir.mkdirs()
             java.io.File(dir, "vaccine-schedule.json").writeBytes(data)
             return year
@@ -326,8 +329,6 @@ object Standards {
             return null
         }
     }
-
-    private fun appDir(): java.io.File = AppLog.appContext!!.filesDir
 
     /** 自选（自费 / 非免疫规划）疫苗；id 与 iOS 端保持一致 */
     data class OptionalVaccine(
