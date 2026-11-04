@@ -211,11 +211,28 @@ data class Child(
     val teethDecay: Map<Int, ToothDecay>? = null,  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     val optVaccines: List<String>? = null,         // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     val updatedAt: LocalDateTime? = null,          // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
-    val birthdayRemind: Boolean? = null,           // 生日提醒（提前 1 天 + 当天；null = 开）
-    val birthdayTime: Int? = null,                 // 生日提醒时刻（0-1439 分钟，null = 9:00）
+    val birthdayRemind: Boolean? = null,           // 旧字段：生日提醒总开关（兼容旧版本数据，null = 开）
+    val birthdayTime: Int? = null,                 // 旧字段：生日提醒时刻（0-1439 分钟，null = 9:00）
+    // v2.10.22：生日提醒拆分为「当天」和「提前」两个独立开关，时间各自可调
+    val bdaySameDayOn: Boolean? = null,            // 当天提醒开关（null = 跟随旧字段，默认开）
+    val bdaySameDayTime: Int? = null,              // 当天提醒时刻（分钟，null = 跟随 birthdayTime / 9:00）
+    val bdayAdvanceOn: Boolean? = null,            // 提前提醒开关（null = 跟随旧字段，默认开）
+    val bdayAdvanceDays: Int? = null,              // 提前几天（默认 1）
+    val bdayAdvanceTime: Int? = null,              // 提前提醒时刻（分钟，null = 跟随 birthdayTime / 9:00）
 ) {
     val displayAvatar: String
         get() = if (avatar.isEmpty()) (if (sex == Sex.GIRL) "👧" else "👦") else avatar
+
+    /** 当天提醒是否开启（兼容旧数据：未拆分时跟随总开关） */
+    val bdaySameDayEnabled: Boolean get() = bdaySameDayOn ?: birthdayRemind ?: true
+    /** 提前提醒是否开启 */
+    val bdayAdvanceEnabled: Boolean get() = bdayAdvanceOn ?: birthdayRemind ?: true
+    /** 当天提醒时刻（分钟） */
+    val bdaySameDayMinutes: Int get() = bdaySameDayTime ?: birthdayTime ?: 9 * 60
+    /** 提前提醒时刻（分钟） */
+    val bdayAdvanceMinutes: Int get() = bdayAdvanceTime ?: birthdayTime ?: 9 * 60
+    /** 提前几天（至少 1 天） */
+    val bdayAdvanceDaysEffective: Int get() = maxOf(1, bdayAdvanceDays ?: 1)
 
     val sortedRecords: List<GrowthRecord>
         get() = records.sortedBy { it.date }

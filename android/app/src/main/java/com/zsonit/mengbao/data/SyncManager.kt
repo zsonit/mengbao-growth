@@ -383,8 +383,9 @@ object SyncManager {
             sizes = dedupeSizes(mergeById(auth.sizes.filter { "size:${it.id}" !in tom }, other.sizes.filter { "size:${it.id}" !in tom })),
             todos = mergeById(auth.todos.filter { "todo:${it.id}" !in tom }, other.todos.filter { "todo:${it.id}" !in tom }),
             shots = mergeMaps(auth.shots, other.shots).filterKeys { "shot:$it" !in tom },
-            teethFallen = mergeTeeth(auth, other),
-            teethDecay = mergeTeethDecay(auth, other),
+            // 脱落 / 龋齿按牙位并集，但已写删除墓碑的牙位不再从另一端/云端旧快照复活
+            teethFallen = mergeTeeth(auth, other, tom, l.id),
+            teethDecay = mergeTeethDecay(auth, other, tom, l.id),
         )
     }
 
@@ -442,9 +443,9 @@ object SyncManager {
         return out
     }
 
-    private fun mergeTeeth(a: Child, b: Child): Map<Int, LocalDate>? {
-        val am = a.teethFallen
-        val bm = b.teethFallen
+    private fun mergeTeeth(a: Child, b: Child, tom: Set<String> = emptySet(), childId: String = ""): Map<Int, LocalDate>? {
+        val am = a.teethFallen?.filterKeys { "toothFallen:$childId:$it" !in tom }
+        val bm = b.teethFallen?.filterKeys { "toothFallen:$childId:$it" !in tom }
         if (am == null) return bm
         if (bm == null) return am
         val out = am.toMutableMap()
@@ -452,10 +453,10 @@ object SyncManager {
         return out.ifEmpty { null }
     }
 
-    /** 龋齿记录同样按牙位并集，缺失的一侧补上（同一颗牙各自记录时以权威端为准） */
-    private fun mergeTeethDecay(a: Child, b: Child): Map<Int, ToothDecay>? {
-        val am = a.teethDecay
-        val bm = b.teethDecay
+    /** 龋齿记录同样按牙位并集；已写删除墓碑的牙位不会复活 */
+    private fun mergeTeethDecay(a: Child, b: Child, tom: Set<String> = emptySet(), childId: String = ""): Map<Int, ToothDecay>? {
+        val am = a.teethDecay?.filterKeys { "toothDecay:$childId:$it" !in tom }
+        val bm = b.teethDecay?.filterKeys { "toothDecay:$childId:$it" !in tom }
         if (am == null) return bm
         if (bm == null) return am
         val out = am.toMutableMap()

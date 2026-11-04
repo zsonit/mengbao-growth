@@ -13,6 +13,7 @@ import com.zsonit.mengbao.model.Sex
 import com.zsonit.mengbao.model.ShotRecord
 import com.zsonit.mengbao.model.SizeRecord
 import com.zsonit.mengbao.model.TodoItem
+import com.zsonit.mengbao.model.ToothDecay
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
@@ -203,6 +204,40 @@ object Store {
     }
 
     fun deleteTodo(id: String) = deleteInCurrent("todo:$id") { c -> c.copy(todos = c.todos.filterNot { it.id == id }) }
+
+    // MARK: 换牙档案
+
+    /** 标记 / 取消某颗乳牙的脱落（取消时写删除墓碑，防止同步把旧记录并回来） */
+    fun setToothFallen(code: Int, date: LocalDate?) = update { s ->
+        val id = s.currentId ?: return@update s
+        val tombstone = "toothFallen:$id:$code"
+        s.copy(
+            tombstones = if (date == null) s.tombstones + tombstone else s.tombstones - tombstone,
+            children = s.children.map {
+                if (it.id == id) {
+                    val map = if (date == null) (it.teethFallen ?: emptyMap()) - code
+                              else (it.teethFallen ?: emptyMap()) + (code to date)
+                    it.copy(teethFallen = map.ifEmpty { null }, updatedAt = java.time.LocalDateTime.now())
+                } else it
+            },
+        )
+    }
+
+    /** 记录 / 清除 / 修改某颗乳牙的龋齿（清除时写删除墓碑，防止同步复活） */
+    fun setToothDecay(code: Int, decay: ToothDecay?) = update { s ->
+        val id = s.currentId ?: return@update s
+        val tombstone = "toothDecay:$id:$code"
+        s.copy(
+            tombstones = if (decay == null) s.tombstones + tombstone else s.tombstones - tombstone,
+            children = s.children.map {
+                if (it.id == id) {
+                    val map = if (decay == null) (it.teethDecay ?: emptyMap()) - code
+                              else (it.teethDecay ?: emptyMap()) + (code to decay)
+                    it.copy(teethDecay = map.ifEmpty { null }, updatedAt = java.time.LocalDateTime.now())
+                } else it
+            },
+        )
+    }
 
     /** 本机静音/恢复某条待办的到期提醒（不随同步走：另一台手机不受影响，待办内容照样同步） */
     fun toggleTodoMute(id: String) = update { s ->

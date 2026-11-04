@@ -239,8 +239,25 @@ struct Child: Identifiable, Codable, Hashable {
     var teethDecay: [Int: ToothDecay]? = nil  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     var optVaccines: [String]? = nil      // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     var updatedAt: Date? = nil            // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
-    var birthdayRemind: Bool? = nil       // 生日提醒（提前 1 天 + 当天；nil = 开）
-    var birthdayTime: Int? = nil          // 生日提醒时刻（0-1439 分钟，nil = 9:00）
+    var birthdayRemind: Bool? = nil       // 旧字段：生日提醒总开关（兼容旧版本数据，nil = 开）
+    var birthdayTime: Int? = nil          // 旧字段：生日提醒时刻（0-1439 分钟，nil = 9:00）
+    // v2.10.22：生日提醒拆分为「当天」和「提前」两个独立开关，时间各自可调
+    var bdaySameDayOn: Bool? = nil        // 当天提醒开关（nil = 跟随旧字段，默认开）
+    var bdaySameDayTime: Int? = nil       // 当天提醒时刻（分钟，nil = 跟随 birthdayTime / 9:00）
+    var bdayAdvanceOn: Bool? = nil        // 提前提醒开关（nil = 跟随旧字段，默认开）
+    var bdayAdvanceDays: Int? = nil       // 提前几天（默认 1）
+    var bdayAdvanceTime: Int? = nil       // 提前提醒时刻（分钟，nil = 跟随 birthdayTime / 9:00）
+
+    /// 当天提醒是否开启（兼容旧数据：未拆分时跟随总开关）
+    var bdaySameDayEnabled: Bool { bdaySameDayOn ?? birthdayRemind ?? true }
+    /// 提前提醒是否开启（兼容旧数据：未拆分时跟随总开关）
+    var bdayAdvanceEnabled: Bool { bdayAdvanceOn ?? birthdayRemind ?? true }
+    /// 当天提醒时刻（分钟）
+    var bdaySameDayMinutes: Int { bdaySameDayTime ?? birthdayTime ?? 9 * 60 }
+    /// 提前提醒时刻（分钟）
+    var bdayAdvanceMinutes: Int { bdayAdvanceTime ?? birthdayTime ?? 9 * 60 }
+    /// 提前几天（至少 1 天）
+    var bdayAdvanceDaysEffective: Int { max(1, bdayAdvanceDays ?? 1) }
 
 
     var displayAvatar: String {

@@ -227,21 +227,43 @@ final class Store: ObservableObject {
         updateCurrent { $0.todos.append(contentsOf: items) }
     }
 
-    /// 换牙档案：标记 / 取消某颗乳牙的脱落
+    /// 换牙档案：标记 / 取消某颗乳牙的脱落（取消时写删除墓碑，防止同步把旧记录并回来）
     func setToothFallen(_ code: Int, date: Date?) {
-        updateCurrent { c in
-            var map = c.teethFallen ?? [:]
-            if let d = date { map[code] = d } else { map.removeValue(forKey: code) }
-            c.teethFallen = map.isEmpty ? nil : map
+        if let date {
+            update { s in
+                guard let id = s.currentID, let idx = s.children.firstIndex(where: { $0.id == id }) else { return }
+                s.tombstones.remove("toothFallen:\(id.uuidString):\(code)")
+                var map = s.children[idx].teethFallen ?? [:]
+                map[code] = date
+                s.children[idx].teethFallen = map
+                s.children[idx].updatedAt = Date()
+            }
+        } else {
+            deleteInCurrent("toothFallen:\(state.currentID?.uuidString ?? ""):\(code)") { c in
+                var map = c.teethFallen ?? [:]
+                map.removeValue(forKey: code)
+                c.teethFallen = map.isEmpty ? nil : map
+            }
         }
     }
 
-    /// 换牙档案：记录 / 清除 / 修改某颗乳牙的龋齿（烂牙）
+    /// 换牙档案：记录 / 清除 / 修改某颗乳牙的龋齿（烂牙）。清除时写删除墓碑，防止同步复活
     func setToothDecay(_ code: Int, decay: ToothDecay?) {
-        updateCurrent { c in
-            var map = c.teethDecay ?? [:]
-            if let d = decay { map[code] = d } else { map.removeValue(forKey: code) }
-            c.teethDecay = map.isEmpty ? nil : map
+        if let decay {
+            update { s in
+                guard let id = s.currentID, let idx = s.children.firstIndex(where: { $0.id == id }) else { return }
+                s.tombstones.remove("toothDecay:\(id.uuidString):\(code)")
+                var map = s.children[idx].teethDecay ?? [:]
+                map[code] = decay
+                s.children[idx].teethDecay = map.isEmpty ? nil : map
+                s.children[idx].updatedAt = Date()
+            }
+        } else {
+            deleteInCurrent("toothDecay:\(state.currentID?.uuidString ?? ""):\(code)") { c in
+                var map = c.teethDecay ?? [:]
+                map.removeValue(forKey: code)
+                c.teethDecay = map.isEmpty ? nil : map
+            }
         }
     }
 

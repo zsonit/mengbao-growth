@@ -139,9 +139,13 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
     var avatarPath by remember(childId) { mutableStateOf(child?.avatarPath) }
     var errorMessage by remember(childId) { mutableStateOf<String?>(null) }
     var showDeleteAlert by remember { mutableStateOf(false) }
-    var birthdayRemind by remember(childId) { mutableStateOf(child?.birthdayRemind ?: true) }
-    var birthdayTime by remember(childId) { mutableStateOf(child?.birthdayTime ?: (9 * 60)) }
-    var showBirthdayTimePick by remember { mutableStateOf(false) }
+    var bdaySameDayOn by remember(childId) { mutableStateOf(child?.bdaySameDayEnabled ?: true) }
+    var bdaySameDayTime by remember(childId) { mutableStateOf(child?.bdaySameDayMinutes ?: (9 * 60)) }
+    var bdayAdvanceOn by remember(childId) { mutableStateOf(child?.bdayAdvanceEnabled ?: true) }
+    var bdayAdvanceDays by remember(childId) { mutableStateOf(child?.bdayAdvanceDaysEffective ?: 1) }
+    var bdayAdvanceTime by remember(childId) { mutableStateOf(child?.bdayAdvanceMinutes ?: (9 * 60)) }
+    var showBdaySameDayTimePick by remember { mutableStateOf(false) }
+    var showBdayAdvanceTimePick by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val photoPicker = rememberLauncherForActivityResult(
@@ -256,33 +260,85 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                     }
                 }
 
-                // 生日提醒：提前 1 天 + 当天各提醒一次，时刻可调
+                // 生日提醒：当天 / 提前 两个独立开关，时间各自可调
                 if (child != null) {
-                    EditorField(label = "🎂 生日提醒（提前 1 天 + 当天）") {
+                    EditorField(label = "🎂 当天生日提醒") {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                if (birthdayRemind) "已开启" else "已关闭",
+                                if (bdaySameDayOn) "已开启" else "已关闭",
                                 fontSize = 13.sp,
-                                color = if (birthdayRemind) Palette.ok else Palette.subtle,
+                                color = if (bdaySameDayOn) Palette.ok else Palette.subtle,
                                 modifier = Modifier.weight(1f),
                             )
                             Switch(
-                                checked = birthdayRemind,
-                                onCheckedChange = { birthdayRemind = it },
+                                checked = bdaySameDayOn,
+                                onCheckedChange = { bdaySameDayOn = it },
                                 colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
                             )
                         }
-                        if (birthdayRemind) {
+                        if (bdaySameDayOn) {
                             Text(
-                                "提醒时间 %02d:%02d（点此修改）".format(birthdayTime / 60, birthdayTime % 60),
+                                "提醒时间 %02d:%02d（点此修改）".format(bdaySameDayTime / 60, bdaySameDayTime % 60),
                                 fontSize = 13.sp, color = Palette.purple,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { showBirthdayTimePick = true }
+                                    .clickable { showBdaySameDayTimePick = true }
                                     .padding(vertical = 6.dp),
                             )
                         }
                     }
+
+                    EditorField(label = "🎁 生日提前提醒") {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (bdayAdvanceOn) "已开启" else "已关闭",
+                                fontSize = 13.sp,
+                                color = if (bdayAdvanceOn) Palette.ok else Palette.subtle,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Switch(
+                                checked = bdayAdvanceOn,
+                                onCheckedChange = { bdayAdvanceOn = it },
+                                colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
+                            )
+                        }
+                        if (bdayAdvanceOn) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("提前", fontSize = 13.sp, color = Palette.ink)
+                                Spacer(Modifier.width(6.dp))
+                                listOf(1, 2, 3, 5, 7).forEach { d ->
+                                    val on = bdayAdvanceDays == d
+                                    Text(
+                                        "$d",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (on) Color.White else Palette.ink2,
+                                        modifier = Modifier
+                                            .padding(horizontal = 3.dp)
+                                            .clip(CircleShape)
+                                            .background(if (on) Palette.purple else Palette.purpleTint)
+                                            .clickable { bdayAdvanceDays = d }
+                                            .padding(horizontal = 9.dp, vertical = 5.dp),
+                                    )
+                                }
+                                Text("天", fontSize = 13.sp, color = Palette.ink)
+                            }
+                            Text(
+                                "提醒时间 %02d:%02d（点此修改）".format(bdayAdvanceTime / 60, bdayAdvanceTime % 60),
+                                fontSize = 13.sp, color = Palette.purple,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showBdayAdvanceTimePick = true }
+                                    .padding(vertical = 6.dp),
+                            )
+                        }
+                    }
+
+                    Text(
+                        "两个提醒可独立开关，时间都能自由调节，到点会推送生日提醒。",
+                        fontSize = 11.5.sp, color = Palette.subtle,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
                 }
             }
 
@@ -305,7 +361,11 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                             existing.copy(
                                 name = trimmed, sex = sex, birthDate = birthDate,
                                 avatar = avatar, avatarPath = avatarPath,
-                                birthdayRemind = birthdayRemind, birthdayTime = birthdayTime,
+                                bdaySameDayOn = bdaySameDayOn, bdaySameDayTime = bdaySameDayTime,
+                                bdayAdvanceOn = bdayAdvanceOn, bdayAdvanceDays = bdayAdvanceDays,
+                                bdayAdvanceTime = bdayAdvanceTime,
+                                birthdayRemind = bdaySameDayOn || bdayAdvanceOn,
+                                birthdayTime = bdaySameDayTime,
                             ),
                         )
                     } else {
@@ -326,24 +386,46 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
         }
     }
 
-    if (showBirthdayTimePick) {
+    if (showBdaySameDayTimePick) {
         val tstate = rememberTimePickerState(
-            initialHour = birthdayTime / 60,
-            initialMinute = birthdayTime % 60,
+            initialHour = bdaySameDayTime / 60,
+            initialMinute = bdaySameDayTime % 60,
             is24Hour = true,
         )
         AlertDialog(
-            onDismissRequest = { showBirthdayTimePick = false },
-            title = { Text("生日提醒时间") },
+            onDismissRequest = { showBdaySameDayTimePick = false },
+            title = { Text("当天提醒时间") },
             text = { TimePicker(state = tstate) },
             confirmButton = {
                 TextButton(onClick = {
-                    birthdayTime = tstate.hour * 60 + tstate.minute
-                    showBirthdayTimePick = false
+                    bdaySameDayTime = tstate.hour * 60 + tstate.minute
+                    showBdaySameDayTimePick = false
                 }) { Text("好") }
             },
             dismissButton = {
-                TextButton(onClick = { showBirthdayTimePick = false }) { Text("取消") }
+                TextButton(onClick = { showBdaySameDayTimePick = false }) { Text("取消") }
+            },
+        )
+    }
+
+    if (showBdayAdvanceTimePick) {
+        val tstate = rememberTimePickerState(
+            initialHour = bdayAdvanceTime / 60,
+            initialMinute = bdayAdvanceTime % 60,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showBdayAdvanceTimePick = false },
+            title = { Text("提前提醒时间") },
+            text = { TimePicker(state = tstate) },
+            confirmButton = {
+                TextButton(onClick = {
+                    bdayAdvanceTime = tstate.hour * 60 + tstate.minute
+                    showBdayAdvanceTimePick = false
+                }) { Text("好") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBdayAdvanceTimePick = false }) { Text("取消") }
             },
         )
     }

@@ -675,7 +675,7 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit, onEditDecay: () ->
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = onEditDecay) { Text("修改记录", color = Palette.purple) }
                         TextButton(onClick = {
-                            Store.updateCurrent { c -> c.copy(teethDecay = (c.teethDecay ?: emptyMap()) - def.code) }
+                            Store.setToothDecay(def.code, null)
                         }) { Text("清除", color = Palette.bad) }
                     }
                 } else {
@@ -707,11 +707,9 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit, onEditDecay: () ->
         confirmButton = {
             TextButton(onClick = {
                 if (st.fallenDate != null) {
-                    Store.updateCurrent { c -> c.copy(teethFallen = (c.teethFallen ?: emptyMap()) - def.code) }
+                    Store.setToothFallen(def.code, null)
                 } else {
-                    Store.updateCurrent { c ->
-                        c.copy(teethFallen = (c.teethFallen ?: emptyMap()) + (def.code to pickDate))
-                    }
+                    Store.setToothFallen(def.code, pickDate)
                     android.widget.Toast.makeText(context, "已记录 ${def.code} 号牙脱落", android.widget.Toast.LENGTH_SHORT).show()
                 }
                 onDismiss()
@@ -758,9 +756,7 @@ private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
-                                Store.updateCurrent { c ->
-                                    c.copy(teethDecay = (c.teethDecay ?: emptyMap()) - code)
-                                }
+                                Store.setToothDecay(code, null)
                                 android.widget.Toast.makeText(
                                     context, "已删除 $code 号牙的龋齿记录", android.widget.Toast.LENGTH_SHORT,
                                 ).show()
@@ -976,12 +972,7 @@ private fun DecayDialog(initialCode: Int?, onDismiss: () -> Unit) {
                         onClick = {
                             val c = code
                             if (c != null) {
-                                Store.updateCurrent { child ->
-                                    child.copy(
-                                        teethDecay = (child.teethDecay ?: emptyMap()) +
-                                            (c to ToothDecay(date = date, severity = severity, note = note.trim())),
-                                    )
-                                }
+                                Store.setToothDecay(c, ToothDecay(date = date, severity = severity, note = note.trim()))
                                 android.widget.Toast.makeText(context, "已记录 $c 号牙龋齿", android.widget.Toast.LENGTH_SHORT).show()
                                 onDismiss()
                             }

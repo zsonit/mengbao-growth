@@ -17,10 +17,17 @@ struct KidEditorView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showDeleteAlert = false
     @State private var errorMessage: String?
-    @State private var birthdayRemind: Bool
-    @State private var birthdayTime: Date
+    @State private var bdaySameDayOn: Bool
+    @State private var bdaySameDayTime: Date
+    @State private var bdayAdvanceOn: Bool
+    @State private var bdayAdvanceDays: Int
+    @State private var bdayAdvanceTime: Date
 
     private let avatars = ["👶", "👧", "👦", "🧒", "🐣", "🐰", "🐻", "🦊"]
+
+    private static func timeDate(minutes: Int) -> Date {
+        Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+    }
 
     init(child: Child?) {
         self.child = child
@@ -29,10 +36,11 @@ struct KidEditorView: View {
         _birthDate = State(initialValue: child?.birthDate ?? Date())
         _avatar = State(initialValue: child?.displayAvatar ?? "👦")
         _avatarPath = State(initialValue: child?.avatarPath)
-        _birthdayRemind = State(initialValue: child?.birthdayRemind ?? true)
-        let mins = child?.birthdayTime ?? 9 * 60
-        _birthdayTime = State(initialValue: Calendar.current.date(
-            bySettingHour: mins / 60, minute: mins % 60, second: 0, of: Date()) ?? Date())
+        _bdaySameDayOn = State(initialValue: child?.bdaySameDayEnabled ?? true)
+        _bdaySameDayTime = State(initialValue: Self.timeDate(minutes: child?.bdaySameDayMinutes ?? 9 * 60))
+        _bdayAdvanceOn = State(initialValue: child?.bdayAdvanceEnabled ?? true)
+        _bdayAdvanceDays = State(initialValue: child?.bdayAdvanceDaysEffective ?? 1)
+        _bdayAdvanceTime = State(initialValue: Self.timeDate(minutes: child?.bdayAdvanceMinutes ?? 9 * 60))
     }
 
     var body: some View {
@@ -118,27 +126,54 @@ struct KidEditorView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
-                        // 生日提醒：提前 1 天 + 当天各提醒一次，时刻可调
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Toggle(isOn: $birthdayRemind) {
-                                    Text("🎂 生日提醒（提前 1 天 + 当天）")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(Palette.ink)
-                                }
-                                .toggleStyle(SwitchToggleStyle(tint: Palette.purple))
+                        // 生日提醒：当天 / 提前 两个独立开关，时间各自可调
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle(isOn: $bdaySameDayOn) {
+                                Text("🎂 当天生日提醒")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(Palette.ink)
                             }
-                            if birthdayRemind {
+                            .toggleStyle(SwitchToggleStyle(tint: Palette.purple))
+                            if bdaySameDayOn {
                                 DatePicker(
                                     "",
-                                    selection: $birthdayTime,
+                                    selection: $bdaySameDayTime,
                                     displayedComponents: .hourAndMinute
                                 )
                                 .labelsHidden()
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("提醒时间可自由调节，到点会推送生日提醒。")
-                                    .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
                             }
+
+                            Toggle(isOn: $bdayAdvanceOn) {
+                                Text("🎁 生日提前提醒")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(Palette.ink)
+                            }
+                            .toggleStyle(SwitchToggleStyle(tint: Palette.purple))
+                            if bdayAdvanceOn {
+                                HStack(spacing: 6) {
+                                    Text("提前")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(Palette.ink2)
+                                    Picker("", selection: $bdayAdvanceDays) {
+                                        ForEach([1, 2, 3, 5, 7], id: \.self) { d in
+                                            Text("\(d) 天").tag(d)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    Text("· 提醒时间")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(Palette.ink2)
+                                    DatePicker(
+                                        "",
+                                        selection: $bdayAdvanceTime,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
+                                }
+                            }
+                            Text("两个提醒可独立开关，时间都能自由调节，到点会推送生日提醒。")
+                                .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -220,14 +255,20 @@ struct KidEditorView: View {
         }
         if let child = child {
             var updated = child
+            let c = Calendar.current
             updated.name = trimmed
             updated.sex = sex
             updated.birthDate = birthDate
             updated.avatar = avatar
             updated.avatarPath = avatarPath
-            updated.birthdayRemind = birthdayRemind
-            let c = Calendar.current
-            updated.birthdayTime = c.component(.hour, from: birthdayTime) * 60 + c.component(.minute, from: birthdayTime)
+            updated.bdaySameDayOn = bdaySameDayOn
+            updated.bdaySameDayTime = c.component(.hour, from: bdaySameDayTime) * 60 + c.component(.minute, from: bdaySameDayTime)
+            updated.bdayAdvanceOn = bdayAdvanceOn
+            updated.bdayAdvanceDays = bdayAdvanceDays
+            updated.bdayAdvanceTime = c.component(.hour, from: bdayAdvanceTime) * 60 + c.component(.minute, from: bdayAdvanceTime)
+            // 兼容旧版本：总开关 = 两者任一开启；旧字段时间沿用当天提醒时间
+            updated.birthdayRemind = bdaySameDayOn || bdayAdvanceOn
+            updated.birthdayTime = updated.bdaySameDayTime
             store.updateChild(updated)
         } else {
             store.addChild(name: trimmed, sex: sex, birthDate: birthDate, avatar: avatar)

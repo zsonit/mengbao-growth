@@ -74,35 +74,49 @@ final class NotificationManager {
         }
     }
 
-    // MARK: 生日提醒（提前 1 天 + 当天，时刻可调）
+    // MARK: 生日提醒（当天 / 提前 N 天，两个独立开关，时刻各自可调）
 
     private func addBirthdays(children: [Child]) {
         let cal = Calendar.current
         let now = Date()
-        for child in children where child.birthdayRemind ?? true {
+        for child in children {
+            let sameDayOn = child.bdaySameDayEnabled
+            let advOn = child.bdayAdvanceEnabled
+            guard sameDayOn || advOn else { continue }
             let birth = cal.dateComponents([.month, .day], from: child.birthDate)
             guard birth.month != nil, birth.day != nil else { continue }
-            let minutes = child.birthdayTime ?? 9 * 60
+            let sameMinutes = child.bdaySameDayMinutes
+            let advMinutes = child.bdayAdvanceMinutes
+            let advDays = child.bdayAdvanceDaysEffective
 
-            // 之后两年的两次生日（含提前一天），重复排会自动覆盖
+            // 之后两年的生日，重复排会自动覆盖
             for yearOffset in 0...1 {
                 guard let base = cal.date(from: DateComponents(year: cal.component(.year, from: now) + yearOffset,
                                                                month: birth.month, day: birth.day)) else { continue }
                 let age = cal.dateComponents([.year], from: child.birthDate, to: base).year ?? 0
-                for (offset, title, body) in [
-                    (0, "🎂 今天是\(child.name)的生日", "祝\(child.name) \(age) 岁生日快乐，记得吃蛋糕拍照记录！"),
-                    (-1, "🎁 明天是\(child.name)的生日", "明天\(child.name)就 \(age) 岁啦，礼物和蛋糕可以提前准备。"),
-                ] {
-                    guard let day = cal.date(byAdding: .day, value: offset, to: base) else { continue }
+                var items: [(offset: Int, minutes: Int, title: String, body: String)] = []
+                if sameDayOn {
+                    items.append((0, sameMinutes,
+                                  "🎂 今天是\(child.name)的生日",
+                                  "祝\(child.name) \(age) 岁生日快乐，记得吃蛋糕拍照记录！"))
+                }
+                if advOn {
+                    let when = advDays == 1 ? "明天" : "\(advDays) 天后"
+                    items.append((-advDays, advMinutes,
+                                  "🎁 \(when)是\(child.name)的生日",
+                                  "\(when)\(child.name)就 \(age) 岁啦，礼物和蛋糕可以提前准备。"))
+                }
+                for item in items {
+                    guard let day = cal.date(byAdding: .day, value: item.offset, to: base) else { continue }
                     var comps = cal.dateComponents([.year, .month, .day], from: day)
-                    comps.hour = minutes / 60
-                    comps.minute = minutes % 60
+                    comps.hour = item.minutes / 60
+                    comps.minute = item.minutes % 60
                     guard let fire = cal.date(from: comps), fire > now else { continue }
                     let c = UNMutableNotificationContent()
-                    c.title = title
-                    c.body = body
+                    c.title = item.title
+                    c.body = item.body
                     c.sound = .default
-                    let req = UNNotificationRequest(identifier: bdayPrefix + child.id.uuidString + ".y\(yearOffset).d\(offset)",
+                    let req = UNNotificationRequest(identifier: bdayPrefix + child.id.uuidString + ".y\(yearOffset).d\(item.offset)",
                                                     content: c,
                                                     trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
                     center.add(req, withCompletionHandler: nil)

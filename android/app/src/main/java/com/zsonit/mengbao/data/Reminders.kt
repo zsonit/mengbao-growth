@@ -150,7 +150,7 @@ object Reminders {
         return ids
     }
 
-    // MARK: 生日提醒（提前 1 天 + 当天，时刻可调）
+    // MARK: 生日提醒（当天 / 提前 N 天，两个独立开关，时刻各自可调）
 
     private fun scheduleBirthdays(context: Context, children: List<Child>): Set<String> {
         val am = alarm(context)
@@ -158,23 +158,33 @@ object Reminders {
         val now = LocalDateTime.now()
 
         children.forEach { child ->
-            if (child.birthdayRemind == false) return@forEach
-            val minutes = child.birthdayTime ?: 9 * 60
-            val fireTime = LocalTime.of(minutes / 60, minutes % 60)
+            val sameDayOn = child.bdaySameDayEnabled
+            val advOn = child.bdayAdvanceEnabled
+            if (!sameDayOn && !advOn) return@forEach
+            val advDays = child.bdayAdvanceDaysEffective
             val birth = child.birthDate
 
-            // 之后两年的生日（含提前一天）
+            // 之后两年的生日
             for (yearOffset in 0..1) {
                 var next = LocalDate.of(now.year + yearOffset, birth.monthValue, birth.dayOfMonth)
                 if (next.isBefore(now.toLocalDate())) continue
                 val age = ChronoUnit.YEARS.between(birth, next)
 
-                val targets = listOf(
-                    Triple("d0", next, "🎂 今天是${child.name}的生日|祝${child.name} $age 岁生日快乐，记得吃蛋糕拍照记录！"),
-                    Triple("d1", next.minusDays(1), "🎁 明天是${child.name}的生日|明天${child.name}就 $age 岁啦，礼物和蛋糕可以提前准备。"),
-                )
+                val targets = mutableListOf<Triple<String, LocalDate, String>>()
+                if (sameDayOn) {
+                    targets.add(
+                        Triple("d0", next, "🎂 今天是${child.name}的生日|祝${child.name} $age 岁生日快乐，记得吃蛋糕拍照记录！"),
+                    )
+                }
+                if (advOn) {
+                    val whenTxt = if (advDays == 1) "明天" else "$advDays 天后"
+                    targets.add(
+                        Triple("d1", next.minusDays(advDays.toLong()), "🎁 ${whenTxt}是${child.name}的生日|${whenTxt}${child.name}就 $age 岁啦，礼物和蛋糕可以提前准备。"),
+                    )
+                }
                 targets.forEach { (tag, day, text) ->
-                    val fire = day.atTime(fireTime)
+                    val minutes = if (tag == "d0") child.bdaySameDayMinutes else child.bdayAdvanceMinutes
+                    val fire = day.atTime(LocalTime.of(minutes / 60, minutes % 60))
                     if (fire.isAfter(now)) {
                         val parts = text.split("|")
                         val id = BDAY_PREFIX + child.id + ".y" + yearOffset + "." + tag

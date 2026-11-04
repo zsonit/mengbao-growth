@@ -419,12 +419,13 @@ final class SyncManager: ObservableObject {
         var shots = auth.shots
         for (k, v) in other.shots where shots[k] == nil { shots[k] = v }
         out.shots = shots.filter { !tom.contains("shot:\($0.key)") }
-        var teeth = auth.teethFallen ?? [:]
-        for (k, v) in (other.teethFallen ?? [:]) where teeth[k] == nil { teeth[k] = v }
+        // 脱落 / 龋齿按牙位并集，但已写删除墓碑的牙位不再从另一端/云端旧快照复活
+        let cid = l.id.uuidString
+        var teeth = (auth.teethFallen ?? [:]).filter { !tom.contains("toothFallen:\(cid):\($0.key)") }
+        for (k, v) in (other.teethFallen ?? [:]) where teeth[k] == nil && !tom.contains("toothFallen:\(cid):\(k)") { teeth[k] = v }
         out.teethFallen = teeth.isEmpty ? nil : teeth
-        // 龋齿记录同样按牙位并集，缺失的一侧补上（同一颗牙各自记录时以权威端为准）
-        var decay = auth.teethDecay ?? [:]
-        for (k, v) in (other.teethDecay ?? [:]) where decay[k] == nil { decay[k] = v }
+        var decay = (auth.teethDecay ?? [:]).filter { !tom.contains("toothDecay:\(cid):\($0.key)") }
+        for (k, v) in (other.teethDecay ?? [:]) where decay[k] == nil && !tom.contains("toothDecay:\(cid):\(k)") { decay[k] = v }
         out.teethDecay = decay.isEmpty ? nil : decay
         return out
     }
