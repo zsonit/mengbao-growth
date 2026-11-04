@@ -128,6 +128,7 @@ fun KidsScreen(onBack: () -> Unit, onEdit: (String?) -> Unit) {
 private val KidAvatars = listOf("👶", "👧", "👦", "🧒", "🐣", "🐰", "🐻", "🦊")
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
     val child = childId?.let { id -> Store.state.children.firstOrNull { it.id == id } }
 

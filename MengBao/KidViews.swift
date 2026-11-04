@@ -88,7 +88,8 @@ struct KidEditorView: View {
 
                         if child != nil {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)                                HStack(spacing: 14) {
+                                Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                                HStack(spacing: 14) {
                                     AvatarView(child: previewChild, size: 56, fontSize: 26)
                                     PhotosPicker(selection: $photoItem, matching: .images) {
                                         Text(avatarPath == nil ? "📷 从相册选一张照片" : "📷 更换照片")
