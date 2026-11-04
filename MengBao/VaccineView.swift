@@ -74,7 +74,7 @@ struct VaccineView: View {
                 .frame(height: 8)
                 .padding(.top, 14)
 
-                Text("依据国家免疫规划疫苗儿童免疫程序表（2026 年版）")
+                Text("依据国家免疫规划疫苗儿童免疫程序表（\(Standards.scheduleYear) 年版，每年自动更新）")
                     .font(.system(size: 11))
                     .opacity(0.92)
                     .padding(.top, 8)
@@ -108,7 +108,7 @@ struct VaccineView: View {
                 Divider().background(Palette.hairlineSoft)
                 KVRow(key: "下一针", value: next.map { "\($0.ageLabel) · \($0.vaccine.name)" } ?? "全部按计划完成")
                 Divider().background(Palette.hairlineSoft)
-                KVRow(key: "适用标准", value: "国家免疫规划 2026 版")
+                KVRow(key: "适用标准", value: "国家免疫规划 \(Standards.scheduleYear) 版")
             }
             .cardStyle(padding: 14)
             .padding(.horizontal, 16)

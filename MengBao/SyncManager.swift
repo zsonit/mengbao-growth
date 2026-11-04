@@ -367,7 +367,13 @@ final class SyncManager: ObservableObject {
             return (local, false)
         }
         // 删除墓碑：两端取并集，一旦某条被删除，任何一侧的旧副本都不能再合并回来
-        let tom = local.tombstones.union(remote.tombstones)
+        var tom = local.tombstones.union(remote.tombstones)
+        // 疫苗墓碑撤销：只要任一端把某剂（重新）标记为已接种，就撤销该 key 的墓碑。
+        // 否则历史上取消过一次的疫苗，云端旧墓碑会在每次合并时把新标记过滤掉，
+        // 表现为「标记已接种后几秒又被弹回未接种」。
+        let shotKeys = Set(local.children.flatMap { $0.shots.keys })
+            .union(remote.children.flatMap { $0.shots.keys })
+        for k in shotKeys { tom.remove("shot:\(k)") }
         var children: [Child] = []
         let remoteById = Dictionary(uniqueKeysWithValues: remote.children.map { ($0.id, $0) })
         var seen = Set<UUID>()

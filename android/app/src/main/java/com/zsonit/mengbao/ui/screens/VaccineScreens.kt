@@ -197,7 +197,7 @@ private fun VaccineContent(
                             fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color.White,
                         )
                         Text(
-                            "依据国家免疫规划疫苗儿童免疫程序表（2026 年版）",
+                            "依据国家免疫规划疫苗儿童免疫程序表（${Standards.scheduleYear} 年版，每年自动更新）",
                             fontSize = 11.sp, color = Color.White.copy(alpha = 0.92f),
                             lineHeight = 15.sp,
                         )
@@ -272,7 +272,7 @@ private fun VaccineContent(
         DividerLine(Palette.hairlineSoft)
         KVRow(key = "下一针", value = next?.let { "${it.ageLabel} · ${it.vaccine.name}" } ?: "全部按计划完成")
         DividerLine(Palette.hairlineSoft)
-        KVRow(key = "适用标准", value = "国家免疫规划 2026 版")
+        KVRow(key = "适用标准", value = "国家免疫规划 ${Standards.scheduleYear} 版")
     }
 
     OptionalEntryCard(child = child, onClick = onOpenOptional)

@@ -27,12 +27,16 @@ import com.zsonit.mengbao.ui.*
 
 // MARK: 饮食指南数据（3-18 岁）
 
+data class DietFood(val name: String, val img: String)
+
 data class DietTopic(
     val title: String,     // "📏 长高助长"
     val summary: String,   // 一句话概括
     val eat: List<String>,   // 建议多吃
     val avoid: List<String>, // 要少吃 / 避免
     val tips: List<String>,  // 生活提醒
+    val eatImgs: List<DietFood> = emptyList(),   // 建议多吃 · 食材图
+    val avoidImgs: List<DietFood> = emptyList(), // 要少吃 · 食物图
 )
 
 data class DietStage(
@@ -78,6 +82,13 @@ object DietGuideLibrary {
                 "每天户外跳跃类运动 1 小时（跳绳、篮球、摸高）刺激骨骼",
                 "身高长期低于同龄第 3 百分位或一年长不到 5cm，查骨龄和生长激素",
             ),
+            eatImgs = listOf(
+                DietFood("牛奶", "milk"), DietFood("鸡蛋", "egg"), DietFood("虾", "shrimp"),
+                DietFood("豆腐", "tofu"), DietFood("西兰花", "broccoli"), DietFood("三文鱼", "salmon"),
+            ),
+            avoidImgs = listOf(
+                DietFood("碳酸饮料", "soda"), DietFood("糖果甜点", "candy"),
+            ),
         ),
         DietTopic(
             title = "☀️ 皮肤白净透亮",
@@ -97,6 +108,13 @@ object DietGuideLibrary {
                 "变白的核心是防晒：帽子、遮阳伞等硬防晒最安全，儿童尽量用物理防晒霜",
                 "睡眠不足会让皮肤暗沉、修复变慢，保证年龄对应睡眠时长",
                 "青春期痘痘严重、持续不消要看皮肤科，别乱用成人美白、祛痘产品",
+            ),
+            eatImgs = listOf(
+                DietFood("猕猴桃", "kiwi"), DietFood("橙子", "orange"), DietFood("圣女果", "cherry_tomato"),
+                DietFood("彩椒", "bell_pepper"), DietFood("坚果", "nuts"),
+            ),
+            avoidImgs = listOf(
+                DietFood("奶茶", "milk_tea"), DietFood("油炸食品", "fries"),
             ),
         ),
         DietTopic(
@@ -119,6 +137,13 @@ object DietGuideLibrary {
                 "3-4 岁起每半年口腔检查；乳牙滞留（双排牙）及时拔除",
                 "发现「地包天」4 岁左右就能干预；龅牙、牙列拥挤 7-9 岁做早期矫治评估效果最好",
             ),
+            eatImgs = listOf(
+                DietFood("苹果", "apple"), DietFood("玉米", "corn"), DietFood("牛肉干", "beef_jerky"),
+                DietFood("燕麦", "oats"), DietFood("胡萝卜条", "carrot"), DietFood("黄瓜条", "cucumber"),
+            ),
+            avoidImgs = listOf(
+                DietFood("糖果", "candy"), DietFood("含糖饮料", "soda"),
+            ),
         ),
         DietTopic(
             title = "👃 预防腺样体肥大",
@@ -140,6 +165,13 @@ object DietGuideLibrary {
                 "长期打鼾、张口呼吸、睡眠憋气要尽快看耳鼻喉科，别拖",
                 "长期口呼吸会形成「腺样体面容」（上牙前突、下巴后缩）——和龅牙问题直接相关，早干预",
             ),
+            eatImgs = listOf(
+                DietFood("蓝莓", "blueberry"), DietFood("西兰花", "broccoli"), DietFood("菠菜", "spinach"),
+                DietFood("橙子", "orange"), DietFood("三文鱼", "salmon"),
+            ),
+            avoidImgs = listOf(
+                DietFood("冰饮", "iced_drink"), DietFood("油炸零食", "fries"),
+            ),
         ),
         DietTopic(
             title = "👀 护眼明目",
@@ -158,6 +190,13 @@ object DietGuideLibrary {
                 "每天 2 小时户外自然光是防近视最有效的手段，比任何食物都管用",
                 "用眼遵循 20-20-20：看屏幕或书写 20 分钟，远眺 20 英尺外 20 秒",
                 "3 岁起建立视力档案，每半年查一次",
+            ),
+            eatImgs = listOf(
+                DietFood("菠菜", "spinach"), DietFood("玉米", "corn"), DietFood("蛋黄", "egg"),
+                DietFood("胡萝卜", "carrot"), DietFood("南瓜", "pumpkin"), DietFood("蓝莓", "blueberry"),
+            ),
+            avoidImgs = listOf(
+                DietFood("含糖饮料", "soda"),
             ),
         ),
         DietTopic(
@@ -178,6 +217,13 @@ object DietGuideLibrary {
                 "孩子面色苍白、乏力、注意力差，先查血常规看血红蛋白",
                 "补铁剂和牛奶间隔 2 小时，钙和铁互相抢吸收",
                 "反复感冒先看睡眠和运动够不够，饮食均衡比任何「提高免疫」的补品都靠谱",
+            ),
+            eatImgs = listOf(
+                DietFood("瘦红肉", "lean_beef"), DietFood("动物肝", "liver"), DietFood("猕猴桃", "kiwi"),
+                DietFood("菌菇", "mushroom"), DietFood("酸奶", "yogurt"),
+            ),
+            avoidImgs = listOf(
+                DietFood("浓茶", "tea"),
             ),
         ),
     )
@@ -322,9 +368,49 @@ private fun DietTopicRow(topic: DietTopic, expanded: Boolean, onTap: () -> Unit)
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                if (topic.eatImgs.isNotEmpty()) {
+                    DietImageStrip("✅ 推荐食材", topic.eatImgs, Palette.ok)
+                }
                 DietSection("✅ 建议多吃", topic.eat, Palette.ok)
+                if (topic.avoidImgs.isNotEmpty()) {
+                    DietImageStrip("🚫 少吃提醒", topic.avoidImgs, Palette.bad)
+                }
                 DietSection("🚫 要少吃 / 避免", topic.avoid, Palette.bad)
                 DietSection("💡 生活提醒", topic.tips, Palette.purple)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DietImageStrip(title: String, foods: List<DietFood>, color: Color) {
+    Column {
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            foods.forEach { food ->
+                val resId = androidx.compose.ui.platform.LocalContext.current.resources.getIdentifier(
+                    food.img, "drawable", androidx.compose.ui.platform.LocalContext.current.packageName,
+                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (resId != 0) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(resId),
+                            contentDescription = food.name,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(14.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(food.name, fontSize = 10.5.sp, color = Palette.ink2, maxLines = 1)
+                }
             }
         }
     }

@@ -9,7 +9,7 @@ struct LMSRow {
     let s: Double
 }
 
-struct Vaccine: Hashable {
+struct Vaccine: Hashable, Codable {
     let code: String
     let name: String
     let dose: String
@@ -167,15 +167,18 @@ enum Standards {
         [13, 21.4], [14, 22.2], [15, 22.8], [16, 23.3], [17, 23.7], [18, 24.1]
     ]
 
-    // MARK: 广东省免疫规划程序（2026 版）
+    // MARK: 免疫规划程序（2026 版为内置基线，支持每年远程自动更新）
 
-    static let vaccineAges: [(String, Int)] = [
+    /// 内置程序表版本年：国家发布新版程序表后，随仓库 vaccine-schedule.json 更新，App 内自动拉取应用
+    static let builtinScheduleYear = 2026
+
+    private static let builtinAges: [(String, Int)] = [
         ("出生时", 0), ("1 月龄", 1), ("2 月龄", 2), ("3 月龄", 3), ("4 月龄", 4),
         ("5 月龄", 5), ("6 月龄", 6), ("8 月龄", 8), ("9 月龄", 9), ("18 月龄", 18),
         ("2 岁", 24), ("3 岁", 36), ("4 岁", 48), ("6 岁", 72)
     ]
 
-    static let vaccineByAge: [Int: [Vaccine]] = [
+    private static let builtinByAge: [Int: [Vaccine]] = [
         0: [Vaccine(code: "HepB", name: "乙肝疫苗", dose: "第 1 剂", route: "肌内注射", site: "上臂外侧三角肌",
                    note: "出生 12 小时内完成；母亲 HBsAg 阳性或不详者应尽早接种，并加注乙肝免疫球蛋白。")],
         1: [Vaccine(code: "HepB", name: "乙肝疫苗", dose: "第 2 剂", route: "肌内注射", site: "上臂外侧三角肌",
@@ -237,6 +240,82 @@ enum Standards {
                     note: "完成流脑全程，小学入学前查验。")
         ]
     ]
+
+    // MARK: 程序表动态层（每年自动更新）
+
+    private static let schedLock = NSLock()
+    private static let schedJSONKey = "vaccineScheduleJSON"
+    private static let schedCheckYearKey = "vaccineScheduleCheckYear"
+    private static var cachedAges: [(String, Int)] = builtinAges
+    private static var cachedByAge: [Int: [Vaccine]] = builtinByAge
+    private static var cachedYear: Int = builtinScheduleYear
+
+    /// 当前生效的程序表版本年
+    static var scheduleYear: Int {
+        schedLock.lock(); defer { schedLock.unlock() }
+        return cachedYear
+    }
+
+    /// 当前生效的接种程序（有远程更新版则用远程，否则内置）
+    static var vaccineAges: [(String, Int)] {
+        schedLock.lock(); defer { schedLock.unlock() }
+        return cachedAges
+    }
+
+    static var vaccineByAge: [Int: [Vaccine]] {
+        schedLock.lock(); defer { schedLock.unlock() }
+        return cachedByAge
+    }
+
+    /// 启动时调用：应用上次拉取到的远程程序表 + 每年首次启动时检查一次更新
+    static func bootScheduleSync() {
+        schedLock.lock()
+        if let s = UserDefaults.standard.string(forKey: schedJSONKey), let data = s.data(using: .utf8) {
+            applyRemote(data, locked: true)
+        }
+        schedLock.unlock()
+        checkRemoteSchedule()
+    }
+
+    /// 每年只发一次请求；国家发布新版程序表后，把新 JSON 推到仓库即可全量自动更新
+    static func checkRemoteSchedule() {
+        let year = Calendar.current.component(.year, from: Date())
+        let d = UserDefaults.standard
+        guard d.integer(forKey: schedCheckYearKey) < year, scheduleYear < year || d.integer(forKey: schedCheckYearKey) == 0 else {
+            d.set(year, forKey: schedCheckYearKey)
+            return
+        }
+        d.set(year, forKey: schedCheckYearKey)
+        let url = URL(string: "https://cdn.jsdelivr.net/gh/zsonit/mengbao-growth@main/vaccine-schedule.json")!
+        URLSession.shared.dataTask(with: url) { data, resp, err in
+            guard err == nil,
+                  (resp as? HTTPURLResponse)?.statusCode == 200,
+                  let data else { return }
+            if let applied = applyRemote(data, locked: false) {
+                AppLog.i("Vaccine", "接种程序表已自动更新至 \(applied) 年版")
+            }
+        }.resume()
+    }
+
+    /// 解析并应用远程程序表；仅在版本更新时生效，返回新版本年
+    @discardableResult
+    private static func applyRemote(_ data: Data, locked: Bool) -> Int? {
+        struct Remote: Decodable {
+            struct Age: Decodable { let label: String; let months: Int }
+            let year: Int
+            let ages: [Age]
+            let byAge: [String: [Vaccine]]
+        }
+        guard let r = try? JSONDecoder().decode(Remote.self, from: data) else { return nil }
+        if !locked { schedLock.lock() }
+        defer { if !locked { schedLock.unlock() } }
+        guard r.year > cachedYear else { return nil }
+        cachedAges = r.ages.map { ($0.label, $0.months) }
+        cachedByAge = r.byAge.mapKeys { Int($0) ?? -1 }
+        cachedYear = r.year
+        UserDefaults.standard.set(String(data: data, encoding: .utf8), forKey: schedJSONKey)
+        return r.year
+    }
 
     /// 自选（自费 / 非免疫规划）疫苗目录：勾选后自动加进接种日程
     struct OptionalVaccine: Identifiable, Hashable {

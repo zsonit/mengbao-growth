@@ -178,7 +178,7 @@ private fun RecordItem(record: GrowthRecord, child: Child, modifier: Modifier = 
             record.height?.let { Metric("身高", fmt1(it), "cm") }
             record.weight?.let { Metric("体重", fmt1(it), "kg") }
             val e = GrowthMath.evaluate(child, record)
-            e.bmi?.let { Metric("BMI", fmt1(it), "") }
+            e.bmi?.let { Metric("BMI·体重指数", fmt1(it), "") }
             record.footLength?.let { Metric("脚长", fmt1(it), "cm") }
         }
         if (record.note.isNotEmpty()) {

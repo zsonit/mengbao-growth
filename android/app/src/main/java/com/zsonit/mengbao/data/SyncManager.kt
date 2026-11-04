@@ -342,7 +342,12 @@ object SyncManager {
             return local to false
         }
         // 删除墓碑：两端取并集，条目一旦删除，任何一侧的旧副本都不能再合并回来
-        val tom = local.tombstones + remote.tombstones
+        val tom = (local.tombstones + remote.tombstones).toMutableSet()
+        // 疫苗墓碑撤销：只要任一端把某剂（重新）标记为已接种，就撤销该 key 的墓碑。
+        // 否则历史上取消过一次的疫苗，云端旧墓碑会在每次合并时把新标记过滤掉，
+        // 表现为「标记已接种后几秒又被弹回未接种」。
+        val shotKeys = (local.children.flatMap { it.shots.keys } + remote.children.flatMap { it.shots.keys }).toSet()
+        shotKeys.forEach { tom.remove("shot:$it") }
         val children = mutableListOf<Child>()
         val remoteById = remote.children.associateBy { it.id }
         val seen = mutableSetOf<String>()

@@ -166,15 +166,17 @@ object Standards {
         listOf(13.0, 21.4), listOf(14.0, 22.2), listOf(15.0, 22.8), listOf(16.0, 23.3), listOf(17.0, 23.7), listOf(18.0, 24.1),
     )
 
-    // MARK: 广东省免疫规划程序（2026 版）
+    // MARK: 免疫规划程序（2026 版为内置基线，支持每年远程自动更新）
 
-    val vaccineAges = listOf(
+    const val builtinScheduleYear = 2026
+
+    private val builtinAges = listOf(
         "出生时" to 0, "1 月龄" to 1, "2 月龄" to 2, "3 月龄" to 3, "4 月龄" to 4,
         "5 月龄" to 5, "6 月龄" to 6, "8 月龄" to 8, "9 月龄" to 9, "18 月龄" to 18,
         "2 岁" to 24, "3 岁" to 36, "4 岁" to 48, "6 岁" to 72,
     )
 
-    val vaccineByAge: Map<Int, List<Vaccine>> = mapOf(
+    private val builtinByAge: Map<Int, List<Vaccine>> = mapOf(
         0 to listOf(
             Vaccine("HepB", "乙肝疫苗", "第 1 剂", "肌内注射", "上臂外侧三角肌",
                 "出生 12 小时内完成；母亲 HBsAg 阳性或不详者应尽早接种，并加注乙肝免疫球蛋白。"),
@@ -233,6 +235,99 @@ object Standards {
                 "完成流脑全程，小学入学前查验。"),
         ),
     )
+
+    // MARK: 程序表动态层（每年自动更新）
+
+    private val schedLock = Any()
+    private var cachedAges = builtinAges
+    private var cachedByAge = builtinByAge
+    private var cachedYear = builtinScheduleYear
+
+    /** 当前生效的程序表版本年 */
+    val scheduleYear: Int get() = synchronized(schedLock) { cachedYear }
+
+    /** 当前生效的接种程序（有远程更新版则用远程，否则内置） */
+    val vaccineAges: List<Pair<String, Int>> get() = synchronized(schedLock) { cachedAges }
+    val vaccineByAge: Map<Int, List<Vaccine>> get() = synchronized(schedLock) { cachedByAge }
+
+    /** 启动时调用：应用上次拉取的远程程序表 + 每年首次启动检查一次更新 */
+    fun bootScheduleSync(context: android.content.Context) {
+        try {
+            val f = java.io.File(java.io.File(context.filesDir, "MengBao"), "vaccine-schedule.json")
+            if (f.exists()) applyRemote(f.readBytes())
+        } catch (_: Exception) {
+        }
+        checkRemoteSchedule(context)
+    }
+
+    /** 每年只发一次请求；国家发布新版程序表后，把新 JSON 推到仓库即可全量自动更新 */
+    fun checkRemoteSchedule(context: android.content.Context) {
+        val prefs = context.getSharedPreferences("vaccine_schedule", android.content.Context.MODE_PRIVATE)
+        val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        val checked = prefs.getInt("checkYear", 0)
+        if (checked >= year && cachedYear >= year) return
+        prefs.edit().putInt("checkYear", year).apply()
+        Thread {
+            try {
+                val url = java.net.URL("https://cdn.jsdelivr.net/gh/zsonit/mengbao-growth@main/vaccine-schedule.json")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.readBytes()
+                    if (applyRemote(body) != null) AppLog.i("Vaccine", "接种程序表已自动更新至 $scheduleYear 年版")
+                }
+                conn.disconnect()
+            } catch (_: Exception) {
+            }
+        }.start()
+    }
+
+    /** 解析并应用远程程序表；仅在版本更新时生效，返回新版本年 */
+    private fun applyRemote(data: ByteArray): Int? {
+        try {
+            val obj = org.json.JSONObject(String(data, Charsets.UTF_8))
+            val year = obj.getInt("year")
+            synchronized(schedLock) {
+                if (year <= cachedYear) return null
+                val ages = mutableListOf<Pair<String, Int>>()
+                val arr = obj.getJSONArray("ages")
+                for (i in 0 until arr.length()) {
+                    val a = arr.getJSONObject(i)
+                    ages.add(a.getString("label") to a.getInt("months"))
+                }
+                val byAge = mutableMapOf<Int, List<Vaccine>>()
+                val ba = obj.getJSONObject("byAge")
+                val keys = ba.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val list = mutableListOf<Vaccine>()
+                    val vs = ba.getJSONArray(k)
+                    for (i in 0 until vs.length()) {
+                        val v = vs.getJSONObject(i)
+                        list.add(
+                            Vaccine(
+                                v.getString("code"), v.getString("name"), v.getString("dose"),
+                                v.getString("route"), v.getString("site"), v.getString("note"),
+                            ),
+                        )
+                    }
+                    byAge[k.toInt()] = list
+                }
+                cachedAges = ages
+                cachedByAge = byAge
+                cachedYear = year
+            }
+            val dir = java.io.File(appDir(), "MengBao")
+            dir.mkdirs()
+            java.io.File(dir, "vaccine-schedule.json").writeBytes(data)
+            return year
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
+    private fun appDir(): java.io.File = AppLog.appContext!!.filesDir
 
     /** 自选（自费 / 非免疫规划）疫苗；id 与 iOS 端保持一致 */
     data class OptionalVaccine(

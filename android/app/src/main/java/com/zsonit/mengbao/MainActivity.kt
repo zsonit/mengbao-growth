@@ -29,6 +29,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         AppLog.init(applicationContext)
         Store.init(applicationContext)
+        // 接种程序表：应用已保存的远程版本 + 每年首次启动检查一次更新
+        com.zsonit.mengbao.data.Standards.bootScheduleSync(applicationContext)
         Reminders.init(applicationContext)
         Reminders.reschedule(applicationContext)
         AppLog.isEnabled = Store.settings.showLog

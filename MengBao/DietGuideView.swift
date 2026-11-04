@@ -2,6 +2,12 @@ import SwiftUI
 
 // MARK: - 饮食指南（3-18 岁）
 
+struct DietFood: Identifiable {
+    let name: String     // 展示名："牛奶"
+    let img: String      // 资源名："milk"
+    var id: String { img }
+}
+
 struct DietTopic: Identifiable {
     var id: String { title }
     let title: String      // "📏 长高助长"
@@ -9,6 +15,8 @@ struct DietTopic: Identifiable {
     let eat: [String]      // 建议多吃
     let avoid: [String]    // 要少吃 / 避免
     let tips: [String]     // 生活提醒
+    let eatImgs: [DietFood]    // 建议多吃 · 食材图
+    let avoidImgs: [DietFood]  // 要少吃 · 食物图
 }
 
 struct DietStage: Identifiable {
@@ -54,6 +62,18 @@ enum DietGuideLibrary {
                 "生长激素在深睡眠分泌最多，尽量晚上 9:30 前入睡",
                 "每天户外跳跃类运动 1 小时（跳绳、篮球、摸高）刺激骨骼",
                 "身高长期低于同龄第 3 百分位或一年长不到 5cm，查骨龄和生长激素",
+            ],
+            eatImgs: [
+                DietFood(name: "牛奶", img: "milk"),
+                DietFood(name: "鸡蛋", img: "egg"),
+                DietFood(name: "虾", img: "shrimp"),
+                DietFood(name: "豆腐", img: "tofu"),
+                DietFood(name: "西兰花", img: "broccoli"),
+                DietFood(name: "三文鱼", img: "salmon"),
+            ],
+            avoidImgs: [
+                DietFood(name: "碳酸饮料", img: "soda"),
+                DietFood(name: "糖果甜点", img: "candy"),
             ]
         ),
         DietTopic(
@@ -74,6 +94,17 @@ enum DietGuideLibrary {
                 "变白的核心是防晒：帽子、遮阳伞等硬防晒最安全，儿童尽量用物理防晒霜",
                 "睡眠不足会让皮肤暗沉、修复变慢，保证年龄对应睡眠时长",
                 "青春期痘痘严重、持续不消要看皮肤科，别乱用成人美白、祛痘产品",
+            ],
+            eatImgs: [
+                DietFood(name: "猕猴桃", img: "kiwi"),
+                DietFood(name: "橙子", img: "orange"),
+                DietFood(name: "圣女果", img: "cherry_tomato"),
+                DietFood(name: "彩椒", img: "bell_pepper"),
+                DietFood(name: "坚果", img: "nuts"),
+            ],
+            avoidImgs: [
+                DietFood(name: "奶茶", img: "milk_tea"),
+                DietFood(name: "油炸食品", img: "fries"),
             ]
         ),
         DietTopic(
@@ -95,6 +126,18 @@ enum DietGuideLibrary {
                 "戒掉吐舌、咬唇、咬笔、单侧咀嚼等习惯，都会把牙齿顶变形",
                 "3-4 岁起每半年口腔检查；乳牙滞留（双排牙）及时拔除",
                 "发现「地包天」4 岁左右就能干预；龅牙、牙列拥挤 7-9 岁做早期矫治评估效果最好",
+            ],
+            eatImgs: [
+                DietFood(name: "苹果", img: "apple"),
+                DietFood(name: "玉米", img: "corn"),
+                DietFood(name: "牛肉干", img: "beef_jerky"),
+                DietFood(name: "燕麦", img: "oats"),
+                DietFood(name: "胡萝卜条", img: "carrot"),
+                DietFood(name: "黄瓜条", img: "cucumber"),
+            ],
+            avoidImgs: [
+                DietFood(name: "糖果", img: "candy"),
+                DietFood(name: "含糖饮料", img: "soda"),
             ]
         ),
         DietTopic(
@@ -116,6 +159,17 @@ enum DietGuideLibrary {
                 "腺样体肥大的关键在控制鼻炎和过敏（尘螨是头号元凶），饮食只是辅助",
                 "长期打鼾、张口呼吸、睡眠憋气要尽快看耳鼻喉科，别拖",
                 "长期口呼吸会形成「腺样体面容」（上牙前突、下巴后缩）——和龅牙问题直接相关，早干预",
+            ],
+            eatImgs: [
+                DietFood(name: "蓝莓", img: "blueberry"),
+                DietFood(name: "西兰花", img: "broccoli"),
+                DietFood(name: "菠菜", img: "spinach"),
+                DietFood(name: "橙子", img: "orange"),
+                DietFood(name: "三文鱼", img: "salmon"),
+            ],
+            avoidImgs: [
+                DietFood(name: "冰饮", img: "iced_drink"),
+                DietFood(name: "油炸零食", img: "fries"),
             ]
         ),
         DietTopic(
@@ -135,6 +189,17 @@ enum DietGuideLibrary {
                 "每天 2 小时户外自然光是防近视最有效的手段，比任何食物都管用",
                 "用眼遵循 20-20-20：看屏幕或书写 20 分钟，远眺 20 英尺外 20 秒",
                 "3 岁起建立视力档案，每半年查一次",
+            ],
+            eatImgs: [
+                DietFood(name: "菠菜", img: "spinach"),
+                DietFood(name: "玉米", img: "corn"),
+                DietFood(name: "蛋黄", img: "egg"),
+                DietFood(name: "胡萝卜", img: "carrot"),
+                DietFood(name: "南瓜", img: "pumpkin"),
+                DietFood(name: "蓝莓", img: "blueberry"),
+            ],
+            avoidImgs: [
+                DietFood(name: "含糖饮料", img: "soda"),
             ]
         ),
         DietTopic(
@@ -155,6 +220,16 @@ enum DietGuideLibrary {
                 "孩子面色苍白、乏力、注意力差，先查血常规看血红蛋白",
                 "补铁剂和牛奶间隔 2 小时，钙和铁互相抢吸收",
                 "反复感冒先看睡眠和运动够不够，饮食均衡比任何「提高免疫」的补品都靠谱",
+            ],
+            eatImgs: [
+                DietFood(name: "瘦红肉", img: "lean_beef"),
+                DietFood(name: "动物肝", img: "liver"),
+                DietFood(name: "猕猴桃", img: "kiwi"),
+                DietFood(name: "菌菇", img: "mushroom"),
+                DietFood(name: "酸奶", img: "yogurt"),
+            ],
+            avoidImgs: [
+                DietFood(name: "浓茶", img: "tea"),
             ]
         ),
     ]
@@ -279,12 +354,47 @@ private struct DietTopicRow: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: 10) {
+                    if !topic.eatImgs.isEmpty {
+                        dietImageStrip("✅ 推荐食材", foods: topic.eatImgs, color: Palette.ok)
+                    }
                     dietSection("✅ 建议多吃", items: topic.eat, color: Palette.ok)
+                    if !topic.avoidImgs.isEmpty {
+                        dietImageStrip("🚫 少吃提醒", foods: topic.avoidImgs, color: Palette.bad)
+                    }
                     dietSection("🚫 要少吃 / 避免", items: topic.avoid, color: Palette.bad)
                     dietSection("💡 生活提醒", items: topic.tips, color: Palette.purple)
                 }
                 .padding(14)
                 .background(Palette.background)
+            }
+        }
+    }
+
+    // 食材图片横滑条
+    private func dietImageStrip(_ title: String, foods: [DietFood], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundColor(color)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(foods) { food in
+                        VStack(spacing: 4) {
+                            Image(food.img)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 64, height: 64)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .strokeBorder(Palette.hairline, lineWidth: 0.8)
+                                )
+                            Text(food.name)
+                                .font(.system(size: 10.5))
+                                .foregroundColor(Palette.ink2)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
             }
         }
     }

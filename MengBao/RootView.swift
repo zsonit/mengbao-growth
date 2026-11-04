@@ -16,6 +16,8 @@ struct MengBaoApp: App {
         AppLog.i("Main", "App 启动：\(store.state.children.count) 个宝宝档案")
         // 触发同步引擎初始化（已配对时启动后会自动拉一次云端）
         _ = SyncManager.shared
+        // 接种程序表：应用已保存的远程版本 + 每年首次启动检查一次更新
+        Standards.bootScheduleSync()
 
         // 本机提醒：前台也显示横幅（否则 App 开着时提醒会被系统吞掉）
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared

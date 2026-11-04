@@ -717,7 +717,7 @@ struct RecordMiniCard: View {
             HStack(spacing: 8) {
                 mini(value: record.height.map { String(format: "%.1f", $0) } ?? "—", unit: "身高cm")
                 mini(value: record.weight.map { String(format: "%.1f", weightUnit == "斤" ? $0 * 2 : $0) } ?? "—", unit: "体重\(weightUnit)")
-                mini(value: evaluation.bmi.map { String(format: "%.1f", $0) } ?? "—", unit: "BMI")
+                mini(value: evaluation.bmi.map { String(format: "%.1f", $0) } ?? "—", unit: "BMI·体重指数")
                 mini(value: record.footLength.map { String(format: "%.0f", $0) } ?? "—", unit: "脚长cm")
             }
             if !record.note.isEmpty {
@@ -730,7 +730,9 @@ struct RecordMiniCard: View {
     private func mini(value: String, unit: String) -> some View {
         VStack(spacing: 1) {
             Text(value).font(.system(size: 15, weight: .bold)).foregroundColor(Palette.ink)
-            Text(unit).font(.system(size: 10.5)).foregroundColor(Palette.subtle)
+            Text(unit)
+                .font(.system(size: 10.5)).foregroundColor(Palette.subtle)
+                .lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
