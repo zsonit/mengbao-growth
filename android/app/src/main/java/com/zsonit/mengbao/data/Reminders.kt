@@ -19,6 +19,7 @@ import com.zsonit.mengbao.model.AppSettings
 import com.zsonit.mengbao.model.Child
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
@@ -37,6 +38,7 @@ object Reminders {
     private const val KEY_IDS = "alarm_ids"
     private const val GROWTH_PREFIX = "mb.growth."
     private const val TODO_PREFIX = "mb.todo."
+    private const val BDAY_PREFIX = "mb.bday."
     /** 定期测量一次往前排几个周期（App 长期不打开也能撑住） */
     private const val GROWTH_SLOTS = 8
     /** 待办提醒最多排多少条 */
@@ -81,13 +83,16 @@ object Reminders {
         val app = context.applicationContext
         cancelScheduled(app)
         val s = Store.settings
-        if (!s.growthReminderOn && !s.todoReminderOn) return
+        val children = Store.state.children
+        val anyBday = children.any { it.birthdayRemind != false }
+        if (!s.growthReminderOn && !s.todoReminderOn && !anyBday) return
         if (!permissionGranted(app)) return
         val ids = mutableSetOf<String>()
-        if (s.growthReminderOn) ids += scheduleGrowth(app, Store.state.children, s)
-        if (s.todoReminderOn) ids += scheduleTodos(app, Store.state.children, s)
+        if (s.growthReminderOn) ids += scheduleGrowth(app, children, s)
+        if (s.todoReminderOn) ids += scheduleTodos(app, children, s)
+        ids += scheduleBirthdays(app, children)
         saveIds(app, ids)
-        AppLog.i("Remind", "提醒已排：测量 ${ids.count { it.startsWith(GROWTH_PREFIX) }} 条，待办 ${ids.count { it.startsWith(TODO_PREFIX) }} 条")
+        AppLog.i("Remind", "提醒已排：测量 ${ids.count { it.startsWith(GROWTH_PREFIX) }} 条，待办 ${ids.count { it.startsWith(TODO_PREFIX) }} 条，生日 ${ids.count { it.startsWith(BDAY_PREFIX) }} 条")
     }
 
     private fun alarm(context: Context): AlarmManager =
@@ -139,6 +144,42 @@ object Reminders {
                 ) {
                     ids.add(id)
                     slot += 1
+                }
+            }
+        }
+        return ids
+    }
+
+    // MARK: 生日提醒（提前 1 天 + 当天，时刻可调）
+
+    private fun scheduleBirthdays(context: Context, children: List<Child>): Set<String> {
+        val am = alarm(context)
+        val ids = mutableSetOf<String>()
+        val now = LocalDateTime.now()
+
+        children.forEach { child ->
+            if (child.birthdayRemind == false) return@forEach
+            val minutes = child.birthdayTime ?: 9 * 60
+            val fireTime = LocalTime.of(minutes / 60, minutes % 60)
+            val birth = child.birthDate
+
+            // 之后两年的生日（含提前一天）
+            for (yearOffset in 0..1) {
+                var next = LocalDate.of(now.year + yearOffset, birth.monthValue, birth.dayOfMonth)
+                if (next.isBefore(now.toLocalDate())) continue
+                val age = ChronoUnit.YEARS.between(birth, next)
+
+                val targets = listOf(
+                    Triple("d0", next, "🎂 今天是${child.name}的生日|祝${child.name} $age 岁生日快乐，记得吃蛋糕拍照记录！"),
+                    Triple("d1", next.minusDays(1), "🎁 明天是${child.name}的生日|明天${child.name}就 $age 岁啦，礼物和蛋糕可以提前准备。"),
+                )
+                targets.forEach { (tag, day, text) ->
+                    val fire = day.atTime(fireTime)
+                    if (fire.isAfter(now)) {
+                        val parts = text.split("|")
+                        val id = BDAY_PREFIX + child.id + ".y" + yearOffset + "." + tag
+                        if (setAlarm(context, am, id, fire, parts[0], parts[1])) ids.add(id)
+                    }
                 }
             }
         }

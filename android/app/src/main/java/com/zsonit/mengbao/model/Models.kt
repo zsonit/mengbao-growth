@@ -211,6 +211,8 @@ data class Child(
     val teethDecay: Map<Int, ToothDecay>? = null,  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     val optVaccines: List<String>? = null,         // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     val updatedAt: LocalDateTime? = null,          // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
+    val birthdayRemind: Boolean? = null,           // 生日提醒（提前 1 天 + 当天；null = 开）
+    val birthdayTime: Int? = null,                 // 生日提醒时刻（0-1439 分钟，null = 9:00）
 ) {
     val displayAvatar: String
         get() = if (avatar.isEmpty()) (if (sex == Sex.GIRL) "👧" else "👦") else avatar
@@ -292,4 +294,6 @@ data class AppState(
     val settings: AppSettings = AppSettings(),
     /** 删除墓碑：记录已删除条目的 key（如 "todo:<id>"），同步合并时据此过滤，防止旧副本复活 */
     val tombstones: Set<String> = emptySet(),
+    /** 最近一次「清空全部数据」的时间戳（UTC yyyy-MM-dd'T'HH:mm:ss）。清空不同步删对方数据：对方收到提示自行选择 */
+    val clearedAt: String? = null,
 )

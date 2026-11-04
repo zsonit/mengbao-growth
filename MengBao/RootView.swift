@@ -109,6 +109,16 @@ struct RootView: View {
         }
         .animation(Anim.pop, value: store.voiceHolding)
         .animation(Anim.pop, value: store.voiceProcessing)
+        // 配对手机已清空全部数据：让用户决定「同步清除 / 忽略」
+        .alert("配对手机已清空数据", isPresented: Binding(
+            get: { SyncManager.shared.remoteClearPrompt },
+            set: { SyncManager.shared.remoteClearPrompt = $0 }
+        )) {
+            Button("同步清除", role: .destructive) { store.reset() }
+            Button("忽略", role: .cancel) { }
+        } message: {
+            Text("对方手机已清空全部数据。要把本机数据一起清空吗？点「忽略」则保留本机数据。")
+        }
     }
 
     /// 单页容器：非当前页淡出并轻微缩小，切页时带阻尼弹簧

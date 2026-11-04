@@ -300,7 +300,14 @@ object Store {
         return sb.toString()
     }
 
-    fun reset() = update { it.copy(children = emptyList(), currentId = null) }
+    fun reset() = update {
+        it.copy(children = emptyList(), currentId = null, clearedAt = clearStamp())
+    }
+
+    /** 清空标记时间戳（UTC 定宽字符串，可直接比较大小） */
+    fun clearStamp(): String =
+        java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
 
     // MARK: 示例数据
 

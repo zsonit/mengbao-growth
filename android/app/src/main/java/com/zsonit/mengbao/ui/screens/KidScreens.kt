@@ -29,8 +29,12 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -134,6 +138,9 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
     var avatarPath by remember(childId) { mutableStateOf(child?.avatarPath) }
     var errorMessage by remember(childId) { mutableStateOf<String?>(null) }
     var showDeleteAlert by remember { mutableStateOf(false) }
+    var birthdayRemind by remember(childId) { mutableStateOf(child?.birthdayRemind ?: true) }
+    var birthdayTime by remember(childId) { mutableStateOf(child?.birthdayTime ?: (9 * 60)) }
+    var showBirthdayTimePick by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val photoPicker = rememberLauncherForActivityResult(
@@ -247,6 +254,35 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                         }
                     }
                 }
+
+                // 生日提醒：提前 1 天 + 当天各提醒一次，时刻可调
+                if (child != null) {
+                    EditorField(label = "🎂 生日提醒（提前 1 天 + 当天）") {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (birthdayRemind) "已开启" else "已关闭",
+                                fontSize = 13.sp,
+                                color = if (birthdayRemind) Palette.ok else Palette.subtle,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Switch(
+                                checked = birthdayRemind,
+                                onCheckedChange = { birthdayRemind = it },
+                                colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
+                            )
+                        }
+                        if (birthdayRemind) {
+                            Text(
+                                "提醒时间 %02d:%02d（点此修改）".format(birthdayTime / 60, birthdayTime % 60),
+                                fontSize = 13.sp, color = Palette.purple,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showBirthdayTimePick = true }
+                                    .padding(vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
             }
 
             if (errorMessage != null) {
@@ -264,7 +300,13 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                 } else {
                     val existing = child
                     if (existing != null) {
-                        Store.updateChild(existing.copy(name = trimmed, sex = sex, birthDate = birthDate, avatar = avatar, avatarPath = avatarPath))
+                        Store.updateChild(
+                            existing.copy(
+                                name = trimmed, sex = sex, birthDate = birthDate,
+                                avatar = avatar, avatarPath = avatarPath,
+                                birthdayRemind = birthdayRemind, birthdayTime = birthdayTime,
+                            ),
+                        )
                     } else {
                         Store.addChild(name = trimmed, sex = sex, birthDate = birthDate, avatar = avatar)
                     }
@@ -281,6 +323,28 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                 fontSize = 12.sp, color = Palette.subtle,
             )
         }
+    }
+
+    if (showBirthdayTimePick) {
+        val tstate = rememberTimePickerState(
+            initialHour = birthdayTime / 60,
+            initialMinute = birthdayTime % 60,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showBirthdayTimePick = false },
+            title = { Text("生日提醒时间") },
+            text = { TimePicker(state = tstate) },
+            confirmButton = {
+                TextButton(onClick = {
+                    birthdayTime = tstate.hour * 60 + tstate.minute
+                    showBirthdayTimePick = false
+                }) { Text("好") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBirthdayTimePick = false }) { Text("取消") }
+            },
+        )
     }
 
     if (showDeleteAlert && child != null) {

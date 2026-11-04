@@ -59,6 +59,7 @@ object JsonCodec {
         if (state.tombstones.isNotEmpty()) {
             root.put("tombstones", JSONArray().apply { state.tombstones.forEach { put(it) } })
         }
+        state.clearedAt?.let { root.put("clearedAt", it) }
         return root.toString(2)
     }
 
@@ -102,6 +103,8 @@ object JsonCodec {
         }
         put("todos", JSONArray().apply { child.todos.forEach { put(encodeTodo(it)) } })
         child.updatedAt?.let { put("updatedAt", encodeMoment(it)) }
+        child.birthdayRemind?.let { put("birthdayRemind", it) }
+        child.birthdayTime?.let { put("birthdayTime", it) }
     }
 
     private fun encodeRecord(r: GrowthRecord): JSONObject = JSONObject().apply {
@@ -201,6 +204,7 @@ object JsonCodec {
             tombstones = root.optJSONArray("tombstones")?.let { arr ->
                 (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.toSet()
             } ?: emptySet(),
+            clearedAt = root.optStringOrNull("clearedAt"),
         )
     }
 
@@ -229,6 +233,8 @@ object JsonCodec {
             (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.ifEmpty { null }
         },
         updatedAt = o.optDoubleOrNull("updatedAt")?.let { decodeMoment(it) },
+        birthdayRemind = o.optBooleanOrNull("birthdayRemind"),
+        birthdayTime = o.optIntOrNull("birthdayTime"),
     )
 
     private fun decodeRecord(o: JSONObject) = GrowthRecord(
@@ -374,3 +380,6 @@ private fun JSONArray.optDoubleOrNull(index: Int): Double? =
 
 private fun JSONObject.optIntOrNull(key: String): Int? =
     if (has(key) && !isNull(key)) optInt(key) else null
+
+private fun JSONObject.optBooleanOrNull(key: String): Boolean? =
+    if (has(key) && !isNull(key)) optBoolean(key) else null

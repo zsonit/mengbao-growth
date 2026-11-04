@@ -17,6 +17,8 @@ struct KidEditorView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showDeleteAlert = false
     @State private var errorMessage: String?
+    @State private var birthdayRemind: Bool
+    @State private var birthdayTime: Date
 
     private let avatars = ["👶", "👧", "👦", "🧒", "🐣", "🐰", "🐻", "🦊"]
 
@@ -27,6 +29,10 @@ struct KidEditorView: View {
         _birthDate = State(initialValue: child?.birthDate ?? Date())
         _avatar = State(initialValue: child?.displayAvatar ?? "👦")
         _avatarPath = State(initialValue: child?.avatarPath)
+        _birthdayRemind = State(initialValue: child?.birthdayRemind ?? true)
+        let mins = child?.birthdayTime ?? 9 * 60
+        _birthdayTime = State(initialValue: Calendar.current.date(
+            bySettingHour: mins / 60, minute: mins % 60, second: 0, of: Date()) ?? Date())
     }
 
     var body: some View {
@@ -82,8 +88,7 @@ struct KidEditorView: View {
 
                         if child != nil {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
-                                HStack(spacing: 14) {
+                                Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)                                HStack(spacing: 14) {
                                     AvatarView(child: previewChild, size: 56, fontSize: 26)
                                     PhotosPicker(selection: $photoItem, matching: .images) {
                                         Text(avatarPath == nil ? "📷 从相册选一张照片" : "📷 更换照片")
@@ -111,6 +116,30 @@ struct KidEditorView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
+
+                        // 生日提醒：提前 1 天 + 当天各提醒一次，时刻可调
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Toggle(isOn: $birthdayRemind) {
+                                    Text("🎂 生日提醒（提前 1 天 + 当天）")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(Palette.ink)
+                                }
+                                .toggleStyle(SwitchToggleStyle(tint: Palette.purple))
+                            }
+                            if birthdayRemind {
+                                DatePicker(
+                                    "",
+                                    selection: $birthdayTime,
+                                    displayedComponents: .hourAndMinute
+                                )
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Text("提醒时间可自由调节，到点会推送生日提醒。")
+                                    .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .cardStyle()
 
@@ -195,6 +224,9 @@ struct KidEditorView: View {
             updated.birthDate = birthDate
             updated.avatar = avatar
             updated.avatarPath = avatarPath
+            updated.birthdayRemind = birthdayRemind
+            let c = Calendar.current
+            updated.birthdayTime = c.component(.hour, from: birthdayTime) * 60 + c.component(.minute, from: birthdayTime)
             store.updateChild(updated)
         } else {
             store.addChild(name: trimmed, sex: sex, birthDate: birthDate, avatar: avatar)

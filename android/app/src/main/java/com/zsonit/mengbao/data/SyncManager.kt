@@ -253,7 +253,9 @@ object SyncManager {
             // 云端还没有这一行（刚创建配对码）时必须推一次，否则对方永远拉不到数据
             var mustPush = localDirty || lastRev == 0L || remote?.updatedBy == EMPTY
             if (remote != null) {
-                merged = mergeState(local, remote.state)
+                val (m, remoteClear) = mergeState(local, remote.state)
+                merged = m
+                if (remoteClear) clearPrompt = true
                 if (merged != local) {
                     Store.suppressSync = true
                     try {
@@ -324,7 +326,21 @@ object SyncManager {
 
     // MARK: 合并
 
-    private fun mergeState(local: AppState, remote: AppState): AppState {
+    /** 对方手机已清空全部数据，等待用户选择「同步清除 / 忽略」 */
+    var clearPrompt by mutableStateOf(false)
+
+    /** 返回合并结果 + 是否检测到「对方已清空全部数据」（本机还有数据时，由 UI 弹窗让用户选择） */
+    private fun mergeState(local: AppState, remote: AppState): Pair<AppState, Boolean> {
+        val lc = local.clearedAt.orEmpty()
+        val rc = remote.clearedAt.orEmpty()
+        // 对方刚清空（clearedAt 更新）且本机还有数据：不自动合并，弹窗让用户选择「同步清除 / 忽略」
+        if (rc > lc && local.children.isNotEmpty()) {
+            return local.copy(clearedAt = remote.clearedAt) to true
+        }
+        // 本机刚清空（clearedAt 更新）：不把对方的旧数据合并回来
+        if (lc > rc) {
+            return local to false
+        }
         // 删除墓碑：两端取并集，条目一旦删除，任何一侧的旧副本都不能再合并回来
         val tom = local.tombstones + remote.tombstones
         val children = mutableListOf<Child>()
@@ -338,7 +354,12 @@ object SyncManager {
         for (r in remote.children) {
             if (r.id !in seen && "child:${r.id}" !in tom) children.add(r)
         }
-        return local.copy(children = children, tombstones = tom)
+        // 清空标记取较新的一个，两端对齐后不会再重复提示
+        val cleared = when {
+            local.clearedAt != null && remote.clearedAt != null -> maxOf(local.clearedAt!!, remote.clearedAt!!)
+            else -> local.clearedAt ?: remote.clearedAt
+        }
+        return local.copy(children = children, tombstones = tom, clearedAt = cleared) to false
     }
 
     private fun authIsLocal(l: Child, r: Child): Boolean {

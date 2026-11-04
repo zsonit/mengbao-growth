@@ -416,7 +416,17 @@ final class Store: ObservableObject {
         update { s in
             s.children = []
             s.currentID = nil
+            s.clearedAt = Self.clearStamp()
         }
+    }
+
+    /// 清空标记时间戳（UTC 定宽字符串，可直接比较大小）
+    static func clearStamp() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return f.string(from: Date())
     }
 
     // MARK: 示例数据

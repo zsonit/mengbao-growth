@@ -57,6 +57,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.zsonit.mengbao.data.Store
+import com.zsonit.mengbao.data.SyncManager
 import com.zsonit.mengbao.ui.Palette
 import com.zsonit.mengbao.ui.Routes
 import com.zsonit.mengbao.ui.screens.ClinicDetailScreen
@@ -100,6 +101,26 @@ fun MengBaoApp() {
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBottomBar = tabs.any { it.route == currentRoute }
+
+    // 配对手机已清空全部数据：让用户决定「同步清除 / 忽略」
+    if (SyncManager.clearPrompt) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { SyncManager.clearPrompt = false },
+            title = { Text("配对手机已清空数据") },
+            text = { Text("对方手机已清空全部数据。要把本机数据一起清空吗？点「忽略」则保留本机数据。") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    SyncManager.clearPrompt = false
+                    Store.reset()
+                }) { Text("同步清除", color = Palette.bad) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { SyncManager.clearPrompt = false }) {
+                    Text("忽略")
+                }
+            },
+        )
+    }
 
     Scaffold(
         containerColor = Palette.background,

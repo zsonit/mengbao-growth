@@ -37,6 +37,8 @@ final class SyncManager: ObservableObject {
     @Published var busy = false
     @Published var lastMessage: String?
     @Published var lastSyncAt: TimeInterval
+    /// 对方手机已清空全部数据，等待用户选择「同步清除 / 忽略」
+    @Published var remoteClearPrompt = false
 
     private var deviceId: String
     private var workItem: DispatchWorkItem?
@@ -298,7 +300,11 @@ final class SyncManager: ObservableObject {
         // 云端还没有这一行（刚创建配对码）时必须推一次，否则对方永远拉不到数据
         var mustPush = localDirty || lastRev == 0 || remoteSnapshot?.updatedBy == Self.empty
         if let snapshot = remoteSnapshot {
-            merged = Self.mergeState(local: local, remote: snapshot.state)
+            let (m, remoteClear) = Self.mergeState(local: local, remote: snapshot.state)
+            merged = m
+            if remoteClear {
+                DispatchQueue.main.async { self.remoteClearPrompt = true }
+            }
             if merged != local {
                 DispatchQueue.main.async {
                     store.update({ s in
@@ -346,7 +352,20 @@ final class SyncManager: ObservableObject {
 
     // MARK: 合并（与安卓保持一致）
 
-    static func mergeState(local: AppState, remote: AppState) -> AppState {
+    /// 返回合并结果 + 是否检测到「对方已清空全部数据」（本机还有数据时，由 UI 弹窗让用户选择）
+    static func mergeState(local: AppState, remote: AppState) -> (state: AppState, remoteClear: Bool) {
+        let lc = local.clearedAt ?? ""
+        let rc = remote.clearedAt ?? ""
+        // 对方刚清空（clearedAt 更新）且本机还有数据：不自动合并，弹窗让用户选择「同步清除 / 忽略」
+        if rc > lc, !local.children.isEmpty {
+            var m = local
+            m.clearedAt = remote.clearedAt
+            return (m, true)
+        }
+        // 本机刚清空（clearedAt 更新）：不把对方的旧数据合并回来
+        if lc > rc {
+            return (local, false)
+        }
         // 删除墓碑：两端取并集，一旦某条被删除，任何一侧的旧副本都不能再合并回来
         let tom = local.tombstones.union(remote.tombstones)
         var children: [Child] = []
@@ -362,7 +381,13 @@ final class SyncManager: ObservableObject {
         var out = local
         out.children = children
         out.tombstones = tom
-        return out
+        // 清空标记取较新的一个，两端对齐后不会再重复提示
+        if let a = local.clearedAt, let b = remote.clearedAt {
+            out.clearedAt = a > b ? a : b
+        } else {
+            out.clearedAt = local.clearedAt ?? remote.clearedAt
+        }
+        return (out, false)
     }
 
     private static func authIsLocal(_ l: Child, _ r: Child) -> Bool {

@@ -239,6 +239,8 @@ struct Child: Identifiable, Codable, Hashable {
     var teethDecay: [Int: ToothDecay]? = nil  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     var optVaccines: [String]? = nil      // 自选（自费）疫苗 id，见 Standards.optionalCatalog
     var updatedAt: Date? = nil            // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
+    var birthdayRemind: Bool? = nil       // 生日提醒（提前 1 天 + 当天；nil = 开）
+    var birthdayTime: Int? = nil          // 生日提醒时刻（0-1439 分钟，nil = 9:00）
 
 
     var displayAvatar: String {
@@ -363,8 +365,11 @@ struct AppState: Codable, Hashable {
     /// 删除墓碑：记录已删除条目的 key（如 "todo:<uuid>"），同步合并时据此过滤，
     /// 防止另一端/云端旧快照里的条目在删除后被并集合并"复活"
     var tombstones: Set<String> = []
+    /// 最近一次「清空全部数据」的时间戳（UTC yyyy-MM-dd'T'HH:mm:ss）。
+    /// 清空不同步删除对方数据：对方会收到提示，自行选择「同步清除 / 忽略」
+    var clearedAt: String? = nil
 
-    private enum CodingKeys: String, CodingKey { case children, currentID, settings, tombstones }
+    private enum CodingKeys: String, CodingKey { case children, currentID, settings, tombstones, clearedAt }
 
     init() {}
 
@@ -374,5 +379,6 @@ struct AppState: Codable, Hashable {
         currentID = try c.decodeIfPresent(UUID.self, forKey: .currentID)
         settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
         tombstones = try c.decodeIfPresent(Set<String>.self, forKey: .tombstones) ?? []
+        clearedAt = try c.decodeIfPresent(String.self, forKey: .clearedAt)
     }
 }
