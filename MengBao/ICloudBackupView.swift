@@ -117,7 +117,7 @@ struct ICloudBackupView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("自动备份").font(.system(size: 13.5)).foregroundColor(Palette.ink)
-                        Text("改动后自动备份，最多保留 \(20) 份")
+                        Text("改动后自动备份，只保留最新一份（不会堆积多余备份）")
                             .font(.system(size: 11))
                             .foregroundColor(Palette.subtle)
                     }

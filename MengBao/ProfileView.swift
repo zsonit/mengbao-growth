@@ -534,7 +534,7 @@ struct ProfileView: View {
 
     private var iCloudSubtitle: String {
         if backup.hasFolder, let name = backup.folderName {
-            return "自动备份到「\(name)」，重装可一键恢复"
+            return "自动备份到「\(name)」，只保留最新一份"
         }
         return "自动备份到 iCloud 云盘，换手机可恢复"
     }

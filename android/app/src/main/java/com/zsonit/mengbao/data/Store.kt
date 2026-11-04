@@ -65,6 +65,7 @@ object Store {
     fun update(block: (AppState) -> AppState) {
         state = block(state)
         persist()
+        AutoBackup.noteChange()
         // 提醒与数据保持一致：待办增删改、清空、同步回写都会走到这里（内部 600ms 防抖）
         appContext?.let { Reminders.reschedule(it) }
         if (!suppressSync) SyncManager.onDataChanged()

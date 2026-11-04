@@ -446,6 +446,8 @@ struct SizeEditorView: View {
     @State private var hip: String = ""
     @State private var thigh: String = ""
     @State private var calf: String = ""
+    @State private var legLength: String = ""
+    @State private var armLength: String = ""
     @State private var topLength: String = ""
     @State private var sleeve: String = ""
     @State private var pantsLength: String = ""
@@ -477,6 +479,10 @@ struct SizeEditorView: View {
                         HStack(spacing: 10) {
                             inputField(title: "大腿围", text: $thigh, unit: "cm")
                             inputField(title: "小腿围", text: $calf, unit: "cm")
+                        }
+                        HStack(spacing: 10) {
+                            inputField(title: "腿长", text: $legLength, unit: "cm")
+                            inputField(title: "手臂长", text: $armLength, unit: "cm")
                         }
                     }
                     .cardStyle()
@@ -545,7 +551,7 @@ struct SizeEditorView: View {
 
                     Button("保存尺码记录") {
                         let values = [foot, height, shoulder, waist, hip, thigh, calf,
-                                      topLength, sleeve, pantsLength, shoeInner]
+                                      legLength, armLength, topLength, sleeve, pantsLength, shoeInner]
                         guard values.contains(where: { Double($0) != nil }) || Int(shoeSize) != nil else { return }
                         store.addSize(SizeRecord(
                             date: date,
@@ -556,6 +562,8 @@ struct SizeEditorView: View {
                             hip: Double(hip),
                             thigh: Double(thigh),
                             calf: Double(calf),
+                            legLength: Double(legLength),
+                            armLength: Double(armLength),
                             topLength: Double(topLength),
                             sleeve: Double(sleeve),
                             pantsLength: Double(pantsLength),
@@ -596,6 +604,8 @@ struct SizeEditorView: View {
                     if hip.isEmpty, let v = last.hip { hip = String(format: "%.1f", v) }
                     if thigh.isEmpty, let v = last.thigh { thigh = String(format: "%.1f", v) }
                     if calf.isEmpty, let v = last.calf { calf = String(format: "%.1f", v) }
+                    if legLength.isEmpty, let v = last.legLength { legLength = String(format: "%.1f", v) }
+                    if armLength.isEmpty, let v = last.armLength { armLength = String(format: "%.1f", v) }
                     if topLength.isEmpty, let v = last.topLength { topLength = String(format: "%.1f", v) }
                     if sleeve.isEmpty, let v = last.sleeve { sleeve = String(format: "%.1f", v) }
                     if pantsLength.isEmpty, let v = last.pantsLength { pantsLength = String(format: "%.1f", v) }

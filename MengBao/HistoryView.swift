@@ -185,6 +185,8 @@ struct HistoryView: View {
                     add("臀围", size.hip)
                     add("大腿围", size.thigh)
                     add("小腿围", size.calf)
+                    add("腿长", size.legLength)
+                    add("手臂长", size.armLength)
                     add("衣长", size.topLength)
                     add("袖长", size.sleeve)
                     add("裤长", size.pantsLength)

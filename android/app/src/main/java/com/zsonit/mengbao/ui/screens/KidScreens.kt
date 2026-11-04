@@ -326,6 +326,8 @@ fun SizeEditorScreen(onBack: () -> Unit) {
     var hip by remember { mutableStateOf("") }
     var thigh by remember { mutableStateOf("") }
     var calf by remember { mutableStateOf("") }
+    var legLength by remember { mutableStateOf("") }
+    var armLength by remember { mutableStateOf("") }
     var topLength by remember { mutableStateOf("") }
     var sleeve by remember { mutableStateOf("") }
     var pantsLength by remember { mutableStateOf("") }
@@ -356,6 +358,8 @@ fun SizeEditorScreen(onBack: () -> Unit) {
         hip = f(last?.hip)
         thigh = f(last?.thigh)
         calf = f(last?.calf)
+        legLength = f(last?.legLength)
+        armLength = f(last?.armLength)
         topLength = f(last?.topLength)
         sleeve = f(last?.sleeve)
         pantsLength = f(last?.pantsLength)
@@ -432,9 +436,19 @@ fun SizeEditorScreen(onBack: () -> Unit) {
                         modifier = Modifier.weight(1f), onChange = { edited = true; thigh = it },
                     )
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NumberInput(
+                        label = "小腿围", value = calf, unit = "cm",
+                        modifier = Modifier.weight(1f), onChange = { edited = true; calf = it },
+                    )
+                    NumberInput(
+                        label = "腿长", value = legLength, unit = "cm",
+                        modifier = Modifier.weight(1f), onChange = { edited = true; legLength = it },
+                    )
+                }
                 NumberInput(
-                    label = "小腿围", value = calf, unit = "cm",
-                    modifier = Modifier.fillMaxWidth(), onChange = { edited = true; calf = it },
+                    label = "手臂长", value = armLength, unit = "cm",
+                    modifier = Modifier.fillMaxWidth(), onChange = { edited = true; armLength = it },
                 )
 
                 Text("衣物尺寸（选填 · cm）", fontSize = 11.5.sp, color = Palette.subtle)
@@ -482,6 +496,8 @@ fun SizeEditorScreen(onBack: () -> Unit) {
                             hip = hip.toDoubleOrNull(),
                             thigh = thigh.toDoubleOrNull(),
                             calf = calf.toDoubleOrNull(),
+                            legLength = legLength.toDoubleOrNull(),
+                            armLength = armLength.toDoubleOrNull(),
                             topLength = topLength.toDoubleOrNull(),
                             sleeve = sleeve.toDoubleOrNull(),
                             pantsLength = pantsLength.toDoubleOrNull(),
@@ -492,6 +508,7 @@ fun SizeEditorScreen(onBack: () -> Unit) {
                     )
                     Toast.makeText(context, "已保存尺码", Toast.LENGTH_SHORT).show()
                     foot = ""; height = ""; shoulder = ""; waist = ""; hip = ""; thigh = ""; calf = ""
+                    legLength = ""; armLength = ""
                     topLength = ""; sleeve = ""; pantsLength = ""; shoeSize = ""; shoeInner = ""; note = ""
                 }
             })

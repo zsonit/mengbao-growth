@@ -47,6 +47,37 @@ struct ToothDef: Identifiable, Hashable {
     }()
 }
 
+/// 恒牙（28 颗，不含智齿）：龋齿记录选牙图使用
+/// FDI 编码：1/2 象限为上颌（右/左），3/4 象限为下颌（左/右）
+enum PermanentTooth {
+    static let upperOrder = [17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27]
+    static let lowerOrder = [47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37]
+
+    /// code → 名称（含上下前缀）
+    static let names: [Int: String] = {
+        var d: [Int: String] = [:]
+        let table: [(Int, String)] = [
+            (11, "上中切牙"), (12, "上侧切牙"), (13, "上尖牙"), (14, "上第一前磨牙"),
+            (15, "上第二前磨牙"), (16, "上第一磨牙"), (17, "上第二磨牙"),
+            (21, "上中切牙"), (22, "上侧切牙"), (23, "上尖牙"), (24, "上第一前磨牙"),
+            (25, "上第二前磨牙"), (26, "上第一磨牙"), (27, "上第二磨牙"),
+            (31, "下中切牙"), (32, "下侧切牙"), (33, "下尖牙"), (34, "下第一前磨牙"),
+            (35, "下第二前磨牙"), (36, "下第一磨牙"), (37, "下第二磨牙"),
+            (41, "下中切牙"), (42, "下侧切牙"), (43, "下尖牙"), (44, "下第一前磨牙"),
+            (45, "下第二前磨牙"), (46, "下第一磨牙"), (47, "下第二磨牙"),
+        ]
+        for (c, n) in table { d[c] = n }
+        return d
+    }()
+
+    /// 统一取名：先查恒牙，再查乳牙，最后回退「牙位 X」
+    static func toothName(_ code: Int) -> String {
+        if let n = names[code] { return n }
+        if let t = ToothDef.all[code] { return t.name }
+        return "牙位 \(code)"
+    }
+}
+
 /// 牙齿状态
 enum ToothStatus: Hashable {
     case fallen, overdue, warn, normal
@@ -472,6 +503,7 @@ struct ToothChartView: View {
     private func decayRow(_ row: DecayRow) -> some View {
         let def = ToothDef.all[row.code]
         let tone = DecayTone.color(row.decay.severity)
+        let toothName = PermanentTooth.toothName(row.code)
         return Button {
             selected = ToothSelection(code: row.code)
         } label: {
@@ -484,7 +516,7 @@ struct ToothChartView: View {
                         Text("\(row.code)")
                             .font(.system(size: 12.5, weight: .bold, design: .monospaced))
                             .foregroundColor(tone)
-                        Text(def?.shortName ?? "")
+                        Text(def?.shortName ?? PermanentTooth.toothName(row.code))
                             .font(.system(size: 8))
                             .foregroundColor(tone.opacity(0.8))
                             .lineLimit(1)
@@ -493,7 +525,7 @@ struct ToothChartView: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(def?.name ?? "牙位 \(row.code)")
+                        Text(toothName)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(Palette.ink)
                         Text(row.decay.severityLabel)
@@ -615,7 +647,7 @@ private struct ToothDetailView: View {
                     .foregroundColor(st.status.color)
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text(st.def.name).font(.system(size: 17, weight: .bold)).foregroundColor(Palette.ink)
+                Text(PermanentTooth.toothName(code)).font(.system(size: 17, weight: .bold)).foregroundColor(Palette.ink)
                 Text("FDI \(st.def.code) · 换牙期 \(st.def.windowLabel)")
                     .font(.system(size: 12.5)).foregroundColor(Palette.subtle)
                 HStack(spacing: 6) {
@@ -795,13 +827,13 @@ private struct ToothDecayEditorView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            // 和「牙弓图」一样的拟真牙弓，直接点牙齿选，不用对编码
-            ArchPickerView(codes: ToothDef.upperOrder,
+            // 和「牙弓图」一样的拟真牙弓（28 颗恒牙位），直接点牙齿选，不用对编码
+            ArchPickerView(codes: PermanentTooth.upperOrder,
                            isUpper: true,
                            selected: code,
                            decayed: Set(decayMap.keys),
                            fallen: Set(fallenMap.keys)) { select($0) }
-            ArchPickerView(codes: ToothDef.lowerOrder,
+            ArchPickerView(codes: PermanentTooth.lowerOrder,
                            isUpper: false,
                            selected: code,
                            decayed: Set(decayMap.keys),
@@ -828,8 +860,8 @@ private struct ToothDecayEditorView: View {
     }
 
     private var selectedLabel: String {
-        guard let c = code, let def = ToothDef.all[c] else { return "点牙齿选择" }
-        return "已选 \(c) \(def.name)"
+        guard let c = code else { return "点恒牙选择（28 颗）" }
+        return "已选 \(c) \(PermanentTooth.toothName(c))"
     }
 
     private var detailCard: some View {

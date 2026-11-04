@@ -39,8 +39,8 @@ final class BackupManager: ObservableObject {
     private let keyName = "icloud_backup_folder_name"
     private let keyLast = "icloud_backup_last_at"
     private let keyAuto = "icloud_backup_auto"
-    /// 文件夹里最多保留多少份备份，超出的从最旧的删
-    private let maxFiles = 20
+    /// 文件夹里最多保留多少份备份：自动备份只保留最新一份（新的写好后就删旧的，不产生多余文件）
+    private let maxFiles = 1
     /// 自动备份最短间隔：改了数据也不会一直写盘
     private let autoInterval: TimeInterval = 5 * 60
     /// 改动后的防抖：连续输入只备份一次

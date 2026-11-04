@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.zsonit.mengbao.data.AppLog
+import com.zsonit.mengbao.data.AutoBackup
 import com.zsonit.mengbao.data.Reminders
 import com.zsonit.mengbao.data.Store
 import com.zsonit.mengbao.data.SyncManager
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AutoBackup.init(applicationContext)
         enableEdgeToEdge()
         AppLog.init(applicationContext)
         Store.init(applicationContext)

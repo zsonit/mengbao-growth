@@ -138,6 +138,8 @@ struct SizeRecord: Identifiable, Codable, Hashable {
     var hip: Double?           // 臀围
     var thigh: Double?         // 大腿围
     var calf: Double?          // 小腿围
+    var legLength: Double?     // 腿长
+    var armLength: Double?     // 手臂长
     var topLength: Double?     // 衣长
     var sleeve: Double?        // 袖长
     var pantsLength: Double?   // 裤长
@@ -148,7 +150,7 @@ struct SizeRecord: Identifiable, Codable, Hashable {
     /// 填了几项（含备注）：用来挑「最完整」的那条，也是去重时的优先级
     var filledCount: Int {
         let values: [Double?] = [footLength, height, shoulder, waist, hip, thigh, calf,
-                                 topLength, sleeve, pantsLength, shoeInner,
+                                 legLength, armLength, topLength, sleeve, pantsLength, shoeInner,
                                  shoeSize.map { Double($0) }]
         return values.compactMap { $0 }.count + (note.trimmingCharacters(in: .whitespaces).isEmpty ? 0 : 1)
     }
@@ -169,6 +171,8 @@ struct SizeRecord: Identifiable, Codable, Hashable {
         out.hip = hip ?? old.hip
         out.thigh = thigh ?? old.thigh
         out.calf = calf ?? old.calf
+        out.legLength = legLength ?? old.legLength
+        out.armLength = armLength ?? old.armLength
         out.topLength = topLength ?? old.topLength
         out.sleeve = sleeve ?? old.sleeve
         out.pantsLength = pantsLength ?? old.pantsLength

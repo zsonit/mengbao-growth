@@ -287,6 +287,8 @@ private fun SizeItem(size: SizeRecord, modifier: Modifier = Modifier) {
             size.hip?.let { add("臀围 ${fmt1(it)}") }
             size.thigh?.let { add("大腿围 ${fmt1(it)}") }
             size.calf?.let { add("小腿围 ${fmt1(it)}") }
+            size.legLength?.let { add("腿长 ${fmt1(it)}") }
+            size.armLength?.let { add("手臂长 ${fmt1(it)}") }
             size.topLength?.let { add("衣长 ${fmt1(it)}") }
             size.sleeve?.let { add("袖长 ${fmt1(it)}") }
             size.pantsLength?.let { add("裤长 ${fmt1(it)}") }

@@ -115,6 +115,8 @@ data class SizeRecord(
     val hip: Double? = null,
     val thigh: Double? = null,
     val calf: Double? = null,
+    val legLength: Double? = null,
+    val armLength: Double? = null,
     val topLength: Double? = null,
     val sleeve: Double? = null,
     val pantsLength: Double? = null,
@@ -126,7 +128,7 @@ data class SizeRecord(
     val filledCount: Int
         get() = listOf(
             footLength, height, shoulder, waist, hip, thigh, calf,
-            topLength, sleeve, pantsLength, shoeInner, shoeSize?.toDouble(),
+            legLength, armLength, topLength, sleeve, pantsLength, shoeInner, shoeSize?.toDouble(),
         ).count { it != null } + if (note.isNotBlank()) 1 else 0
 
     /** 全是空的记录（历史脏数据），展示和同步时都过滤掉 */
@@ -144,6 +146,8 @@ data class SizeRecord(
         hip = hip ?: old.hip,
         thigh = thigh ?: old.thigh,
         calf = calf ?: old.calf,
+        legLength = legLength ?: old.legLength,
+        armLength = armLength ?: old.armLength,
         topLength = topLength ?: old.topLength,
         sleeve = sleeve ?: old.sleeve,
         pantsLength = pantsLength ?: old.pantsLength,

@@ -62,6 +62,26 @@ import java.time.format.DateTimeFormatter
 
 // MARK: - 乳牙标准（与 iOS ToothDef 保持一致）
 
+/** 恒牙（28 颗，不含智齿）：龋齿记录选牙图使用；FDI 1/2 象限上颌（右/左），3/4 象限下颌（左/右） */
+object PermanentTooth {
+    val upperOrder = listOf(17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27)
+    val lowerOrder = listOf(47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37)
+    val names: Map<Int, String> = mapOf(
+        11 to "上中切牙", 12 to "上侧切牙", 13 to "上尖牙", 14 to "上第一前磨牙",
+        15 to "上第二前磨牙", 16 to "上第一磨牙", 17 to "上第二磨牙",
+        21 to "上中切牙", 22 to "上侧切牙", 23 to "上尖牙", 24 to "上第一前磨牙",
+        25 to "上第二前磨牙", 26 to "上第一磨牙", 27 to "上第二磨牙",
+        31 to "下中切牙", 32 to "下侧切牙", 33 to "下尖牙", 34 to "下第一前磨牙",
+        35 to "下第二前磨牙", 36 to "下第一磨牙", 37 to "下第二磨牙",
+        41 to "下中切牙", 42 to "下侧切牙", 43 to "下尖牙", 44 to "下第一前磨牙",
+        45 to "下第二前磨牙", 46 to "下第一磨牙", 47 to "下第二磨牙",
+    )
+
+    /** 统一取名：先查恒牙，再查乳牙 */
+    fun toothName(code: Int): String =
+        names[code] ?: ToothDef.all[code]?.name ?: "牙位 $code"
+}
+
 data class ToothDef(
     val code: Int,
     val name: String,
@@ -344,7 +364,7 @@ private val TOOTH_CELL_H = 51.dp
 private val ARCH_HEIGHT = 210.dp
 
 @Composable
-private fun ArchChart(isUpper: Boolean, selected: Int? = null, onTap: (Int) -> Unit) {
+private fun ArchChart(isUpper: Boolean, selected: Int? = null, codes: List<Int>? = null, onTap: (Int) -> Unit) {
     val density = LocalDensity.current
     BoxWithConstraints(
         Modifier
@@ -372,12 +392,13 @@ private fun ArchChart(isUpper: Boolean, selected: Int? = null, onTap: (Int) -> U
             )
         }
 
-        val codes = if (isUpper) ToothDef.upperOrder else ToothDef.lowerOrder
+        val list = codes ?: if (isUpper) ToothDef.upperOrder else ToothDef.lowerOrder
+        val step = if (list.size > 1) 170.0 / (list.size - 1) else 0.0
         val nineDp = with(density) { 9.dp.toPx() }
         val fortySixDp = with(density) { 46.dp.toPx() }
-        codes.forEachIndexed { idx, code ->
-            // 从左端 175° 到右端 5°，均匀分布 10 颗
-            val theta = Math.toRadians(175.0 - idx * 18.888)
+        list.forEachIndexed { idx, code ->
+            // 从左端 175° 到右端 5°，均匀分布
+            val theta = Math.toRadians(175.0 - idx * step)
             val x = cx + rx * kotlin.math.cos(theta).toFloat()
             val y = if (isUpper) {
                 cy - ry * kotlin.math.sin(theta).toFloat()
@@ -535,62 +556,44 @@ private val fmt: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 @Composable
 private fun ScheduleSection(onTap: (Int) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ScheduleGroup("上颌（Maxillary）", listOf(51, 52, 53, 54, 55, 61, 62, 63, 64, 65), onTap)
-        ScheduleGroup("下颌（Mandibular）", listOf(71, 72, 73, 74, 75, 81, 82, 83, 84, 85), onTap)
+        // 换牙时间表：直接用牙弓图展示，点牙看详情（含换牙期）
+        Column(Modifier.fillMaxWidth().cardStyle(padding = 6.dp)) {
+            ArchChart(isUpper = true, onTap = onTap)
+            ArchChart(isUpper = false, onTap = onTap)
+        }
+
+        // 按牙类速查：同一类牙（左右不分）换牙期一致
+        val groups = ToothDef.all.values
+            .groupBy { it.name.removePrefix("上乳").removePrefix("下乳") }
+            .map { (type, defs) ->
+                val up = defs.filter { it.isUpper }
+                val low = defs.filter { !it.isUpper }
+                Triple(type, up.minOf { it.earlyMonths }..up.maxOf { it.lateMonths }, low.minOf { it.earlyMonths }..low.maxOf { it.lateMonths })
+            }
+            .sortedBy { it.second.first }
+        Column(Modifier.fillMaxWidth().cardStyle(padding = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("换牙期速查（按牙类）", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle)
+            groups.forEach { (type, up, low) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(type, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Palette.ink)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "上 ${yearRange(up)} · 下 ${yearRange(low)}",
+                        fontSize = 11.5.sp, color = Palette.subtle,
+                    )
+                }
+            }
+            Text(
+                "左右同名牙换牙期基本相同；点上方牙弓图上的任意一颗牙可看单牙状态。",
+                fontSize = 10.5.sp, color = Palette.subtle, lineHeight = 15.sp,
+            )
+        }
     }
 }
 
-@Composable
-private fun ScheduleGroup(title: String, codes: List<Int>, onTap: (Int) -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(
-            title,
-            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        Column(Modifier.fillMaxWidth().cardStyle(padding = 4.dp)) {
-            codes.forEachIndexed { i, code ->
-                val st = toothState(code)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onTap(code) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "$code",
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.purple,
-                        modifier = Modifier.width(36.dp),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(st.def.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Palette.ink)
-                        Text("换牙期 ${st.def.windowLabel}", fontSize = 11.5.sp, color = Palette.subtle)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (st.fallenDate != null) {
-                            Text("已脱落 · ${st.fallenDate.format(fmt)}", fontSize = 11.5.sp, color = ToothStatus.FALLEN.color)
-                        } else {
-                            Text(
-                                st.status.label,
-                                fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
-                                color = if (st.status == ToothStatus.NORMAL) Palette.subtle else st.status.color,
-                            )
-                        }
-                        st.decay?.let { d ->
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "🦷 龋齿 · ${d.severityLabel}",
-                                fontSize = 10.5.sp, fontWeight = FontWeight.Medium,
-                                color = DecayTone.color(d.severity),
-                            )
-                        }
-                    }
-                }
-                if (i != codes.lastIndex) DividerLine()
-            }
-        }
-    }
+private fun yearRange(range: IntRange): String {
+    fun y(m: Int) = if (m % 12 == 0) "${m / 12}岁" else "${m / 12}岁半"
+    return "${y(range.first)} ~ ${y(range.last)}"
 }
 
 @Composable
@@ -622,7 +625,7 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit, onEditDecay: () ->
             Column {
                 Text("${def.name}（${def.code}）", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Palette.ink)
                 Text(
-                    "换牙期 ${def.windowLabel} · 当前：${st.status.label}",
+                    (if (def.earlyMonths > 0) "换牙期 ${def.windowLabel} · " else "") + "当前：${st.status.label}",
                     fontSize = 12.sp, color = Palette.subtle,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -702,7 +705,7 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit, onEditDecay: () ->
 @Composable
 private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
     val decayMap = Store.current?.teethDecay ?: emptyMap()
-    val rows = ToothDef.all.keys.sorted().filter { decayMap.containsKey(it) }
+    val rows = (ToothDef.all.keys + PermanentTooth.names.keys).sorted().filter { decayMap.containsKey(it) }
 
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.fillMaxWidth().cardStyle(padding = 6.dp)) {
@@ -723,7 +726,7 @@ private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
             } else {
                 rows.forEachIndexed { i, code ->
                     val d = decayMap[code] ?: return@forEachIndexed
-                    val def = ToothDef.all[code] ?: return@forEachIndexed
+                    val def = ToothDef.all[code] ?: ToothDef(code, PermanentTooth.toothName(code), 0, 0)
                     val tone = DecayTone.color(d.severity)
                     Row(
                         Modifier
@@ -820,7 +823,7 @@ private fun DecayDialog(initialCode: Int?, onDismiss: () -> Unit) {
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    code?.let { c -> ToothDef.all[c]?.name ?: "" } ?: "点牙弓图上的牙齿",
+                    code?.let { c -> PermanentTooth.toothName(c) } ?: "点牙位选择（28 颗恒牙）",
                     fontSize = 11.5.sp, color = if (code == null) Palette.subtle else Palette.purple,
                 )
                 Spacer(Modifier.width(8.dp))
@@ -830,11 +833,11 @@ private fun DecayDialog(initialCode: Int?, onDismiss: () -> Unit) {
                 )
             }
 
-            // 与「牙弓图」同款排布：直接点牙齿选
-            ArchChart(isUpper = true, selected = code) { code = it }
-            ArchChart(isUpper = false, selected = code) { code = it }
+            // 与「牙弓图」同款排布（28 颗恒牙位）：直接点牙齿选
+            ArchChart(isUpper = true, selected = code, codes = PermanentTooth.upperOrder) { code = it }
+            ArchChart(isUpper = false, selected = code, codes = PermanentTooth.lowerOrder) { code = it }
             Text(
-                "红点 = 已有记录 · ✓ = 已脱落 · 紫色 = 当前选择",
+                "红点 = 已有记录 · 紫色 = 当前选择 · 图为 28 颗恒牙位",
                 fontSize = 10.5.sp, color = Palette.subtle,
             )
             Spacer(Modifier.height(12.dp))

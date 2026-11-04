@@ -194,6 +194,35 @@ enum GrowthMath {
         return w / pow(h / 100, 2)
     }
 
+    /// BMI 判定标签：
+    /// - <18 岁按同龄同性别百分位（WS/T 456 营养不良筛查思路）：偏瘦 <P15 · 正常 P15~P85 · 超重 P85~P95 · 肥胖 ≥P95
+    /// - ≥18 岁按中国成人标准：偏瘦 <18.5 · 正常 18.5~23.9 · 超重 24.0~27.9 · 肥胖 ≥28
+    /// 返回 nil 表示无法判定（缺 BMI 或缺百分位）
+    static func bmiJudgeLabel(ageYears: Int, bmi: Double?, percentile: Double?) -> String? {
+        guard let bmi, bmi > 0 else { return nil }
+        if ageYears >= 18 {
+            if bmi < 18.5 { return "偏瘦" }
+            if bmi < 24 { return "正常" }
+            if bmi < 28 { return "超重" }
+            return "肥胖"
+        }
+        guard let p = percentile else { return nil }
+        if p < 15 { return "偏瘦" }
+        if p < 85 { return "正常" }
+        if p < 95 { return "超重" }
+        return "肥胖"
+    }
+
+    /// 判定标签对应的颜色基调
+    static func bmiJudgeTone(_ label: String?) -> TagView.Tone {
+        switch label {
+        case "正常": return .ok
+        case "超重": return .warn
+        case "偏瘦", "肥胖": return .bad
+        default: return .gray
+        }
+    }
+
     static func refBands(sex: Sex, metric: GrowthMetric, months: Int) -> [Double] {
         let m = Double(months)
 

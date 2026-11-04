@@ -136,6 +136,8 @@ object JsonCodec {
         s.hip?.let { put("hip", it) }
         s.thigh?.let { put("thigh", it) }
         s.calf?.let { put("calf", it) }
+        s.legLength?.let { put("legLength", it) }
+        s.armLength?.let { put("armLength", it) }
         s.topLength?.let { put("topLength", it) }
         s.sleeve?.let { put("sleeve", it) }
         s.pantsLength?.let { put("pantsLength", it) }
@@ -265,6 +267,8 @@ object JsonCodec {
         hip = o.optDoubleOrNull("hip"),
         thigh = o.optDoubleOrNull("thigh"),
         calf = o.optDoubleOrNull("calf"),
+        legLength = o.optDoubleOrNull("legLength"),
+        armLength = o.optDoubleOrNull("armLength"),
         topLength = o.optDoubleOrNull("topLength"),
         sleeve = o.optDoubleOrNull("sleeve"),
         pantsLength = o.optDoubleOrNull("pantsLength"),

@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.Capsule
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -231,7 +231,7 @@ fun DietGuideScreen(child: Child?, onBack: () -> Unit) {
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (active) Color.White else Palette.ink,
                         modifier = Modifier
-                            .clip(Capsule)
+                            .clip(RoundedCornerShape(50))
                             .background(if (active) Palette.purple else Palette.card)
                             .clickable {
                                 stageId = i

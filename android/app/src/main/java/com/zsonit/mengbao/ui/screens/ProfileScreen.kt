@@ -49,6 +49,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zsonit.mengbao.data.AutoBackup
 import com.zsonit.mengbao.data.GrowthMath
 import com.zsonit.mengbao.data.Reminders
 import com.zsonit.mengbao.data.Standards
@@ -81,6 +82,13 @@ fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
     var showParents by remember { mutableStateOf(false) }
     var showSync by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
+    var showAutoRestore by remember { mutableStateOf(false) }
+    // 自动备份状态（进入页面刷新一次）
+    var autoBackupAt by remember { mutableStateOf(AutoBackup.lastBackupAt()) }
+    val autoBackupSubtitle = autoBackupAt?.let { t ->
+        val f = java.time.format.DateTimeFormatter.ofPattern("M月d日 HH:mm")
+        "有更新就自动备份 · 只保留最新一份 · 最新 ${t.format(f)}"
+    } ?: "有更新后自动备份，只保留最新一份（尚未生成）"
 
     fun shareText(title: String, text: String) {
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -153,6 +161,46 @@ fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
 
     if (showSync) {
         SyncScreen(onClose = { showSync = false })
+    }
+
+    if (showAutoRestore) {
+        AlertDialog(
+            onDismissRequest = {
+                showAutoRestore = false
+                autoBackupAt = AutoBackup.lastBackupAt()
+            },
+            title = { Text("自动备份") },
+            text = {
+                val f = java.time.format.DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm")
+                Text(
+                    autoBackupAt?.let {
+                        "最新自动备份：${it.format(f)}\n\n有数据更新就会自动重新备份，且只保留最新一份。现在用它恢复会覆盖当前全部数据。"
+                    } ?: "还没有自动备份文件。记录数据后会自动生成，只保留最新一份。",
+                    lineHeight = 19.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = autoBackupAt != null,
+                    onClick = {
+                        showAutoRestore = false
+                        val ok = AutoBackup.restore()
+                        autoBackupAt = AutoBackup.lastBackupAt()
+                        Toast.makeText(
+                            context,
+                            if (ok) "已从自动备份恢复" else "恢复失败",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                ) { Text("用备份恢复", color = if (autoBackupAt != null) Palette.bad else Palette.subtle) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAutoRestore = false
+                    autoBackupAt = AutoBackup.lastBackupAt()
+                }) { Text("关闭") }
+            },
+        )
     }
 
     if (showImport) {
@@ -673,6 +721,12 @@ private fun DataSection(
     SectionHeader(title = "数据管理")
     Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().cardStyle(padding = 14.dp)) {
         DataRow(title = "☁️ 配对同步", subtitle = "两台手机自动同步全部资料", onClick = onOpenSync)
+        DividerLine()
+        DataRow(
+            title = "自动备份",
+            subtitle = autoBackupSubtitle,
+            onClick = { showAutoRestore = true },
+        )
         DividerLine()
         DataRow(title = "导出备份", subtitle = "JSON，可换手机恢复", onClick = onExportJson)
         DividerLine()
