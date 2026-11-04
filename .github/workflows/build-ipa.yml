@@ -12,6 +12,9 @@ on:
       - ".github/workflows/build-ipa.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build unsigned IPA (macOS)
