@@ -259,10 +259,19 @@ final class Store: ObservableObject {
                 s.children[idx].updatedAt = Date()
             }
         } else {
-            deleteInCurrent("toothDecay:\(state.currentID?.uuidString ?? ""):\(code)") { c in
-                var map = c.teethDecay ?? [:]
+            // 清除龋齿记录时，同步清掉该牙位图上的「脱落/换牙」打勾标记，保持牙位图与记录一致；
+            // 两者都写删除墓碑，防止同步把旧数据合并回来
+            update { s in
+                guard let id = s.currentID, let idx = s.children.firstIndex(where: { $0.id == id }) else { return }
+                s.tombstones.insert("toothDecay:\(id.uuidString):\(code)")
+                s.tombstones.insert("toothFallen:\(id.uuidString):\(code)")
+                var map = s.children[idx].teethDecay ?? [:]
                 map.removeValue(forKey: code)
-                c.teethDecay = map.isEmpty ? nil : map
+                s.children[idx].teethDecay = map.isEmpty ? nil : map
+                var fallen = s.children[idx].teethFallen ?? [:]
+                fallen.removeValue(forKey: code)
+                s.children[idx].teethFallen = fallen.isEmpty ? nil : fallen
+                s.children[idx].updatedAt = Date()
             }
         }
     }

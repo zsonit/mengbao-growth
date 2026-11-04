@@ -223,17 +223,25 @@ object Store {
         )
     }
 
-    /** 记录 / 清除 / 修改某颗乳牙的龋齿（清除时写删除墓碑，防止同步复活） */
+    /** 记录 / 清除 / 修改某颗乳牙的龋齿。清除时同步清掉该牙位图上的「脱落/换牙」打勾标记，牙位图与记录保持一致；都写删除墓碑，防止同步复活 */
     fun setToothDecay(code: Int, decay: ToothDecay?) = update { s ->
         val id = s.currentId ?: return@update s
-        val tombstone = "toothDecay:$id:$code"
+        val decayTomb = "toothDecay:$id:$code"
+        val fallenTomb = "toothFallen:$id:$code"
         s.copy(
-            tombstones = if (decay == null) s.tombstones + tombstone else s.tombstones - tombstone,
+            tombstones = if (decay == null) s.tombstones + decayTomb + fallenTomb
+                         else s.tombstones - decayTomb,
             children = s.children.map {
                 if (it.id == id) {
                     val map = if (decay == null) (it.teethDecay ?: emptyMap()) - code
                               else (it.teethDecay ?: emptyMap()) + (code to decay)
-                    it.copy(teethDecay = map.ifEmpty { null }, updatedAt = java.time.LocalDateTime.now())
+                    val fallen = if (decay == null) (it.teethFallen ?: emptyMap()) - code
+                                 else (it.teethFallen ?: emptyMap())
+                    it.copy(
+                        teethDecay = map.ifEmpty { null },
+                        teethFallen = fallen.ifEmpty { null },
+                        updatedAt = java.time.LocalDateTime.now(),
+                    )
                 } else it
             },
         )
