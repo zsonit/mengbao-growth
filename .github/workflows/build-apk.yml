@@ -67,7 +67,7 @@ jobs:
         run: |
           VERSION=$(grep -o 'versionName = "[^"]*"' android/app/build.gradle.kts | head -1 | cut -d'"' -f2)
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
-          OUT="萌宝成长-安卓版-${VERSION}.apk"
+          OUT="MengBao-android-v${VERSION}.apk"
           cp "$APK" "$OUT"
           echo "name=$OUT" >> "$GITHUB_OUTPUT"
 
@@ -76,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MengBao-apk
-          path: 萌宝成长-安卓版-*.apk
+          path: MengBao-android-v*.apk
           if-no-files-found: error
 
       - name: Upload build log
@@ -91,4 +91,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: 萌宝成长-安卓版-*.apk
+          files: MengBao-android-v*.apk
