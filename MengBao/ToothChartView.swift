@@ -380,66 +380,69 @@ struct ToothChartView: View {
         }
     }
 
-    // 时间表
+    // 时间表：与安卓一致，用牙弓图展示，点牙看详情（含换牙期）
     private var scheduleSection: some View {
         VStack(spacing: 12) {
-            scheduleGroup(title: "上颌（Maxillary）", codes: [51, 52, 53, 54, 55, 61, 62, 63, 64, 65])
-            scheduleGroup(title: "下颌（Mandibular）", codes: [71, 72, 73, 74, 75, 81, 82, 83, 84, 85])
+            VStack(spacing: 0) {
+                ArchChartView(states: ToothDef.upperOrder.map { state(of: $0) }, isUpper: true) { code in
+                    selected = ToothSelection(code: code)
+                }
+                ArchChartView(states: ToothDef.lowerOrder.map { state(of: $0) }, isUpper: false) { code in
+                    selected = ToothSelection(code: code)
+                }
+            }
+            .cardStyle(padding: 6)
+            .padding(.horizontal, 16)
+
+            scheduleQuickRef
         }
+    }
+
+    // 按牙类速查：同一类牙（左右不分）换牙期一致
+    private var scheduleQuickRef: some View {
+        let groups: [(type: String, upper: ClosedRange<Int>, lower: ClosedRange<Int>)] = {
+            var byType: [String: [ToothDef]] = [:]
+            for def in ToothDef.all.values {
+                byType[def.shortName, default: []].append(def)
+            }
+            return byType.compactMap { type, defs -> (String, ClosedRange<Int>, ClosedRange<Int>)? in
+                let up = defs.filter { $0.isUpper }
+                let low = defs.filter { !$0.isUpper }
+                guard let u0 = up.map(\.earlyMonths).min(),
+                      let u1 = up.map(\.lateMonths).max(),
+                      let l0 = low.map(\.earlyMonths).min(),
+                      let l1 = low.map(\.lateMonths).max() else { return nil }
+                return (type, u0...u1, l0...l1)
+            }
+            .sorted { $0.upper.lowerBound < $1.upper.lowerBound }
+        }()
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("换牙期速查（按牙类）")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Palette.subtle)
+            ForEach(groups, id: \.type) { g in
+                HStack {
+                    Text(g.type)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Palette.ink)
+                    Spacer()
+                    Text("上 \(Self.rangeLabel(g.upper)) · 下 \(Self.rangeLabel(g.lower))")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Palette.subtle)
+                }
+            }
+            Text("左右同名牙换牙期基本相同；点上方牙弓图上的任意一颗牙可看单牙状态。")
+                .font(.system(size: 10.5))
+                .foregroundColor(Palette.subtle)
+                .lineSpacing(3)
+        }
+        .cardStyle(padding: 14)
         .padding(.horizontal, 16)
     }
 
-    private func scheduleGroup(title: String, codes: [Int]) -> some View {
-        VStack(spacing: 0) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Palette.subtle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 8)
-            VStack(spacing: 0) {
-                ForEach(codes, id: \.self) { code in
-                    let st = state(of: code)
-                    Button {
-                        selected = ToothSelection(code: code)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Text("\(code)")
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundColor(Palette.purple)
-                                .frame(width: 34)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(st.def.name).font(.system(size: 14, weight: .medium)).foregroundColor(Palette.ink)
-                                Text("换牙期 \(st.def.windowLabel)")
-                                    .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 3) {
-                                if let d = st.fallenDate {
-                                    Text("已脱落 · " + Self.fmt.string(from: d))
-                                        .font(.system(size: 11.5)).foregroundColor(Palette.ok)
-                                } else {
-                                    Text(st.status.label)
-                                        .font(.system(size: 11.5, weight: .medium))
-                                        .foregroundColor(st.status == .normal ? Palette.subtle : st.status.color)
-                                }
-                                if let d = st.decay {
-                                    Text("🦷 龋齿 · \(d.severityLabel)")
-                                        .font(.system(size: 10.5, weight: .medium))
-                                        .foregroundColor(DecayTone.color(d.severity))
-                                }
-                            }
-                        }
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(SoftPressStyle(scale: 0.99, dim: 0.94))
-                    if code != codes.last {
-                        Divider().background(Palette.hairlineSoft)
-                    }
-                }
-            }
-            .cardStyle(padding: 4)
-        }
+    static func rangeLabel(_ r: ClosedRange<Int>) -> String {
+        func y(_ m: Int) -> String { m % 12 == 0 ? "\(m / 12)岁" : "\(m / 12)岁半" }
+        return "\(y(r.lowerBound)) ~ \(y(r.upperBound))"
     }
 
     // MARK: 龋齿记录
