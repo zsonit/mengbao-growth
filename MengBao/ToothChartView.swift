@@ -184,9 +184,9 @@ struct ToothChartView: View {
 
     private var allStates: [ToothState] { ToothDef.all.keys.sorted().map { state(of: $0) } }
 
-    /// 龋齿清单：按牙位编码排序
+    /// 龋齿清单：按牙位编码排序（含恒牙位——选牙用的是 28 颗恒牙图，记录可能存在恒牙编码上）
     private var decayRows: [DecayRow] {
-        ToothDef.all.keys.sorted().compactMap { code in
+        decayMap.keys.sorted().compactMap { code in
             guard let d = decayMap[code] else { return nil }
             return DecayRow(code: code, decay: d)
         }
@@ -219,6 +219,11 @@ struct ToothChartView: View {
             }
             .sheet(item: $selected) { sel in
                 ToothDetailView(code: sel.code)
+                    .environmentObject(store)
+            }
+            // 记录龋齿弹窗挂在顶层（保证每次都能弹出；挂在分支内 Button 上时保存过一次后可能无法再弹出）
+            .sheet(isPresented: $showDecayPicker) {
+                ToothDecayEditorView(startCode: nil)
                     .environmentObject(store)
             }
         }
@@ -484,10 +489,6 @@ struct ToothChartView: View {
             }
             .buttonStyle(PrimaryButtonStyle())
             .padding(.horizontal, 16)
-            .sheet(isPresented: $showDecayPicker) {
-                ToothDecayEditorView(startCode: nil)
-                    .environmentObject(store)
-            }
 
             if !rows.isEmpty {
                 Text("点任意一条可以补充备注或清除记录。中重度蛀牙建议尽快看儿童口腔科，乳牙龋坏会影响恒牙萌出和咀嚼。")
@@ -648,7 +649,9 @@ private struct ToothDetailView: View {
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text(PermanentTooth.toothName(code)).font(.system(size: 17, weight: .bold)).foregroundColor(Palette.ink)
-                Text("FDI \(st.def.code) · 换牙期 \(st.def.windowLabel)")
+                Text(st.def.earlyMonths > 0
+                     ? "FDI \(st.def.code) · 换牙期 \(st.def.windowLabel)"
+                     : "FDI \(st.def.code) · 恒牙")
                     .font(.system(size: 12.5)).foregroundColor(Palette.subtle)
                 HStack(spacing: 6) {
                     Text(st.status.label)
