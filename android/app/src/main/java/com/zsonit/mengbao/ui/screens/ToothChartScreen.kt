@@ -22,9 +22,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -720,6 +727,7 @@ private fun ToothDialog(def: ToothDef, onDismiss: () -> Unit, onEditDecay: () ->
 
 // MARK: 龋齿记录页
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
     val decayMap = Store.current?.teethDecay ?: emptyMap()
@@ -746,6 +754,49 @@ private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
                     val d = decayMap[code] ?: return@forEachIndexed
                     val def = ToothDef.all[code] ?: ToothDef(code, PermanentTooth.toothName(code), 0, 0)
                     val tone = DecayTone.color(d.severity)
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                Store.updateCurrent { c ->
+                                    c.copy(teethDecay = (c.teethDecay ?: emptyMap()) - code)
+                                }
+                                android.widget.Toast.makeText(
+                                    context, "已删除 $code 号牙的龋齿记录", android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                    )
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        enableDismissFromStartToEnd = false,
+                        backgroundContent = {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 3.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE64F4D)),
+                                contentAlignment = Alignment.CenterEnd,
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(end = 20.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "删除",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text("删除", fontSize = 10.5.sp, color = Color.White)
+                                }
+                            }
+                        },
+                    ) {
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -788,6 +839,7 @@ private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
                             }
                         }
                     }
+                    }
                     if (i != rows.lastIndex) DividerLine()
                 }
             }
@@ -800,7 +852,7 @@ private fun DecaySection(onOpen: (ToothDef) -> Unit, onAdd: () -> Unit) {
 
         if (rows.isNotEmpty()) {
             Text(
-                "点任意一条可以补充备注或清除记录。中重度蛀牙建议尽快看儿童口腔科，乳牙龋坏会影响恒牙萌出和咀嚼。",
+                "点任意一条可以补充备注或清除记录，左滑一条记录可直接删除。中重度蛀牙建议尽快看儿童口腔科，乳牙龋坏会影响恒牙萌出和咀嚼。",
                 fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 16.sp,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
