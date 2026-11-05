@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -98,6 +99,7 @@ fun GrowthDetailScreen(onBack: () -> Unit) {
     var sizeOpen by remember { mutableStateOf(false) }
     var todoOpen by remember { mutableStateOf(false) }
     var stageOpen by remember { mutableStateOf(false) }
+    var tableOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     when {
@@ -112,6 +114,7 @@ fun GrowthDetailScreen(onBack: () -> Unit) {
         sizeOpen -> SizeEditorScreen(onBack = { sizeOpen = false })
         todoOpen -> TodoEditorScreen(onBack = { todoOpen = false })
         stageOpen -> StageScreen(onBack = { stageOpen = false })
+        tableOpen -> GrowthTableScreen(initialMetric = metric, onBack = { tableOpen = false })
 
         else -> {
             val child = Store.current
@@ -126,6 +129,16 @@ fun GrowthDetailScreen(onBack: () -> Unit) {
                         contentPadding = PaddingValues(bottom = 8.dp),
                     ) {
                         item { ChartCard(child, metric) { metric = it } }
+                        item {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                ChipLabel(text = "▦ 数据表格", onClick = { tableOpen = true })
+                            }
+                        }
                         item { EvaluationSection(child) }
                         item { VelocitySection(child) }
                         item { PredictionSection(child) }
@@ -458,6 +471,167 @@ private fun MiniValue(value: String, unit: String, modifier: Modifier = Modifier
         Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Palette.ink)
         Text(unit, fontSize = 10.5.sp, color = Palette.subtle)
     }
+}
+
+// MARK: - 数据表格：百分位对照表（身高 / 体重 / BMI，逐月 0–18 岁）
+
+@Composable
+fun GrowthTableScreen(initialMetric: GrowthMetric, onBack: () -> Unit) {
+    val child = Store.current
+    var metric by remember { mutableStateOf(initialMetric) }
+
+    Column(Modifier.fillMaxSize().background(Palette.background)) {
+        TopBar(title = "数据表格", onBack = onBack)
+        if (child == null) {
+            EmptyHint("先添加宝宝档案")
+        } else {
+            // 各月龄的实测值（身高 / 体重 / BMI 按指标取）
+            val values = remember(child, metric) {
+                buildMap {
+                    child.sortedRecords.forEach { rec ->
+                        val m = GrowthMath.ageMonths(child.birthDate, rec.date)
+                        val v = when (metric) {
+                            GrowthMetric.HEIGHT -> rec.height
+                            GrowthMetric.WEIGHT -> rec.weight
+                            GrowthMetric.BMI ->
+                                if (rec.height != null && rec.weight != null)
+                                    GrowthMath.bmiValue(rec.height!!, rec.weight!!)
+                                else null
+                        }
+                        if (v != null) put(m, v)
+                    }
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GrowthMetric.entries.forEach { m ->
+                    ChipLabel(text = m.label, selected = metric == m, onClick = { metric = m })
+                }
+                Spacer(Modifier.weight(1f))
+                Text(GrowthMath.ageText(child.birthDate), fontSize = 11.5.sp, color = Palette.subtle)
+            }
+            LazyColumn(Modifier.fillMaxSize()) {
+                item { TableHeaderRow(metric.label) }
+                items((0..216).toList()) { months ->
+                    GrowthTableRow(
+                        child = child,
+                        metric = metric,
+                        months = months,
+                        value = values[months],
+                    )
+                }
+                item {
+                    Text(
+                        "百分位说明：P3 表示同龄同性别孩子中约 3% 的水平，P50 为中位数，以此类推。高亮行是宝宝有记录的月份，紫色格是数值所在的百分位档，「${metric.label}」列是当月实测值。0–5 岁用 WHO 标准（LMS 法），5–7 岁用中国 7 岁以下参照标准，7–18 岁用 WS/T 423 等级评价表。",
+                        fontSize = 11.5.sp,
+                        color = Palette.subtle,
+                        lineHeight = 17.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 月龄 → 表格行标签：出生 / 6月 / 11岁 / 10岁6月 */
+private fun growthTableAgeLabel(months: Int): String {
+    if (months == 0) return "出生"
+    if (months < 12) return "${months}月"
+    val y = months / 12
+    val m = months % 12
+    return if (m == 0) "${y}岁" else "${y}岁${m}月"
+}
+
+@Composable
+private fun TableHeaderRow(metricLabel: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .background(Palette.hairlineSoft.copy(alpha = 0.4f))
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("年龄", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.ink2, modifier = Modifier.width(64.dp))
+        listOf("P3", "P15", "P50", "P85", "P97").forEach { p ->
+            Text(p, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.ink2, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        }
+        Text(metricLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.ink2, modifier = Modifier.width(52.dp), textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun GrowthTableRow(
+    child: Child,
+    metric: GrowthMetric,
+    months: Int,
+    value: Double?,
+) {
+    val bands = GrowthMath.refBands(child.sex, metric, months)
+    // 数值落在哪一档百分位：0=P3 档内 … 4=≥P97
+    val hit: Int? = value?.let { v ->
+        var result: Int = 4
+        for (i in 0..3) {
+            if (v >= bands[i] && v < bands[i + 1]) {
+                result = i
+                break
+            }
+        }
+        result
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .background(if (value != null) Palette.purpleSoft.copy(alpha = 0.5f) else Color.Transparent)
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            growthTableAgeLabel(months),
+            fontSize = 12.sp,
+            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Normal,
+            color = if (value != null) Palette.ink else Palette.ink2,
+            modifier = Modifier.width(64.dp),
+        )
+        bands.forEachIndexed { i, band ->
+            Text(
+                String.format(Locale.US, "%.1f", band),
+                fontSize = 12.sp,
+                fontWeight = if (hit == i) FontWeight.Bold else FontWeight.Normal,
+                color = if (hit == i) Palette.purple else Palette.ink2,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .background(if (hit == i) Palette.purple.copy(alpha = 0.14f) else Color.Transparent)
+                    .padding(vertical = 2.dp),
+            )
+        }
+        Text(
+            value?.let { String.format(Locale.US, "%.1f", it) } ?: "",
+            fontSize = 12.sp,
+            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Normal,
+            color = Palette.ink,
+            modifier = Modifier.width(52.dp),
+            textAlign = TextAlign.Center,
+        )
+    }
+    Box(
+        Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .height(0.5.dp)
+            .background(Palette.hairlineSoft),
+    )
 }
 
 // MARK: - 生长曲线（Canvas 百分位带 + 实测折线）

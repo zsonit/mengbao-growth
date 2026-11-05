@@ -61,6 +61,19 @@ struct GrowthDetailView: View {
                     legend(color: Palette.ok, dash: false, text: "实测")
                 }
                 .padding(.top, 2)
+
+                NavigationLink {
+                    GrowthTableView(initialMetric: metric)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "tablecells")
+                        Text("数据表格")
+                    }
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundColor(Palette.purple)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 4)
             }
             .cardStyle()
             .padding(.horizontal, 16)
