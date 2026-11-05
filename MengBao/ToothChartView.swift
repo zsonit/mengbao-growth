@@ -1054,6 +1054,8 @@ struct ArchChartView: View {
 
                     ToothCell(st: st, isUpper: isUpper)
                         .position(x: x, y: y + (isUpper ? -9 : 9))
+                        // 弧两端的牙与邻牙重叠严重，置顶显示，否则最里面的牙点不到（保存不了）
+                        .zIndex(abs(theta * 180 / .pi - 90))
                         .onTapGesture { onTap(st.def.code) }
                 }
 
@@ -1177,6 +1179,8 @@ struct ArchPickerView: View {
 
                     pickerCell(code)
                         .position(x: x, y: y + (isUpper ? -9 : 9))
+                        // 弧两端的牙与邻牙重叠严重，置顶显示，否则最里面的牙点不到（保存不了）
+                        .zIndex(abs(theta * 180 / .pi - 90))
                         .onTapGesture { onTap(code) }
                 }
 

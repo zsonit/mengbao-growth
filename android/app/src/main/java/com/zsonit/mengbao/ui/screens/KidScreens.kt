@@ -55,6 +55,7 @@ import com.zsonit.mengbao.data.GrowthMath
 import com.zsonit.mengbao.data.Store
 import com.zsonit.mengbao.data.SyncManager
 import com.zsonit.mengbao.model.Sex
+import com.zsonit.mengbao.model.Child
 import com.zsonit.mengbao.model.SizeRecord
 import com.zsonit.mengbao.model.TodoItem
 import com.zsonit.mengbao.ui.ChipLabel
@@ -69,8 +70,11 @@ import com.zsonit.mengbao.ui.TagView
 import com.zsonit.mengbao.ui.TextInput
 import com.zsonit.mengbao.ui.TopBar
 import com.zsonit.mengbao.ui.Avatar
+import com.zsonit.mengbao.ui.AvatarCropDialog
 import com.zsonit.mengbao.ui.avatarFile
+import com.zsonit.mengbao.ui.avatarFileByRel
 import com.zsonit.mengbao.ui.cardStyle
+import com.zsonit.mengbao.ui.loadOrientedBitmap
 import com.zsonit.mengbao.ui.saveAvatarPhoto
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -148,17 +152,31 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
     var showBdayAdvanceTimePick by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    // 选完照片先进入裁剪（双指缩放 / 拖动调整角度），确认后再落盘
+    var cropSource by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
-        val target = child ?: return@rememberLauncherForActivityResult
         if (uri != null) {
-            val saved = saveAvatarPhoto(context, target.id, uri)
+            cropSource = loadOrientedBitmap(context, uri)
+        }
+    }
+
+    /** 裁剪确认：已有宝宝直接落盘（唯一文件名+删旧文件，避免更换后不刷新）；新增宝宝先存临时文件，创建档案时一并写入 */
+    fun applyCroppedAvatar(cropped: android.graphics.Bitmap) {
+        if (child != null) {
+            val saved = saveAvatarPhoto(context, child.id, cropped, oldRelPath = avatarPath)
             if (saved != null) {
-                avatarPath = "avatars/${target.id}.jpg"
-                Store.updateChild(target.copy(avatarPath = avatarPath))
+                avatarPath = "avatars/${saved.name}"
+                Store.updateChild(child.copy(avatarPath = avatarPath))
+            }
+        } else {
+            val saved = saveAvatarPhoto(context, "pending-${System.currentTimeMillis()}", cropped)
+            if (saved != null) {
+                avatarPath = "avatars/${saved.name}"
             }
         }
+        cropSource = null
     }
 
     Column(Modifier.fillMaxSize().background(Palette.background)) {
@@ -219,45 +237,57 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                         }
                     }
                 }
-                if (child != null) {
-                    EditorField(label = "照片头像（选了照片则优先显示）") {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(
-                                child = child.copy(avatarPath = avatarPath),
-                                size = 56.dp, fontSize = 26.sp,
-                            )
-                            Spacer(Modifier.width(14.dp))
+                // 照片头像：新增宝宝和编辑档案都可以设置，选完照片可缩放/拖动裁剪
+                EditorField(label = "照片头像（选了照片则优先显示）") {
+                    val previewChild = child?.copy(avatarPath = avatarPath)
+                        ?: Child(
+                            name = name.ifEmpty { "宝宝" }, sex = sex, birthDate = birthDate,
+                            avatar = avatar, avatarPath = avatarPath,
+                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(
+                            child = previewChild,
+                            size = 56.dp, fontSize = 26.sp,
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Text(
+                            if (avatarPath == null) "📷 从相册选一张照片"
+                            else "📷 更换照片",
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Palette.purpleTint)
+                                .clickable {
+                                    photoPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                    )
+                                }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                        )
+                        if (avatarPath != null) {
+                            Spacer(Modifier.width(10.dp))
                             Text(
-                                if (avatarPath == null) "📷 从相册选一张照片"
-                                else "📷 更换照片",
-                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
+                                "移除", fontSize = 13.sp, color = Palette.bad,
                                 modifier = Modifier
                                     .clip(CircleShape)
-                                    .background(Palette.purpleTint)
+                                    .background(Palette.badBg)
                                     .clickable {
-                                        photoPicker.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                                        )
+                                        avatarFileByRel(context, avatarPath)?.delete()
+                                        avatarPath = null
+                                        if (child != null) Store.updateChild(child.copy(avatarPath = null))
                                     }
-                                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
                             )
-                            if (avatarPath != null) {
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    "移除", fontSize = 13.sp, color = Palette.bad,
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(Palette.badBg)
-                                        .clickable {
-                                            avatarFile(context, child.id).delete()
-                                            avatarPath = null
-                                            Store.updateChild(child.copy(avatarPath = null))
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                                )
-                            }
                         }
                     }
+                }
+
+                cropSource?.let { src ->
+                    AvatarCropDialog(
+                        source = src,
+                        onConfirm = { applyCroppedAvatar(it) },
+                        onDismiss = { cropSource = null },
+                    )
                 }
 
                 // 生日提醒：当天 / 提前 两个独立开关，时间各自可调
@@ -369,7 +399,13 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                             ),
                         )
                     } else {
-                        Store.addChild(name = trimmed, sex = sex, birthDate = birthDate, avatar = avatar)
+                        val newId = Store.addChild(name = trimmed, sex = sex, birthDate = birthDate, avatar = avatar)
+                        // 新增宝宝时选了照片：临时文件已在盘上，写回 avatarPath
+                        if (avatarPath != null) {
+                            Store.state.children.firstOrNull { it.id == newId }?.let {
+                                Store.updateChild(it.copy(avatarPath = avatarPath))
+                            }
+                        }
                     }
                     onBack()
                 }

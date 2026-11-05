@@ -62,6 +62,7 @@ import com.zsonit.mengbao.ui.TopBar
 import com.zsonit.mengbao.ui.cardStyle
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.compose.material3.OutlinedTextField
 import java.time.LocalDate
 import java.time.Period
@@ -419,7 +420,9 @@ private fun ArchChart(isUpper: Boolean, selected: Int? = null, codes: List<Int>?
             Box(
                 Modifier
                     .align(Alignment.TopStart)
-                    .offset(x = xDp - 22.dp, y = yDp - TOOTH_CELL_H / 2),
+                    .offset(x = xDp - 22.dp, y = yDp - TOOTH_CELL_H / 2)
+                    // 弧两端的牙与邻牙重叠严重，置顶显示，否则最里面的牙点不到（保存不了）
+                    .zIndex(kotlin.math.abs(Math.toDegrees(theta) - 90.0).toFloat()),
             ) {
                 ToothCell(code = code, isUpper = isUpper, onTap = onTap, selected = selected == code)
             }

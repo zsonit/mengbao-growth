@@ -15,6 +15,7 @@ struct KidEditorView: View {
     @State private var avatar: String
     @State private var avatarPath: String?
     @State private var photoItem: PhotosPickerItem?
+    @State private var cropItem: CropImage?      // 选完照片先进入裁剪
     @State private var showDeleteAlert = false
     @State private var errorMessage: String?
     @State private var bdaySameDayOn: Bool
@@ -81,6 +82,7 @@ struct KidEditorView: View {
                                         if avatarPath != nil { child?.removeAvatarPhoto() }
                                         avatar = a
                                         avatarPath = nil
+                                        photoItem = nil
                                     } label: {
                                         Text(a).font(.system(size: 21))
                                             .frame(width: 40, height: 40)
@@ -94,37 +96,41 @@ struct KidEditorView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                        if child != nil {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
-                                HStack(spacing: 14) {
-                                    AvatarView(child: previewChild, size: 56, fontSize: 26)
-                                    PhotosPicker(selection: $photoItem, matching: .images) {
-                                        Text(avatarPath == nil ? "📷 从相册选一张照片" : "📷 更换照片")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundColor(Palette.purple)
-                                            .padding(.horizontal, 14).padding(.vertical, 9)
-                                            .background(Palette.purpleTint)
-                                            .clipShape(Capsule())
-                                    }
-                                    .buttonStyle(SoftPressStyle())
-                                    if avatarPath != nil {
-                                        Button("移除") {
-                                            child?.removeAvatarPhoto()
-                                            avatarPath = nil
-                                        }
-                                        .font(.system(size: 13))
-                                        .foregroundColor(Palette.bad)
-                                        .padding(.horizontal, 12).padding(.vertical, 9)
-                                        .background(Palette.badBg)
+                        // 照片头像：新增宝宝和编辑档案都可以设置，选完照片可缩放/拖动裁剪
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("照片头像（设置后优先显示）").font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                            HStack(spacing: 14) {
+                                AvatarView(child: previewChild, size: 56, fontSize: 26)
+                                PhotosPicker(selection: $photoItem, matching: .images) {
+                                    Text(avatarPath != nil ? "📷 更换照片" : "📷 从相册选一张照片")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(Palette.purple)
+                                        .padding(.horizontal, 14).padding(.vertical, 9)
+                                        .background(Palette.purpleTint)
                                         .clipShape(Capsule())
-                                        .buttonStyle(SoftPressStyle())
-                                    }
-                                    Spacer()
                                 }
+                                .buttonStyle(SoftPressStyle())
+                                if avatarPath != nil {
+                                    Button("移除") {
+                                        // 直接删除当前 avatarPath 对应的文件（新增/编辑都适用）
+                                        if let p = avatarPath {
+                                            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                                            try? FileManager.default.removeItem(at: docs.appendingPathComponent(p))
+                                        }
+                                        avatarPath = nil
+                                        photoItem = nil
+                                    }
+                                    .font(.system(size: 13))
+                                    .foregroundColor(Palette.bad)
+                                    .padding(.horizontal, 12).padding(.vertical, 9)
+                                    .background(Palette.badBg)
+                                    .clipShape(Capsule())
+                                    .buttonStyle(SoftPressStyle())
+                                }
+                                Spacer()
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         // 生日提醒：当天 / 提前 两个独立开关，时间各自可调
                         VStack(alignment: .leading, spacing: 10) {
@@ -207,13 +213,29 @@ struct KidEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
             }
             .onChange(of: photoItem) { item in
-                guard let item, var target = child else { return }
+                guard let item else { return }
                 item.loadTransferable(type: Data.self) { result in
                     if case .success(let data?) = result, let img = UIImage(data: data) {
                         DispatchQueue.main.async {
-                            if target.saveAvatarPhoto(img) != nil {
-                                avatarPath = target.avatarPath
-                            }
+                            photoItem = nil
+                            // 先进入裁剪：可缩放 / 拖动调整角度
+                            cropItem = CropImage(image: img)
+                        }
+                    }
+                }
+            }
+            .sheet(item: $cropItem) { ci in
+                AvatarCropView(source: ci.image) { cropped in
+                    if child != nil {
+                        var target = child!
+                        if target.saveAvatarPhoto(cropped) != nil {
+                            avatarPath = target.avatarPath
+                        }
+                    } else {
+                        // 新增宝宝：先写入临时档案的文件（预览立即可见），创建档案时把路径写回
+                        var tmp = Child(name: name.isEmpty ? "宝宝" : name, sex: sex, birthDate: birthDate, avatar: avatar)
+                        if tmp.saveAvatarPhoto(cropped) != nil {
+                            avatarPath = tmp.avatarPath
                         }
                     }
                 }
@@ -242,7 +264,12 @@ struct KidEditorView: View {
     }
 
     private var previewChild: Child? {
-        guard var c = child else { return nil }
+        if var c = child {
+            c.avatarPath = avatarPath
+            return c
+        }
+        // 新增宝宝：用当前填写的信息生成预览
+        var c = Child(name: name.isEmpty ? "宝宝" : name, sex: sex, birthDate: birthDate, avatar: avatar)
         c.avatarPath = avatarPath
         return c
     }
@@ -271,7 +298,12 @@ struct KidEditorView: View {
             updated.birthdayTime = updated.bdaySameDayTime
             store.updateChild(updated)
         } else {
-            store.addChild(name: trimmed, sex: sex, birthDate: birthDate, avatar: avatar)
+            let newID = store.addChild(name: trimmed, sex: sex, birthDate: birthDate, avatar: avatar)
+            // 新增宝宝时选了照片：临时文件已在盘上，写回 avatarPath
+            if avatarPath != nil, var c = store.state.children.first(where: { $0.id == newID }) {
+                c.avatarPath = avatarPath
+                store.updateChild(c)
+            }
         }
         dismiss()
     }
