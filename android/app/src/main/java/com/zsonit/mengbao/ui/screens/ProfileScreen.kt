@@ -207,7 +207,7 @@ fun ProfileScreen(onOpenKids: () -> Unit, onOpenAI: () -> Unit = {}) {
         AlertDialog(
             onDismissRequest = { showFinalReset = false },
             title = { Text("最后确认：真的要清空吗？") },
-            text = { Text("删除后无法恢复（除非之前导出过备份）。点击「确定清空」后所有宝宝与记录立即删除。") },
+            text = { Text("删除后无法恢复（除非之前导出过备份）。点击「确定清空」后本机所有宝宝与记录立即删除；配对的手机会收到提示，由你决定要不要一起清空。") },
             confirmButton = {
                 TextButton(onClick = {
                     Store.reset()

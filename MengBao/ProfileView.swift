@@ -96,7 +96,7 @@ struct ProfileView: View {
             Button("取消", role: .cancel) { }
             Button("确认清空", role: .destructive) { store.reset() }
         } message: {
-            Text("第二次确认：此操作不可恢复！所有宝宝、喂养记录、生长记录、待办都会清空（同步的设备也会一起被清空）。确定请点「确认清空」。")
+            Text("第二次确认：此操作不可恢复！所有宝宝、喂养记录、生长记录、待办都会清空。配对的手机会收到「是否一起清空」的提示，不会自动删除。确定请点「确认清空」。")
         }
         .alert("导入结果", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
             Button("好") { importMessage = nil }
