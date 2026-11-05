@@ -115,6 +115,9 @@ fun saveAvatarPhoto(context: Context, childId: String, bitmap: Bitmap, oldRelPat
     }.getOrNull()
 }
 
+/** 同步落盘新头像文件后自增：已经在屏幕上的头像据此立刻重读文件（avatarPath 没变也要重读） */
+var avatarFileSyncTick by mutableStateOf(0)
+
 /** 有自定义照片则显示照片，否则显示 emoji 头像（样式与旧版一致）。 */
 @Composable
 fun Avatar(
@@ -125,8 +128,9 @@ fun Avatar(
     shape: Shape = CircleShape,
 ) {
     val context = LocalContext.current
+    val syncTick = avatarFileSyncTick
     var reloadTick by remember(child.avatarPath) { mutableStateOf(0) }
-    val bitmap by produceState<Bitmap?>(initialValue = null, child.avatarPath, reloadTick) {
+    val bitmap by produceState<Bitmap?>(initialValue = null, child.avatarPath, reloadTick, syncTick) {
         value = child.avatarPath?.let {
             runCatching {
                 // 新版按 avatarPath 相对路径读取；兼容旧版固定名文件

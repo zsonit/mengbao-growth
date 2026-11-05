@@ -674,6 +674,15 @@ final class SyncManager: ObservableObject {
                 mustPush = true
             }
         }
+        // 头像文件是 2.10.40 才开始随快照传的：云端快照还是老格式（没带 avatarFiles）、
+        // 而本机有头像文件时，必须补推一次，否则数据没变化就永远是「已是最新」，头像永远传不过去
+        if let snapshot = remoteSnapshot, snapshot.updatedBy != Self.empty {
+            let mine = Set(Self.collectAvatarFiles(local).keys)
+            if !mine.isEmpty && !Self.lastRemoteAvatarKeys.isSuperset(of: mine) {
+                mustPush = true
+                AppLog.i("Sync", "云端快照缺头像文件，本轮补推（本机 \(mine.count) 张）")
+            }
+        }
         // 登记本机设备（老版本升级后第一次同步时补登）
         if merged.devices[deviceId] == nil {
             merged.devices[deviceId] = SyncDevice(name: deviceName(), role: "member", joinedAt: Self.nowLocal())
@@ -924,12 +933,18 @@ final class SyncManager: ObservableObject {
         }
     }
 
+    /// 最近一次拉到的云端快照里带的头像文件路径集合（用来判断云端是否已经带过头像）
+    static var lastRemoteAvatarKeys: Set<String> = []
+
     /// 解出对方状态 JSON；顺带把随包带来的头像落盘（在合并进 Store 之前执行，avatarPath 才有文件可读）
     static func decodeStateJSON(_ plain: String) -> AppState? {
         guard var obj = try? JSONSerialization.jsonObject(with: Data(plain.utf8)) as? [String: Any] else { return nil }
         if let files = obj["avatarFiles"] as? [String: Any] {
+            lastRemoteAvatarKeys = Set(files.keys)
             applyAvatarFiles(files)
             obj.removeValue(forKey: "avatarFiles")
+        } else {
+            lastRemoteAvatarKeys = []
         }
         guard let data = try? JSONSerialization.data(withJSONObject: obj),
               let state = try? JSONDecoder().decode(AppState.self, from: data) else { return nil }

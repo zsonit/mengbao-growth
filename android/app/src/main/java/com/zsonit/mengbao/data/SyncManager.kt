@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.zsonit.mengbao.model.AppState
+import com.zsonit.mengbao.ui.avatarFileSyncTick
 import com.zsonit.mengbao.model.Child
 import com.zsonit.mengbao.model.GrowthRecord
 import com.zsonit.mengbao.model.SizeRecord
@@ -77,6 +78,8 @@ object SyncManager {
     /** 同步进行中又来了新改动：等这一轮结束后必须补跑一次，否则这次改动会被丢掉 */
     @Volatile private var retryPending = false
     private var lastRev: Long = 0L
+    /** 最近一次拉到的云端快照里带的头像文件路径集合（用来判断云端是否已经带过头像） */
+    @Volatile private var lastRemoteAvatarKeys: Set<String> = emptySet()
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -587,6 +590,15 @@ object SyncManager {
                     mustPush = true
                 }
             }
+            // 头像文件是 2.10.40 才开始随快照传的：云端快照还是老格式（没带 avatarFiles）、
+            // 而本机有头像文件时，必须补推一次，否则数据没变化就永远是「已是最新」，头像永远传不过去
+            if (remote != null && remote.updatedBy != EMPTY) {
+                val mine = localAvatarPaths(local)
+                if (mine.isNotEmpty() && !lastRemoteAvatarKeys.containsAll(mine)) {
+                    mustPush = true
+                    AppLog.i("Sync", "云端快照缺头像文件，本轮补推（本机 ${mine.size} 张）")
+                }
+            }
             // 登记本机设备（老版本升级后第一次同步时补登）
             val myId = deviceId()
             if (merged.devices[myId] == null) {
@@ -898,6 +910,7 @@ object SyncManager {
     private fun applyAvatarFiles(files: JSONObject?) {
         if (files == null || files.length() == 0) return
         val dir = appContext?.filesDir ?: return
+        var landed = 0
         val keys = files.keys()
         while (keys.hasNext()) {
             val rel = keys.next()
@@ -910,8 +923,19 @@ object SyncManager {
             runCatching {
                 f.parentFile?.mkdirs()
                 f.writeBytes(bytes)
+                landed++
             }
         }
+        // 有新头像落盘：让屏幕上已有的头像立刻重读文件
+        if (landed > 0) avatarFileSyncTick++
+    }
+
+    /** 本机实际存在的头像文件路径集合（用于判断云端是否缺头像） */
+    private fun localAvatarPaths(state: AppState): Set<String> {
+        val dir = appContext?.filesDir ?: return emptySet()
+        return state.children.mapNotNull { it.avatarPath }
+            .filter { !it.contains("..") && File(dir, it).isFile }
+            .toSet()
     }
 
     /** 把头像旁挂数据注入状态 JSON（推送前调用） */
@@ -926,8 +950,17 @@ object SyncManager {
     private fun decodeRemoteState(plain: String): AppState {
         val obj = runCatching { JSONObject(plain) }.getOrNull() ?: return JsonCodec.decode(plain)
         if (obj.has("avatarFiles")) {
-            applyAvatarFiles(obj.optJSONObject("avatarFiles"))
+            val files = obj.optJSONObject("avatarFiles")
+            lastRemoteAvatarKeys = files?.let { o ->
+                buildSet {
+                    val k = o.keys()
+                    while (k.hasNext()) add(k.next())
+                }
+            } ?: emptySet()
+            applyAvatarFiles(files)
             obj.remove("avatarFiles")
+        } else {
+            lastRemoteAvatarKeys = emptySet()
         }
         return JsonCodec.decode(obj.toString())
     }
