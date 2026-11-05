@@ -39,6 +39,9 @@ object Reminders {
     private const val GROWTH_PREFIX = "mb.growth."
     private const val TODO_PREFIX = "mb.todo."
     private const val BDAY_PREFIX = "mb.bday."
+    /** 每日补剂 / 用药提醒（开关 + 自定义时间点，每天重复） */
+    private const val SUPP_PREFIX = "mb.supp."
+    private const val MED_PREFIX = "mb.med."
     /** 定期测量一次往前排几个周期（App 长期不打开也能撑住） */
     private const val GROWTH_SLOTS = 8
     /** 待办提醒最多排多少条 */
@@ -85,14 +88,17 @@ object Reminders {
         val s = Store.settings
         val children = Store.state.children
         val anyBday = children.any { it.birthdayRemind != false }
-        if (!s.growthReminderOn && !s.todoReminderOn && !anyBday) return
+        if (!s.growthReminderOn && !s.todoReminderOn && !anyBday &&
+            !s.suppReminderOn && !s.medReminderOn
+        ) return
         if (!permissionGranted(app)) return
         val ids = mutableSetOf<String>()
         if (s.growthReminderOn) ids += scheduleGrowth(app, children, s)
         if (s.todoReminderOn) ids += scheduleTodos(app, children, s)
         ids += scheduleBirthdays(app, children)
+        ids += scheduleDose(app, s)
         saveIds(app, ids)
-        AppLog.i("Remind", "提醒已排：测量 ${ids.count { it.startsWith(GROWTH_PREFIX) }} 条，待办 ${ids.count { it.startsWith(TODO_PREFIX) }} 条，生日 ${ids.count { it.startsWith(BDAY_PREFIX) }} 条")
+        AppLog.i("Remind", "提醒已排：测量 ${ids.count { it.startsWith(GROWTH_PREFIX) }} 条，待办 ${ids.count { it.startsWith(TODO_PREFIX) }} 条，生日 ${ids.count { it.startsWith(BDAY_PREFIX) }} 条，用药补剂 ${ids.count { it.startsWith(MED_PREFIX) || it.startsWith(SUPP_PREFIX) }} 条")
     }
 
     private fun alarm(context: Context): AlarmManager =
@@ -231,6 +237,63 @@ object Reminders {
         return ids
     }
 
+    // MARK: 每日补剂 / 用药提醒（开关 + 任意多个时间点，每天重复）
+
+    private class DoseGroup(
+        val prefix: String,
+        val on: Boolean,
+        val times: List<String>,
+        val title: String,
+        val body: String,
+    )
+
+    private fun scheduleDose(context: Context, s: AppSettings): Set<String> {
+        val am = alarm(context)
+        val ids = mutableSetOf<String>()
+        val now = LocalDateTime.now()
+        val groups = listOf(
+            DoseGroup(MED_PREFIX, s.medReminderOn, s.medReminderTimes,
+                "💊 该吃药啦", "到点给宝宝喂药，吃完记得在 App 里记一笔。"),
+            DoseGroup(SUPP_PREFIX, s.suppReminderOn, s.suppReminderTimes,
+                "🥛 该吃补剂啦", "到点啦，今天的补剂别忘了，吃完记得记一笔。"),
+        )
+        for (g in groups) {
+            if (!g.on) continue
+            for (raw in g.times) {
+                val parts = raw.split(":")
+                if (parts.size != 2) continue
+                val h = parts[0].toIntOrNull() ?: continue
+                val m = parts[1].toIntOrNull() ?: continue
+                if (h !in 0..23 || m !in 0..59) continue
+                val id = g.prefix + "%02d.%02d".format(h, m)
+                var fire = now.toLocalDate().atTime(h, m)
+                if (!fire.isAfter(now)) fire = fire.plusDays(1)
+                if (setAlarm(context, am, id, fire, g.title, g.body)) ids.add(id)
+            }
+        }
+        return ids
+    }
+
+    /**
+     * 响过一次的「每日提醒」不会自己重复，这里排下一天。
+     * id 形如 mb.med.09.30，时间点就从 id 里解出来。
+     */
+    fun rearmIfDose(context: Context, id: String, title: String, body: String) {
+        val core = when {
+            id.startsWith(MED_PREFIX) -> id.removePrefix(MED_PREFIX)
+            id.startsWith(SUPP_PREFIX) -> id.removePrefix(SUPP_PREFIX)
+            else -> return
+        }
+        val p = core.split(".")
+        if (p.size != 2) return
+        val h = p[0].toIntOrNull() ?: return
+        val m = p[1].toIntOrNull() ?: return
+        val now = LocalDateTime.now()
+        var fire = now.toLocalDate().atTime(h, m)
+        if (!fire.isAfter(now)) fire = fire.plusDays(1)
+        runCatching { setAlarm(context, alarm(context), id, fire, title, body) }
+    }
+
     // MARK: 闹钟底层
 
     private fun setAlarm(context: Context, am: AlarmManager, id: String, fire: LocalDateTime, title: String, body: String): Boolean {
@@ -280,6 +343,8 @@ class ReminderReceiver : BroadcastReceiver() {
             .setContentIntent(tap)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(id.hashCode(), n) }
+        // 每日补剂/用药提醒：响完立刻排下一天
+        runCatching { Reminders.rearmIfDose(context, id, title, body) }
     }
 }
 

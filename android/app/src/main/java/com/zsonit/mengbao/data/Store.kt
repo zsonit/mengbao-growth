@@ -270,6 +270,14 @@ object Store {
 
     /** 待办到期提醒开关 */
     fun setTodoReminder(on: Boolean) = update { it.copy(settings = it.settings.copy(todoReminderOn = on)) }
+
+    /** 每日补剂提醒：开关 + 自定义时间列表（"HH:mm"），改完自动重排本机闹钟 */
+    fun setSuppReminder(on: Boolean, times: List<String>) =
+        update { it.copy(settings = it.settings.copy(suppReminderOn = on, suppReminderTimes = times)) }
+
+    /** 每日用药提醒：开关 + 自定义时间列表（"HH:mm"） */
+    fun setMedReminder(on: Boolean, times: List<String>) =
+        update { it.copy(settings = it.settings.copy(medReminderOn = on, medReminderTimes = times)) }
     fun setShowSize(on: Boolean) = update { it.copy(settings = it.settings.copy(showSize = on)) }
     fun setShowTrends(on: Boolean) = update { it.copy(settings = it.settings.copy(showTrends = on)) }
     fun setShowLog(on: Boolean) = update { it.copy(settings = it.settings.copy(showLog = on)) }

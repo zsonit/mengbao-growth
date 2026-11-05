@@ -329,6 +329,22 @@ final class Store: ObservableObject {
 
     func setTodoReminder(_ on: Bool) { update { $0.settings.todoReminderOn = on } }
 
+    /// 每日补剂提醒：开关 + 自定义时间列表（"HH:mm"），改动后自动重排本机通知
+    func setSuppReminder(on: Bool, times: [String]) {
+        update { s in
+            s.settings.suppReminderOn = on
+            s.settings.suppReminderTimes = times
+        }
+    }
+
+    /// 每日用药提醒：开关 + 自定义时间列表（"HH:mm"）
+    func setMedReminder(on: Bool, times: [String]) {
+        update { s in
+            s.settings.medReminderOn = on
+            s.settings.medReminderTimes = times
+        }
+    }
+
     /// 本机静音/恢复某条待办的到期提醒（不随同步走：另一台手机不受影响，待办内容照样同步）
     func toggleTodoMute(_ id: UUID) {
         update { s in

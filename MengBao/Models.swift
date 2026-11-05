@@ -366,6 +366,12 @@ struct AppSettings: Codable, Hashable {
     /// 本机静音的待办 id（不随同步走：每台手机各自决定哪些待办不响，内容照样同步）
     var mutedTodoReminders: Set<String> = []
 
+    // 每日用药/补剂提醒：开关 + 自定义时间列表（"HH:mm"），在补剂/喂药录入弹层里设置
+    var suppReminderOn: Bool = false
+    var suppReminderTimes: [String] = []     // 每天到点提醒吃补剂
+    var medReminderOn: Bool = false
+    var medReminderTimes: [String] = []      // 每天到点提醒吃药
+
     // 宽松解码：老版本备份缺哪个字段都用默认值兜底，避免升级/恢复备份时整份数据解不出来
     init(weightUnit: String = "kg", showFeed: Bool = true, showShot: Bool = true,
          showSize: Bool = true, showTrends: Bool = true, darkMode: Bool? = nil, fatherHeight: Double? = nil,
@@ -400,6 +406,10 @@ struct AppSettings: Codable, Hashable {
         growthReminderMinute = try c.decodeIfPresent(Int.self, forKey: .growthReminderMinute) ?? 0
         todoReminderOn = try c.decodeIfPresent(Bool.self, forKey: .todoReminderOn) ?? true
         mutedTodoReminders = try c.decodeIfPresent(Set<String>.self, forKey: .mutedTodoReminders) ?? []
+        suppReminderOn = try c.decodeIfPresent(Bool.self, forKey: .suppReminderOn) ?? false
+        suppReminderTimes = try c.decodeIfPresent([String].self, forKey: .suppReminderTimes) ?? []
+        medReminderOn = try c.decodeIfPresent(Bool.self, forKey: .medReminderOn) ?? false
+        medReminderTimes = try c.decodeIfPresent([String].self, forKey: .medReminderTimes) ?? []
     }
 
     var resolvedQuickEntries: [QuickEntry] {

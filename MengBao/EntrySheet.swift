@@ -34,7 +34,9 @@ struct EntrySheet: View {
     @State private var medicineReason = ""           // 喂药：原因
     @State private var notebookTag = ""              // 记事本：异常标签
     @State private var notebookText = ""             // 记事本：正文
-    @State private var detent: PresentationDetent = .fraction(0.7)
+    @State private var doseRemindOn = false          // 补剂/喂药：每天提醒开关
+    @State private var doseTimes: [Date] = []        // 补剂/喂药：每天提醒时间点
+    @State private var detent: PresentationDetent = .fraction(0.8)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +52,9 @@ struct EntrySheet: View {
             ScrollView {
                 VStack(spacing: 14) {
                     content
+                    if entry.kind == "medicine" || entry.kind == "supplement" {
+                        doseReminderCard
+                    }
                     dateRows
                 }
                 .padding(.horizontal, 16)
@@ -65,8 +70,8 @@ struct EntrySheet: View {
                 .padding(.bottom, 12)
         }
         .background(Palette.background.ignoresSafeArea())
-        // 默认 70% 高度：比原来的半屏高，备注一眼能看到；内容多的类型可以再往上拖到全高
-        .presentationDetents([.fraction(0.7), .large], selection: $detent)
+        // 默认 80% 高度：比半屏高，备注一眼能看到；内容多的类型可以再往上拖到全高
+        .presentationDetents([.fraction(0.8), .large], selection: $detent)
         .presentationDragIndicator(.hidden)
         .onAppear { prepare() }
     }
@@ -247,6 +252,90 @@ struct EntrySheet: View {
         }
     }
 
+    // MARK: 补剂 / 喂药：每天提醒
+
+    /// 打开开关后可以加任意多个时间点，每天到点由本机通知提醒（不联网）
+    private var doseReminderCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.kind == "medicine" ? "每天提醒我吃药" : "每天提醒我吃补剂")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Palette.ink)
+                    Text("打开后到点本机提醒，可以加多个时间")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Palette.subtle)
+                }
+                Spacer()
+                Toggle("", isOn: $doseRemindOn)
+                    .labelsHidden()
+                    .tint(Palette.purple)
+                    .onChange(of: doseRemindOn) { on in
+                        if on && doseTimes.isEmpty {
+                            doseTimes = [Self.time(from: "09:00") ?? Date()]
+                        }
+                    }
+            }
+
+            if doseRemindOn {
+                Divider().background(Palette.hairlineSoft)
+                ForEach(Array(doseTimes.indices), id: \.self) { i in
+                    HStack(spacing: 10) {
+                        DatePicker("", selection: Binding(
+                            get: { doseTimes.indices.contains(i) ? doseTimes[i] : Date() },
+                            set: { if doseTimes.indices.contains(i) { doseTimes[i] = $0 } }
+                        ), displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .environment(\.locale, Locale(identifier: "zh_CN"))
+
+                        Spacer()
+
+                        Button {
+                            if doseTimes.indices.contains(i) { doseTimes.remove(at: i) }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(Palette.subtle.opacity(0.6))
+                        }
+                        .buttonStyle(SoftPressStyle())
+                    }
+                }
+
+                Button {
+                    let last = doseTimes.last ?? Self.time(from: "09:00") ?? Date()
+                    doseTimes.append(last.addingTimeInterval(6 * 3600))
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle.fill").font(.system(size: 14))
+                        Text("添加提醒时间").font(.system(size: 13.5, weight: .semibold))
+                    }
+                    .foregroundColor(Palette.purple)
+                }
+                .buttonStyle(SoftPressStyle())
+
+                Text("提醒会每天重复，直到你把这个开关关掉。")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Palette.subtle)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+    }
+
+    private static func time(from text: String) -> Date? {
+        let parts = text.split(separator: ":")
+        guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) else { return nil }
+        var comps = DateComponents()
+        comps.hour = h
+        comps.minute = m
+        return Calendar.current.date(from: comps)
+    }
+
+    private static func text(from date: Date) -> String {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+    }
+
     // MARK: 小部件
 
     private func bigValue(_ text: String, unit: String, color: Color = Palette.ink) -> some View {
@@ -411,6 +500,17 @@ struct EntrySheet: View {
 
     private func prepare() {
         if entry.kind == "sleep" { minutes = 30 }
+        // 补剂 / 喂药：把已经设过的每日提醒读回来，下次打开还能改
+        if entry.kind == "medicine" || entry.kind == "supplement" {
+            let s = store.settings
+            let isMed = entry.kind == "medicine"
+            doseRemindOn = isMed ? s.medReminderOn : s.suppReminderOn
+            let saved = isMed ? s.medReminderTimes : s.suppReminderTimes
+            doseTimes = saved.compactMap { Self.time(from: $0) }
+            if doseRemindOn && doseTimes.isEmpty {
+                doseTimes = [Self.time(from: "09:00") ?? Date()]
+            }
+        }
         guard let child = store.current else { return }
         if let w = child.latestWeight, w > 0 { weight = min(60, max(0.5, w)) }
         if let h = child.latestHeight, h > 0 { height = min(160, max(30, h)) }
@@ -471,6 +571,18 @@ struct EntrySheet: View {
             log.note = note.trimmed()
         }
         store.addFeed(log)
+
+        // 补剂 / 喂药：顺手保存「每天提醒」（去重 + 按时间排序，没有时间点就不开提醒）
+        let times = Array(Set(doseTimes.map { Self.text(from: $0) })).sorted()
+        if entry.kind == "medicine" {
+            store.setMedReminder(on: doseRemindOn && !times.isEmpty, times: times)
+        } else if entry.kind == "supplement" {
+            store.setSuppReminder(on: doseRemindOn && !times.isEmpty, times: times)
+        }
+        if doseRemindOn && !times.isEmpty {
+            // 第一次打开提醒时补问一次通知权限，避免「开了却不响」
+            NotificationManager.shared.ensureAuthorized()
+        }
     }
 
     private func saveGrowth() {

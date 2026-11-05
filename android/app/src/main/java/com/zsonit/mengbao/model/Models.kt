@@ -320,6 +320,11 @@ data class AppSettings(
     val todoReminderOn: Boolean = true,      // 待办到期提醒开关
     /** 本机静音的待办 id（不随同步走：每台手机各自决定哪些待办不响，内容照样同步） */
     val mutedTodoReminders: Set<String> = emptySet(),
+    // 每日用药/补剂提醒：开关 + 自定义时间列表（"HH:mm"），在补剂/喂药录入弹层里设置
+    val suppReminderOn: Boolean = false,
+    val suppReminderTimes: List<String> = emptyList(),   // 每天到点提醒吃补剂
+    val medReminderOn: Boolean = false,
+    val medReminderTimes: List<String> = emptyList(),    // 每天到点提醒吃药
 ) {
     val resolvedQuickEntries: List<QuickEntry>
         get() {

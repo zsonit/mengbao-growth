@@ -187,6 +187,10 @@ object JsonCodec {
         if (s.mutedTodoReminders.isNotEmpty()) {
             put("mutedTodoReminders", JSONArray().apply { s.mutedTodoReminders.forEach { put(it) } })
         }
+        put("suppReminderOn", s.suppReminderOn)
+        put("suppReminderTimes", JSONArray().apply { s.suppReminderTimes.forEach { put(it) } })
+        put("medReminderOn", s.medReminderOn)
+        put("medReminderTimes", JSONArray().apply { s.medReminderTimes.forEach { put(it) } })
     }
 
     // MARK: 解码
@@ -319,6 +323,14 @@ object JsonCodec {
         mutedTodoReminders = o.optJSONArray("mutedTodoReminders")?.let { arr ->
             (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.toSet()
         } ?: emptySet(),
+        suppReminderOn = o.optBoolean("suppReminderOn", false),
+        suppReminderTimes = o.optJSONArray("suppReminderTimes")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }
+        } ?: emptyList(),
+        medReminderOn = o.optBoolean("medReminderOn", false),
+        medReminderTimes = o.optJSONArray("medReminderTimes")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }
+        } ?: emptyList(),
     )
 }
 

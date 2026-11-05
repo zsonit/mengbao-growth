@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         AppLog.i("Main", "App 启动：${Store.state.children.size} 个宝宝档案")
         // Android 13+ 通知权限：排了提醒但没权限时补问一次
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            Store.settings.let { it.growthReminderOn || it.todoReminderOn } &&
+            Store.settings.let { it.growthReminderOn || it.todoReminderOn || it.suppReminderOn || it.medReminderOn } &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
             android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {

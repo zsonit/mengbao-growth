@@ -23,6 +23,11 @@ final class NotificationManager {
     private let growthPrefix = "mb.growth."
     private let todoPrefix = "mb.todo."
     private let bdayPrefix = "mb.bday."
+    private let suppPrefix = "mb.supp."
+    private let medPrefix = "mb.med."
+
+    /// 自己排的全部提醒前缀（重排前先清掉这些，避免残留）
+    private var allPrefixes: [String] { [growthPrefix, todoPrefix, bdayPrefix, suppPrefix, medPrefix] }
 
     // MARK: 授权
 
@@ -52,14 +57,16 @@ final class NotificationManager {
         center.getPendingNotificationRequests { pending in
             let stale = pending
                 .map { $0.identifier }
-                .filter { $0.hasPrefix(self.growthPrefix) || $0.hasPrefix(self.todoPrefix) || $0.hasPrefix(self.bdayPrefix) }
+                .filter { id in self.allPrefixes.contains { id.hasPrefix($0) } }
             if !stale.isEmpty {
                 self.center.removePendingNotificationRequests(withIdentifiers: stale)
             }
-            guard onGrowth || onTodo || !children.filter({ $0.birthdayRemind ?? true }).isEmpty else { return }
+            let anyBday = !children.filter({ $0.birthdayRemind ?? true }).isEmpty
+            guard onGrowth || onTodo || anyBday || settings.suppReminderOn || settings.medReminderOn else { return }
             if onGrowth { self.addGrowth(children: children, settings: settings) }
             if onTodo { self.addTodos(children: children, settings: settings) }
             self.addBirthdays(children: children)
+            self.addDoseReminders(settings: settings)
             self.debugList()
         }
     }
@@ -69,8 +76,41 @@ final class NotificationManager {
         center.getPendingNotificationRequests { pending in
             let mine = pending
                 .map { $0.identifier }
-                .filter { $0.hasPrefix(self.growthPrefix) || $0.hasPrefix(self.todoPrefix) || $0.hasPrefix(self.bdayPrefix) }
+                .filter { id in self.allPrefixes.contains { id.hasPrefix($0) } }
             if !mine.isEmpty { self.center.removePendingNotificationRequests(withIdentifiers: mine) }
+        }
+    }
+
+    // MARK: 每日补剂 / 用药提醒（开关 + 任意多个时间点，每天重复）
+
+    private func addDoseReminders(settings: AppSettings) {
+        let groups: [(prefix: String, on: Bool, times: [String], title: String, body: String)] = [
+            (medPrefix, settings.medReminderOn, settings.medReminderTimes,
+             "💊 该吃药啦", "到点给宝宝喂药，吃完记得在 App 里记一笔。"),
+            (suppPrefix, settings.suppReminderOn, settings.suppReminderTimes,
+             "🥛 该吃补剂啦", "到点啦，今天的补剂别忘了，吃完记得记一笔。"),
+        ]
+        for group in groups {
+            guard group.on else { continue }
+            for raw in group.times {
+                let parts = raw.split(separator: ":")
+                guard parts.count == 2,
+                      let hour = Int(parts[0]), let minute = Int(parts[1]),
+                      (0...23).contains(hour), (0...59).contains(minute) else { continue }
+                var comps = DateComponents()
+                comps.hour = hour
+                comps.minute = minute
+                let content = UNMutableNotificationContent()
+                content.title = group.title
+                content.body = group.body
+                content.sound = .default
+                let req = UNNotificationRequest(identifier: group.prefix + "\(hour).\(minute)",
+                                                content: content,
+                                                trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true))
+                center.add(req, withCompletionHandler: { err in
+                    if let err = err { AppLog.e("Notify", "排用药/补剂提醒失败：\(err)") }
+                })
+            }
         }
     }
 

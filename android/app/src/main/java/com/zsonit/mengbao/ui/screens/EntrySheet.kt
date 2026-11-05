@@ -16,10 +16,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +86,7 @@ fun EntrySheet(entry: QuickEntry, child: Child, onDismiss: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Unit) {
     val now = remember { LocalTime.now().withSecond(0).withNano(0) }
@@ -107,6 +114,13 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
     var dose by remember { mutableStateOf(5.0) }
     var medicineReason by remember { mutableStateOf("") }
     var notebookTag by remember { mutableStateOf("") }
+
+    // 补剂 / 喂药：每天提醒（开关 + 自定义时间点，默认读回已设置的）
+    val settings0 = Store.settings
+    val doseIsMed = entry.kind == "medicine"
+    var doseRemindOn by remember { mutableStateOf(if (doseIsMed) settings0.medReminderOn else settings0.suppReminderOn) }
+    var doseTimes by remember { mutableStateOf(if (doseIsMed) settings0.medReminderTimes else settings0.suppReminderTimes) }
+    var showDoseTimePick by remember { mutableStateOf(false) }
 
     val isGrowth = entry.kind == "weight" || entry.kind == "height" || entry.kind == "head"
 
@@ -169,6 +183,14 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
             )
         }
         Store.addFeed(log)
+
+        // 补剂 / 喂药：把「每天提醒」一起保存（去重排序，没有时间点就不开）
+        if (entry.kind == "medicine" || entry.kind == "supplement") {
+            val times = doseTimes.distinct().sorted()
+            val on = doseRemindOn && times.isNotEmpty()
+            if (entry.kind == "medicine") Store.setMedReminder(on, times)
+            else Store.setSuppReminder(on, times)
+        }
         onDismiss()
     }
 
@@ -177,8 +199,8 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
     Column(
         Modifier
             .fillMaxWidth()
-            // 弹层固定为屏幕高度的 70%：比半屏高（备注能直接看到），又不至于顶满全屏
-            .height(screenH * 0.7f)
+            // 弹层固定为屏幕高度的 80%：比半屏高（备注能直接看到），又不至于顶满全屏
+            .height(screenH * 0.8f)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .padding(bottom = 26.dp),
@@ -441,6 +463,47 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
             }
         }
 
+        // 补剂 / 喂药：每天提醒（开关 + 自定义时间点）
+        if (entry.kind == "medicine" || entry.kind == "supplement") {
+            Column(
+                Modifier.fillMaxWidth().cardStyle(padding = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (entry.kind == "medicine") "每天提醒我吃药" else "每天提醒我吃补剂",
+                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink,
+                        )
+                        Text("打开后到点本机提醒，可以加多个时间", fontSize = 11.5.sp, color = Palette.subtle)
+                    }
+                    Switch(
+                        checked = doseRemindOn,
+                        onCheckedChange = { on ->
+                            doseRemindOn = on
+                            if (on && doseTimes.isEmpty()) doseTimes = listOf("09:00")
+                        },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
+                    )
+                }
+                if (doseRemindOn) {
+                    doseTimes.forEachIndexed { i, t ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(t, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = {
+                                doseTimes = doseTimes.filterIndexed { idx, _ -> idx != i }
+                            }) { Text("删除", fontSize = 12.5.sp, color = Palette.subtle) }
+                        }
+                    }
+                    TextButton(onClick = { showDoseTimePick = true }) {
+                        Text("＋ 添加提醒时间", fontSize = 13.5.sp, color = Palette.purple)
+                    }
+                    Label("提醒每天重复，关掉开关就不再响。")
+                }
+            }
+        }
+
         // 日期 + 时间
         Column(
             Modifier.fillMaxWidth().cardStyle(padding = 14.dp),
@@ -468,6 +531,26 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
         }
 
         PrimaryButton(text = "保存") { save() }
+    }
+
+    // 添加提醒时间的选时弹窗
+    if (showDoseTimePick) {
+        val ts = rememberTimePickerState(initialHour = 9, initialMinute = 0, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { showDoseTimePick = false },
+            title = { Text(if (doseIsMed) "提醒吃药时间" else "提醒补剂时间", fontSize = 16.sp) },
+            text = { TimePicker(state = ts) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val t = "%02d:%02d".format(ts.hour, ts.minute)
+                    doseTimes = (doseTimes + t).distinct().sorted()
+                    showDoseTimePick = false
+                }) { Text("好") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDoseTimePick = false }) { Text("取消") }
+            },
+        )
     }
 }
 

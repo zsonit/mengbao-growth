@@ -25,7 +25,8 @@ struct MengBaoApp: App {
         let hasDueTodo = store.state.children.contains { child in
             child.todos.contains { !$0.done && $0.due != nil }
         }
-        if store.settings.growthReminderOn || (store.settings.todoReminderOn && hasDueTodo) {
+        if store.settings.growthReminderOn || (store.settings.todoReminderOn && hasDueTodo)
+            || store.settings.suppReminderOn || store.settings.medReminderOn {
             NotificationManager.shared.ensureAuthorized()
         }
     }
