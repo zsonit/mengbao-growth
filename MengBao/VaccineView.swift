@@ -343,9 +343,12 @@ struct VaccineView: View {
     /// 年龄段折叠分组：标题（年龄段 · 已种 x/y）+ 展开后的疫苗卡列表
     private func ageGroupSection(_ group: AgeGroup) -> some View {
         let isOpen = expanded.contains(group.months)
-        let doneCount = group.doses.filter { $0.status == .done }.count
+        // 灭活分支卡（乙脑灭活 / 甲肝灭活）：照常显示，但不计入组内 x/y 总数
+        let branchCodes: Set<String> = ["JE-I", "HepA-I"]
+        let counted = group.doses.filter { !branchCodes.contains($0.vaccine.code) }
+        let doneCount = min(group.doses.filter { $0.status == .done }.count, counted.count)
         let dueCount = group.doses.filter { $0.status == .due }.count
-        let allDone = doneCount == group.doses.count
+        let allDone = counted.count > 0 && doneCount == counted.count
 
         return VStack(spacing: 0) {
             Button {
@@ -360,7 +363,15 @@ struct VaccineView: View {
                     Text(group.label)
                         .font(.system(size: 15.5, weight: .bold))
                         .foregroundColor(Palette.ink)
-                    Text("已种 \(doneCount)/\(group.doses.count)")
+                    if group.months == 156 {
+                        Text("推荐关注")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundColor(Palette.warn)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Palette.warn.opacity(0.14), in: Capsule())
+                    }
+                    Text("已种 \(doneCount)/\(counted.count)")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(allDone ? Palette.ok : (dueCount > 0 ? Palette.bad : Palette.subtle))
                     Spacer(minLength: 0)

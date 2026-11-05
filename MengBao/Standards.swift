@@ -174,13 +174,18 @@ enum Standards {
 
     private static let builtinAges: [(String, Int)] = [
         ("出生时", 0), ("1 月龄", 1), ("2 月龄", 2), ("3 月龄", 3), ("4 月龄", 4),
-        ("5 月龄", 5), ("6 月龄", 6), ("8 月龄", 8), ("9 月龄", 9), ("18 月龄", 18),
-        ("2 岁", 24), ("3 岁", 36), ("4 岁", 48), ("6 岁", 72)
+        ("6 月龄", 6), ("8 月龄", 8), ("9 月龄", 9), ("1.5 岁", 18),
+        ("2 岁", 24), ("3 岁", 36), ("4 岁", 48), ("6 岁", 72),
+        ("13 岁", 156), ("13 岁 6 月龄", 162)
     ]
 
     private static let builtinByAge: [Int: [Vaccine]] = [
-        0: [Vaccine(code: "HepB", name: "乙肝疫苗", dose: "第 1 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                   note: "出生 12 小时内完成；母亲 HBsAg 阳性或不详者应尽早接种，并加注乙肝免疫球蛋白。")],
+        0: [
+            Vaccine(code: "HepB", name: "乙肝疫苗", dose: "第 1 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "出生 12 小时内完成；母亲 HBsAg 阳性或不详者应尽早接种，并加注乙肝免疫球蛋白。"),
+            Vaccine(code: "BCG", name: "卡介苗", dose: "第 1 剂", route: "皮内注射", site: "上臂外侧三角肌中部略下处",
+                    note: "出生 24 小时内完成，1 剂全程。")
+        ],
         1: [Vaccine(code: "HepB", name: "乙肝疫苗", dose: "第 2 剂", route: "肌内注射", site: "上臂外侧三角肌",
                    note: "与第 1 剂间隔 ≥ 28 天。")],
         2: [
@@ -197,13 +202,11 @@ enum Standards {
             Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 2 剂", route: "肌内注射", site: "上臂外侧三角肌",
                     note: "各剂间隔 4–8 周。")
         ],
-        5: [Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 3 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                   note: "基础免疫 3 剂完成。")],
         6: [
             Vaccine(code: "HepB", name: "乙肝疫苗", dose: "第 3 剂", route: "肌内注射", site: "上臂外侧三角肌",
                     note: "3 剂全程完成。"),
-            Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 4 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                    note: "与前一剂间隔 ≥ 6 个月。"),
+            Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 3 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "基础免疫第 3 剂完成。"),
             Vaccine(code: "MPV-A", name: "A 群流脑多糖疫苗", dose: "第 1 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                     note: "与第 2 剂间隔 ≥ 3 个月。")
         ],
@@ -211,21 +214,29 @@ enum Standards {
             Vaccine(code: "MMR", name: "麻腮风疫苗", dose: "第 1 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                     note: "2020 年 6 月起取消麻风疫苗，统一使用麻腮风。"),
             Vaccine(code: "JE-L", name: "乙脑减毒活疫苗", dose: "第 1 剂", route: "皮下注射", site: "上臂外侧三角肌下缘",
-                    note: "与乙脑灭活疫苗二选一；若选灭活则需 4 剂。")
+                    note: "与乙脑灭活疫苗二选一；减毒活疫苗全程 2 剂。"),
+            Vaccine(code: "JE-I", name: "乙脑灭活疫苗", dose: "第 1 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "与乙脑减毒活疫苗二选一；选灭活则需 4 剂。"),
+            Vaccine(code: "JE-I", name: "乙脑灭活疫苗", dose: "第 2 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "第 2 剂与第 1 剂间隔 7–10 天。")
         ],
         9: [Vaccine(code: "MPV-A", name: "A 群流脑多糖疫苗", dose: "第 2 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                    note: "完成 A 群流脑基础免疫。")],
         18: [
             Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 4 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                    note: "基础免疫后加强 1 剂（2026 版由第 5 剂调整为第 4 剂）。"),
+                    note: "基础免疫后加强 1 剂。"),
             Vaccine(code: "MMR", name: "麻腮风疫苗", dose: "第 2 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                     note: "两剂麻腮风完成。"),
             Vaccine(code: "HepA-L", name: "甲肝减毒活疫苗", dose: "第 1 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
-                    note: "与甲肝灭活疫苗二选一，减毒活疫苗只需 1 剂。")
+                    note: "与甲肝灭活疫苗二选一，减毒活疫苗只需 1 剂。"),
+            Vaccine(code: "HepA-I", name: "甲肝灭活疫苗", dose: "第 1 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "与甲肝减毒活疫苗二选一；选灭活则需 2 剂，两剂间隔 ≥ 6 个月。")
         ],
         24: [
             Vaccine(code: "JE-L", name: "乙脑减毒活疫苗", dose: "第 2 剂", route: "皮下注射", site: "上臂外侧三角肌下缘",
                     note: "减毒活疫苗全程 2 剂完成。"),
+            Vaccine(code: "JE-I", name: "乙脑灭活疫苗", dose: "第 3 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "若 8 月龄选择灭活疫苗则需此剂。"),
             Vaccine(code: "HepA-I", name: "甲肝灭活疫苗", dose: "第 2 剂", route: "肌内注射", site: "上臂外侧三角肌",
                     note: "若 18 月龄选择灭活疫苗则需此剂，两剂间隔 ≥ 6 个月。")
         ],
@@ -234,8 +245,10 @@ enum Standards {
         48: [Vaccine(code: "bOPV", name: "脊灰减毒活疫苗", dose: "第 4 剂", route: "口服", site: "口服",
                     note: "完成脊灰 4 剂全程。已打满 4 剂含 IPV 成分疫苗（如五联）者 4 岁不需再打。")],
         72: [
-            Vaccine(code: "DTaP", name: "百白破疫苗", dose: "第 5 剂", route: "肌内注射", site: "上臂外侧三角肌",
-                    note: "2026 年起 6 岁由白破改为百白破。"),
+            Vaccine(code: "DT", name: "白破疫苗", dose: "第 5 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "6 岁加强 1 剂，完成百白破 5 剂全程，小学入学前查验。"),
+            Vaccine(code: "JE-I", name: "乙脑灭活疫苗", dose: "第 4 剂", route: "肌内注射", site: "上臂外侧三角肌",
+                    note: "若 8 月龄起选择灭活疫苗则需此剂，完成灭活 4 剂全程。"),
             Vaccine(code: "MPV-AC", name: "A 群 C 群流脑多糖疫苗", dose: "第 2 剂", route: "皮下注射", site: "上臂外侧三角肌附着处",
                     note: "完成流脑全程，小学入学前查验。")
         ]
@@ -367,6 +380,9 @@ enum Standards {
         "IPV":    ("脊髓灰质炎", "0.5 ml"),
         "bOPV":   ("脊髓灰质炎", "口服 2 滴"),
         "DTaP":   ("百日咳、白喉、破伤风", "0.5 ml"),
+        "DT":     ("百日咳、白喉、破伤风", "0.5 ml"),
+        "BCG":    ("结核病", "0.1 ml"),
+        "HPV2":   ("疫苗所含型别人乳头瘤病毒感染", "0.5 ml"),
         "MMR":    ("麻疹、流行性腮腺炎、风疹", "0.5 ml"),
         "JE-L":   ("流行性乙型脑炎", "0.5 ml"),
         "JE-I":   ("流行性乙型脑炎", "0.5 ml"),

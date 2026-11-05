@@ -361,11 +361,16 @@ object GrowthMath {
     fun schedule(child: Child): List<Dose> {
         val currentMonths = ageMonths(child.birthDate)
         val list = mutableListOf<Dose>()
+        // 程序表剂次调整后的旧记录兼容：老 key 打过勾的自动迁移到新 key
+        val legacyKeys = mapOf(
+            "6|DTaP|第 3 剂" to listOf("6|DTaP|第 4 剂", "5|DTaP|第 3 剂"),
+            "72|DT|第 5 剂" to listOf("72|DTaP|第 5 剂"),
+        )
         for ((label, months) in Standards.vaccineAges) {
             val dueDate = child.birthDate.plusMonths(months.toLong())
             for (v in Standards.vaccineByAge[months] ?: emptyList()) {
                 val key = "$months|${v.code}|${v.dose}"
-                val done = child.shots[key]
+                val done = child.shots[key] ?: legacyKeys[key].orEmpty().firstNotNullOfOrNull { child.shots[it] }
                 val status = when {
                     done != null -> Dose.Status.DONE
                     months <= currentMonths -> Dose.Status.DUE
@@ -373,6 +378,33 @@ object GrowthMath {
                     else -> Dose.Status.PENDING
                 }
                 list.add(Dose(key, months, label, dueDate, v, status, done?.date))
+            }
+        }
+
+        // 13 岁女生免费 HPV（双价，两剂间隔 6 个月；男生不排）
+        if (child.sex == Sex.GIRL) {
+            listOf(156, 162).forEachIndexed { idx, months ->
+                val dueDate = child.birthDate.plusMonths(months.toLong())
+                val key = "$months|HPV2|第 ${idx + 1} 剂"
+                val done = child.shots[key]
+                val status = when {
+                    done != null -> Dose.Status.DONE
+                    months <= currentMonths -> Dose.Status.DUE
+                    months - currentMonths <= 2 -> Dose.Status.SOON
+                    else -> Dose.Status.PENDING
+                }
+                val vaccine = Vaccine(
+                    code = "HPV2",
+                    name = "双价人乳头瘤病毒疫苗",
+                    dose = "第 ${idx + 1} 剂",
+                    route = "肌内注射",
+                    site = "上臂外侧三角肌",
+                    note = if (idx == 0)
+                        "适龄女生免费接种（以当地政策为准）；两剂间隔 6 个月，既往已完成 HPV 全程接种者无需重复接种。"
+                    else
+                        "第 2 剂与第 1 剂间隔 6 个月。",
+                )
+                list.add(Dose(key, months, ageTextForMonths(months), dueDate, vaccine, status, done?.date))
             }
         }
 

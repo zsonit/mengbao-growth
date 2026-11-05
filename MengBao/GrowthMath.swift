@@ -389,11 +389,19 @@ enum GrowthMath {
         let cal = Calendar.current
         let currentMonths = ageMonths(from: child.birthDate)
         var list: [Dose] = []
+        // 程序表剂次调整后的旧记录兼容：老 key 打过勾的自动迁移到新 key
+        let legacyKeys: [String: [String]] = [
+            "6|DTaP|第 3 剂": ["6|DTaP|第 4 剂", "5|DTaP|第 3 剂"],
+            "72|DT|第 5 剂": ["72|DTaP|第 5 剂"],
+        ]
         for (label, months) in Standards.vaccineAges {
             guard let dueDate = cal.date(byAdding: .month, value: months, to: child.birthDate) else { continue }
             for v in (Standards.vaccineByAge[months] ?? []) {
                 let key = "\(months)|\(v.code)|\(v.dose)"
-                let done = child.shots[key]
+                var done = child.shots[key]
+                if done == nil, let legacy = legacyKeys[key] {
+                    done = legacy.lazy.compactMap { child.shots[$0] }.first
+                }
                 var status: Dose.Status = .pending
                 if done != nil {
                     status = .done
@@ -430,6 +438,35 @@ enum GrowthMath {
                     route: oral ? "口服" : "肌内注射",
                     site: oral ? "口服（接种前 30 分钟避免喂奶）" : "上臂外侧三角肌 / 大腿前外侧",
                     note: "\(opt.desc)。自费疫苗，参考价 \(opt.price)。是否接种请与接种医生沟通。"
+                )
+                list.append(Dose(key: key, months: months, ageLabel: ageText(for: months),
+                                 dueDate: dueDate, vaccine: vaccine, status: status, doneDate: done?.date))
+            }
+        }
+
+        // 13 岁女生免费 HPV（双价，两剂间隔 6 个月；男生不排）
+        if child.sex == .girl {
+            for (idx, months) in [156, 162].enumerated() {
+                guard let dueDate = cal.date(byAdding: .month, value: months, to: child.birthDate) else { continue }
+                let key = "\(months)|HPV2|第 \(idx + 1) 剂"
+                let done = child.shots[key]
+                var status: Dose.Status = .pending
+                if done != nil {
+                    status = .done
+                } else if months <= currentMonths {
+                    status = .due
+                } else if months - currentMonths <= 2 {
+                    status = .soon
+                }
+                let vaccine = Vaccine(
+                    code: "HPV2",
+                    name: "双价人乳头瘤病毒疫苗",
+                    dose: "第 \(idx + 1) 剂",
+                    route: "肌内注射",
+                    site: "上臂外侧三角肌",
+                    note: idx == 0
+                        ? "适龄女生免费接种（以当地政策为准）；两剂间隔 6 个月，既往已完成 HPV 全程接种者无需重复接种。"
+                        : "第 2 剂与第 1 剂间隔 6 个月。"
                 )
                 list.append(Dose(key: key, months: months, ageLabel: ageText(for: months),
                                  dueDate: dueDate, vaccine: vaccine, status: status, doneDate: done?.date))

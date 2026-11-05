@@ -480,9 +480,12 @@ private fun AgeGroupSection(
     planOf: (Dose) -> DosePlan?,
     recordOffset: (Int) -> Unit,
 ) {
-    val doneCount = group.doses.count { it.status == Dose.Status.DONE }
+    // 灭活分支卡（乙脑灭活 / 甲肝灭活）：照常显示，但不计入组内 x/y 总数
+    val branchCodes = setOf("JE-I", "HepA-I")
+    val counted = group.doses.count { it.vaccine.code !in branchCodes }
+    val doneCount = minOf(group.doses.count { it.status == Dose.Status.DONE }, counted)
     val dueCount = group.doses.count { it.status == Dose.Status.DUE }
-    val allDone = doneCount == group.doses.size
+    val allDone = counted > 0 && doneCount == counted
     Column(
         Modifier
             .fillMaxWidth()
@@ -518,9 +521,13 @@ private fun AgeGroupSection(
             )
             Spacer(Modifier.width(9.dp))
             Text(group.label, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = Palette.ink)
+            if (group.months == 156) {
+                Spacer(Modifier.width(6.dp))
+                TagView(text = "推荐关注", tone = TagTone.WARN)
+            }
             Spacer(Modifier.width(7.dp))
             Text(
-                "已种 $doneCount/${group.doses.size}",
+                "已种 $doneCount/$counted",
                 fontSize = 12.sp, fontWeight = FontWeight.Medium,
                 color = when {
                     allDone -> Palette.ok
