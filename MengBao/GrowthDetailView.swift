@@ -52,13 +52,20 @@ struct GrowthDetailView: View {
                     Spacer()
                 }
                 GrowthChartView(child: child, metric: metric)
-                    .frame(height: 236)
+                    .frame(height: 252)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 HStack(spacing: 14) {
                     legend(color: Color(hex: 0xE0513A), dash: true, text: "P3 / P97")
                     legend(color: Color(hex: 0xE2A33C), dash: true, text: "P15 / P85")
                     legend(color: Palette.purple, dash: false, text: "P50")
                     legend(color: Palette.ok, dash: false, text: "实测")
+                    Spacer(minLength: 4)
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.left.and.right")
+                        Text("可滑动")
+                    }
+                    .font(.system(size: 10.5))
+                    .foregroundColor(Palette.subtle)
                 }
                 .padding(.top, 2)
 
