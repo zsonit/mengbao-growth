@@ -333,9 +333,10 @@ object SyncManager {
     fun pushScope(to: String, scopes: List<String>): SyncResult {
         if (scopes.isEmpty()) return SyncResult(false, "请先选择要同步的内容")
         val payload = try {
+            // 头像文件随定向同步一起带上
             JSONObject()
                 .put("scopes", JSONArray(scopes))
-                .put("state", JSONObject(JsonCodec.encode(Store.state)))
+                .put("state", JSONObject(stateJsonForSync(Store.state) ?: JsonCodec.encode(Store.state)))
                 .toString()
         } catch (e: Exception) {
             return SyncResult(false, "数据编码失败")
@@ -427,7 +428,11 @@ object SyncManager {
         }
         val scopes = obj.optJSONArray("scopes")?.let { arr -> (0 until arr.length()).map { arr.optString(it) } } ?: emptyList()
         val incoming: AppState = try {
-            JsonCodec.decode(obj.getJSONObject("state").toString())
+            val stateObj = obj.getJSONObject("state")
+            // 随包带来的头像先落盘，profile 覆盖 avatarPath 后才有文件可读
+            applyAvatarFiles(stateObj.optJSONObject("avatarFiles"))
+            stateObj.remove("avatarFiles")
+            JsonCodec.decode(stateObj.toString())
         } catch (e: Exception) {
             AppLog.w("Sync", "定向同步数据解析失败，忽略")
             return state
@@ -869,6 +874,64 @@ object SyncManager {
         }
     }
 
+    // MARK: 头像照片随同步走（avatarPath 只是相对路径，图片文件本身要随快照一起传，否则对方手机上没这个文件）
+
+    private const val AVATAR_MAX_BYTES = 3_000_000L
+
+    /** 收集本机宝宝头像（相对路径 -> base64），随同步快照一起发给对方 */
+    private fun collectAvatarFiles(state: AppState): JSONObject {
+        val out = JSONObject()
+        val dir = appContext?.filesDir ?: return out
+        for (c in state.children) {
+            val rel = c.avatarPath ?: continue
+            if (rel.contains("..") || !rel.startsWith("avatars/")) continue
+            val f = File(dir, rel)
+            if (!f.isFile || f.length() > AVATAR_MAX_BYTES) continue
+            runCatching {
+                out.put(rel, android.util.Base64.encodeToString(f.readBytes(), android.util.Base64.NO_WRAP))
+            }
+        }
+        return out
+    }
+
+    /** 把同步带来的头像落盘（同名文件跳过；文件名带时间戳，换头像=新文件名，不会挡住新照片） */
+    private fun applyAvatarFiles(files: JSONObject?) {
+        if (files == null || files.length() == 0) return
+        val dir = appContext?.filesDir ?: return
+        val keys = files.keys()
+        while (keys.hasNext()) {
+            val rel = keys.next()
+            if (rel.contains("..") || !rel.startsWith("avatars/")) continue
+            val f = File(dir, rel)
+            if (f.exists()) continue
+            val bytes = runCatching {
+                android.util.Base64.decode(files.optString(rel), android.util.Base64.NO_WRAP)
+            }.getOrNull() ?: continue
+            runCatching {
+                f.parentFile?.mkdirs()
+                f.writeBytes(bytes)
+            }
+        }
+    }
+
+    /** 把头像旁挂数据注入状态 JSON（推送前调用） */
+    private fun stateJsonForSync(state: AppState): String? {
+        val obj = runCatching { JSONObject(JsonCodec.encode(state)) }.getOrNull() ?: return null
+        val avatars = collectAvatarFiles(state)
+        if (avatars.length() > 0) obj.put("avatarFiles", avatars)
+        return obj.toString()
+    }
+
+    /** 解出对方状态；顺带把随包带来的头像落盘（在合并进 Store 之前执行，avatarPath 才有文件可读） */
+    private fun decodeRemoteState(plain: String): AppState {
+        val obj = runCatching { JSONObject(plain) }.getOrNull() ?: return JsonCodec.decode(plain)
+        if (obj.has("avatarFiles")) {
+            applyAvatarFiles(obj.optJSONObject("avatarFiles"))
+            obj.remove("avatarFiles")
+        }
+        return JsonCodec.decode(obj.toString())
+    }
+
     private fun fetchRemote(code: String): RemoteSnapshot? {
         val (body, _) = http("GET", "$REST?code=eq.$code&select=payload,updated_by,rev&limit=1", null)
         if (body == null) return null
@@ -887,18 +950,21 @@ object SyncManager {
                 AppLog.w("Sync", "云端密文无法解密（密钥不一致），本轮跳过，不覆盖云端")
                 return RemoteSnapshot(AppState(), UNDECRYPTABLE)
             }
-            return RemoteSnapshot(JsonCodec.decode(plain), row.optString("updated_by"))
+            return RemoteSnapshot(decodeRemoteState(plain), row.optString("updated_by"))
         }
 
         // 旧格式兼容（2.5.1 及以前）：包裹结构 {v,device,ts,data} 或直接就是互通 JSON
         val data = payload.optJSONObject("data") ?: payload
         AppLog.i("Sync", "检测到旧版明文数据，本次同步后自动改成密文")
-        return RemoteSnapshot(JsonCodec.decode(data.toString()), row.optString("updated_by"))
+        return RemoteSnapshot(decodeRemoteState(data.toString()), row.optString("updated_by"))
     }
 
     /** 推送：payload 列存加密信封，updated_by 记录来源设备，rev 供对端轻度轮询发现变化 */
     private fun upsert(code: String, state: AppState): SyncResult {
-        val envelope = SyncCrypto.encrypt(code, JsonCodec.encode(state), localSalt())
+        // 头像文件随快照一起带上，对方才能看到照片
+        val plain = stateJsonForSync(state)
+            ?: return SyncResult(false, "本机编码失败")
+        val envelope = SyncCrypto.encrypt(code, plain, localSalt())
             ?: return SyncResult(false, "本机加密失败")
         val rev = System.currentTimeMillis()
         val body = JSONObject()

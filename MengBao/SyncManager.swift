@@ -321,9 +321,12 @@ final class SyncManager: ObservableObject {
     func pushScope(_ to: String, scopes: [String]) -> SyncOutcome {
         guard !scopes.isEmpty else { return SyncOutcome(ok: false, message: "请先选择要同步的内容") }
         guard let data = try? JSONEncoder().encode(Store.shared.state),
-              let obj = try? JSONSerialization.jsonObject(with: data)
+              var sobj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return SyncOutcome(ok: false, message: "数据编码失败") }
-        let wrap: [String: Any] = ["scopes": scopes, "state": obj]
+        // 头像文件随定向同步一起带上
+        let avatars = Self.collectAvatarFiles(Store.shared.state)
+        if !avatars.isEmpty { sobj["avatarFiles"] = avatars }
+        let wrap: [String: Any] = ["scopes": scopes, "state": sobj]
         guard let pd = try? JSONSerialization.data(withJSONObject: wrap, options: [.sortedKeys]),
               let p = String(data: pd, encoding: .utf8)
         else { return SyncOutcome(ok: false, message: "数据编码失败") }
@@ -412,8 +415,17 @@ final class SyncManager: ObservableObject {
         guard let data = payload.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let scopes = obj["scopes"] as? [String],
-              let stateObj = obj["state"],
-              let stateData = try? JSONSerialization.data(withJSONObject: stateObj),
+              var stateObj = obj["state"] as? [String: Any]
+        else {
+            AppLog.w("Sync", "定向同步数据解析失败，忽略")
+            return state
+        }
+        // 随包带来的头像先落盘，profile 覆盖 avatarPath 后才有文件可读
+        if let files = stateObj["avatarFiles"] as? [String: Any] {
+            applyAvatarFiles(files)
+            stateObj.removeValue(forKey: "avatarFiles")
+        }
+        guard let stateData = try? JSONSerialization.data(withJSONObject: stateObj),
               let incoming = try? JSONDecoder().decode(AppState.self, from: stateData)
         else {
             AppLog.w("Sync", "定向同步数据解析失败，忽略")
@@ -884,6 +896,46 @@ final class SyncManager: ObservableObject {
         }
     }
 
+    // MARK: 头像照片随同步走（avatarPath 只是相对路径，图片文件本身要随快照一起传，否则对方手机上没这个文件）
+
+    /// 收集本机宝宝头像（相对路径 -> base64），随同步快照一起发
+    static func collectAvatarFiles(_ state: AppState) -> [String: String] {
+        var out: [String: String] = [:]
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        for c in state.children {
+            guard let rel = c.avatarPath, rel.hasPrefix("avatars/"), !rel.contains("..") else { continue }
+            guard let data = try? Data(contentsOf: docs.appendingPathComponent(rel)), data.count <= 3_000_000 else { continue }
+            out[rel] = data.base64EncodedString()
+        }
+        return out
+    }
+
+    /// 把同步带来的头像落盘（同名文件跳过；文件名带时间戳，换头像=新文件名，不会挡住新照片）
+    static func applyAvatarFiles(_ files: [String: Any]) {
+        guard !files.isEmpty else { return }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        for (rel, v) in files {
+            guard let b64 = v as? String, rel.hasPrefix("avatars/"), !rel.contains(".."),
+                  let data = Data(base64Encoded: b64) else { continue }
+            let url = docs.appendingPathComponent(rel)
+            guard !FileManager.default.fileExists(atPath: url.path) else { continue }
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: url)
+        }
+    }
+
+    /// 解出对方状态 JSON；顺带把随包带来的头像落盘（在合并进 Store 之前执行，avatarPath 才有文件可读）
+    static func decodeStateJSON(_ plain: String) -> AppState? {
+        guard var obj = try? JSONSerialization.jsonObject(with: Data(plain.utf8)) as? [String: Any] else { return nil }
+        if let files = obj["avatarFiles"] as? [String: Any] {
+            applyAvatarFiles(files)
+            obj.removeValue(forKey: "avatarFiles")
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: obj),
+              let state = try? JSONDecoder().decode(AppState.self, from: data) else { return nil }
+        return state
+    }
+
     private func fetchRemote(code: String) -> (state: AppState, updatedBy: String)? {
         let url = "\(Self.rest)?code=eq.\(code)&select=payload,updated_by,rev&limit=1"
         guard let (resp, status) = Self.request(method: "GET", url: url, body: nil), status == 200,
@@ -899,7 +951,7 @@ final class SyncManager: ObservableObject {
         if payload["ct"] is String {
             if let salt = payload["salt"] as? String { adoptSalt(salt) }
             guard let plain = SyncCrypto.decrypt(code: code, envelope: payload),
-                  let state = try? JSONDecoder().decode(AppState.self, from: Data(plain.utf8))
+                  let state = Self.decodeStateJSON(plain)
             else {
                 AppLog.w("Sync", "云端密文无法解密（密钥不一致），本轮跳过，不覆盖云端")
                 return (AppState(), Self.undecryptable)
@@ -910,7 +962,8 @@ final class SyncManager: ObservableObject {
         // 旧格式兼容（2.5.1 及以前）：包裹结构或直接就是互通 JSON
         let legacy = (payload["data"] as? [String: Any]) ?? payload
         guard let jsonData = try? JSONSerialization.data(withJSONObject: legacy, options: [.sortedKeys]),
-              let state = try? JSONDecoder().decode(AppState.self, from: jsonData)
+              let legacyPlain = String(data: jsonData, encoding: .utf8),
+              let state = Self.decodeStateJSON(legacyPlain)
         else {
             AppLog.e("Sync", "云端数据解码失败")
             return nil
@@ -922,7 +975,16 @@ final class SyncManager: ObservableObject {
     /// 推送：payload 列存加密信封，updated_by 记录来源设备；返回 HTTP 状态码（nil=网络失败）
     private func upsert(code: String, state: AppState) -> Int? {
         guard let dataJSON = try? JSONEncoder().encode(state),
-              let plain = String(data: dataJSON, encoding: .utf8),
+              var obj = try? JSONSerialization.jsonObject(with: dataJSON) as? [String: Any]
+        else {
+            AppLog.e("Sync", "本机编码失败")
+            return nil
+        }
+        // 头像文件随快照一起带上，对方才能看到照片
+        let avatars = Self.collectAvatarFiles(state)
+        if !avatars.isEmpty { obj["avatarFiles"] = avatars }
+        guard let finalData = try? JSONSerialization.data(withJSONObject: obj),
+              let plain = String(data: finalData, encoding: .utf8),
               let envelope = SyncCrypto.encrypt(code: code, plain: plain, salt: localSalt())
         else {
             AppLog.e("Sync", "本机加密失败")
