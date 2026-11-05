@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -165,6 +166,8 @@ fun AvatarCropDialog(
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    // 裁剪框尽量大：约占屏幕高度 62%，更好操作
+    val boxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.62f
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -176,18 +179,19 @@ fun AvatarCropDialog(
                 .background(Color(0xE6101010))
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
         ) {
             Text(
                 "双指缩放、拖动图片，调整好角度后保存",
                 fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.padding(bottom = 14.dp),
+                modifier = Modifier.padding(top = 10.dp, bottom = 8.dp),
             )
+
+            Spacer(Modifier.weight(1f))
 
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(320.dp)
+                    .height(boxHeight)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.Black)
                     .onSizeChanged { boxSize = it }
@@ -214,8 +218,13 @@ fun AvatarCropDialog(
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Spacer(Modifier.weight(1f))
+
+            // 两个按钮固定在屏幕下方，单手也够得着
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.padding(bottom = 24.dp),
+            ) {
                 Text(
                     "取消", fontSize = 14.sp, color = Color.White,
                     modifier = Modifier

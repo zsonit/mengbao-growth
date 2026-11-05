@@ -33,7 +33,11 @@ struct HomeView: View {
                         Button {
                             store.selectChild(kid.id)
                         } label: {
-                            Text("\(kid.displayAvatar) \(kid.name)\(kid.id == store.state.currentID ? "  ✓" : "")")
+                            // 切换列表里显示照片小头像（没设置照片就用可爱的 emoji）
+                            HStack(spacing: 8) {
+                                AvatarView(child: kid, size: 24, fontSize: 14)
+                                Text("\(kid.name)\(kid.id == store.state.currentID ? "  ✓" : "")")
+                            }
                         }
                     }
                     if !store.state.children.isEmpty { Divider() }

@@ -24,7 +24,7 @@ struct KidEditorView: View {
     @State private var bdayAdvanceDays: Int
     @State private var bdayAdvanceTime: Date
 
-    private let avatars = ["👶", "👧", "👦", "🧒", "🐣", "🐰", "🐻", "🦊"]
+    private let avatars = ["🐣", "🐰", "🐻", "🐼", "🐨", "🦊", "🦄", "🐶"]
 
     private static func timeDate(minutes: Int) -> Date {
         Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
@@ -35,7 +35,7 @@ struct KidEditorView: View {
         _name = State(initialValue: child?.name ?? "")
         _sex = State(initialValue: child?.sex ?? .boy)
         _birthDate = State(initialValue: child?.birthDate ?? Date())
-        _avatar = State(initialValue: child?.displayAvatar ?? "👦")
+        _avatar = State(initialValue: child?.displayAvatar ?? "🐣")
         _avatarPath = State(initialValue: child?.avatarPath)
         _bdaySameDayOn = State(initialValue: child?.bdaySameDayEnabled ?? true)
         _bdaySameDayTime = State(initialValue: Self.timeDate(minutes: child?.bdaySameDayMinutes ?? 9 * 60))
@@ -65,7 +65,7 @@ struct KidEditorView: View {
                                         sex = s
                                         if avatars.contains(avatar) { avatar = s.symbol }
                                     } label: {
-                                        ChipLabel(text: s.label, selected: sex == s, icon: s.symbol)
+                                        ChipLabel(text: s.label, selected: sex == s)
                                     }
                                     .buttonStyle(SoftPressStyle())
                                 }

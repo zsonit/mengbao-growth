@@ -13,7 +13,8 @@ enum class Sex(val label: String) {
     BOY("男"),
     GIRL("女");
 
-    val symbol: String get() = if (this == BOY) "👦" else "👧"
+    // 默认头像换成可爱、现代风格的小动物
+    val symbol: String get() = if (this == BOY) "🐣" else "🐰"
 
     companion object {
         fun of(value: String?): Sex = if (value == "女") GIRL else BOY

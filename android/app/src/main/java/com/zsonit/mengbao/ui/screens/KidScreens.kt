@@ -129,7 +129,7 @@ fun KidsScreen(onBack: () -> Unit, onEdit: (String?) -> Unit) {
 
 // MARK: - 宝宝档案编辑
 
-private val KidAvatars = listOf("👶", "👧", "👦", "🧒", "🐣", "🐰", "🐻", "🦊")
+private val KidAvatars = listOf("🐣", "🐰", "🐻", "🐼", "🐨", "🦊", "🦄", "🐶")
 
 @Composable
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -139,7 +139,7 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
     var name by remember(childId) { mutableStateOf(child?.name ?: "") }
     var sex by remember(childId) { mutableStateOf(child?.sex ?: Sex.BOY) }
     var birthDate by remember(childId) { mutableStateOf(child?.birthDate ?: LocalDate.now()) }
-    var avatar by remember(childId) { mutableStateOf(child?.displayAvatar ?: "👦") }
+    var avatar by remember(childId) { mutableStateOf(child?.displayAvatar ?: "🐣") }
     var avatarPath by remember(childId) { mutableStateOf(child?.avatarPath) }
     var errorMessage by remember(childId) { mutableStateOf<String?>(null) }
     var showDeleteAlert by remember { mutableStateOf(false) }
@@ -204,8 +204,9 @@ fun KidEditorScreen(childId: String?, onBack: () -> Unit) {
                 EditorField(label = "性别（决定使用哪套生长标准）") {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Sex.entries.forEach { s ->
+                            // 性别行的男/女小表情去掉，只留文字（头像在下面「头像」区选）
                             ChipLabel(
-                                text = s.label, selected = sex == s, icon = s.symbol,
+                                text = s.label, selected = sex == s,
                                 onClick = {
                                     sex = s
                                     if (KidAvatars.contains(avatar)) avatar = s.symbol

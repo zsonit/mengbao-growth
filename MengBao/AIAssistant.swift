@@ -202,9 +202,12 @@ enum AIAssistant {
         case "breast": return .breast
         case "bottle": return .bottle
         case "pumping": return .pumping
+        case "storage": return .storage
         case "diaper": return .diaper
         case "solid": return .solid
         case "supplement": return .supplement
+        case "medicine": return .medicine
+        case "notebook": return .notebook
         case "temp": return .temp
         case "custom": return .custom
         default: return nil
@@ -228,7 +231,10 @@ enum AIAssistant {
             log.value = v
         case .diaper:
             log.diaperKind = (a["diaperKind"] as? String) ?? "小便"
-        case .solid, .supplement, .custom:
+        case .storage:
+            guard let ml = num(a, "ml"), ml > 0, ml < 2000 else { return nil }
+            log.ml = ml
+        case .medicine, .notebook, .solid, .supplement, .custom:
             break
         }
         if k == .breast, let s = a["side"] as? String, !s.isEmpty { log.side = s }

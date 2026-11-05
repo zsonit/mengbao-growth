@@ -7,7 +7,8 @@ enum Sex: String, Codable, CaseIterable, Identifiable {
     case girl = "女"
 
     var id: String { rawValue }
-    var symbol: String { self == .boy ? "👦" : "👧" }
+    // 默认头像换成可爱、现代风格的小动物
+    var symbol: String { self == .boy ? "🐣" : "🐰" }
     var label: String { rawValue }
 }
 

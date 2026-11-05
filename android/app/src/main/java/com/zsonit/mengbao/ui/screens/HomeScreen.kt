@@ -49,6 +49,7 @@ import com.zsonit.mengbao.model.Child
 import com.zsonit.mengbao.model.FeedLog
 import com.zsonit.mengbao.model.GrowthRecord
 import com.zsonit.mengbao.model.QuickEntry
+import com.zsonit.mengbao.ui.Avatar
 import com.zsonit.mengbao.ui.CapsuleShape
 import com.zsonit.mengbao.ui.DividerLine
 import com.zsonit.mengbao.ui.EmptyHint
@@ -250,11 +251,16 @@ private fun HomeHeader(
                 Store.state.children.forEach { kid ->
                     DropdownMenuItem(
                         text = {
-                            Text(
-                                "${kid.displayAvatar} ${kid.name}" +
-                                    if (kid.id == Store.state.currentId) "  ✓" else "",
-                                fontSize = 14.sp,
-                            )
+                            // 切换列表里显示照片小头像（没设置照片就用可爱的 emoji）
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(child = kid, size = 22.dp, fontSize = 12.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    kid.name +
+                                        if (kid.id == Store.state.currentId) "  ✓" else "",
+                                    fontSize = 14.sp,
+                                )
+                            }
                         },
                         onClick = {
                             Store.selectChild(kid.id)

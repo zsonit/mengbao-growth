@@ -90,12 +90,18 @@ struct AvatarCropView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
 
-    private let boxSide: CGFloat = 280
+    // 裁剪框尽量大：占满屏宽（左右留一点边距），接近全屏更好操作
+    private var boxSide: CGFloat {
+        max(280, min(UIScreen.main.bounds.width, UIScreen.main.bounds.height) - 28)
+    }
 
     var body: some View {
         VStack(spacing: 18) {
             Text("双指缩放、拖动图片，调整好角度后保存")
                 .font(.system(size: 12.5)).foregroundColor(Palette.subtle)
+                .padding(.top, 6)
+
+            Spacer(minLength: 4)
 
             ZStack {
                 Rectangle().fill(Color.black.opacity(0.82))
@@ -113,15 +119,19 @@ struct AvatarCropView: View {
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .gesture(dragGesture.simultaneously(with: pinchGesture))
 
+            Spacer(minLength: 4)
+
+            // 两个按钮固定在屏幕下方，单手也够得着
             HStack(spacing: 14) {
                 Button("取消") { dismiss() }
                     .buttonStyle(PrimaryButtonStyle(filled: false))
                 Button("✂️ 就选这样") { confirm() }
                     .buttonStyle(PrimaryButtonStyle())
             }
+            .padding(.bottom, 12)
         }
         .padding(18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.background.ignoresSafeArea())
     }
 
