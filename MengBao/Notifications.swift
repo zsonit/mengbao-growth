@@ -25,9 +25,10 @@ final class NotificationManager {
     private let bdayPrefix = "mb.bday."
     private let suppPrefix = "mb.supp."
     private let medPrefix = "mb.med."
+    private let vaxPrefix = "mb.vax."
 
     /// 自己排的全部提醒前缀（重排前先清掉这些，避免残留）
-    private var allPrefixes: [String] { [growthPrefix, todoPrefix, bdayPrefix, suppPrefix, medPrefix] }
+    private var allPrefixes: [String] { [growthPrefix, todoPrefix, bdayPrefix, suppPrefix, medPrefix, vaxPrefix] }
 
     // MARK: 授权
 
@@ -62,11 +63,13 @@ final class NotificationManager {
                 self.center.removePendingNotificationRequests(withIdentifiers: stale)
             }
             let anyBday = !children.filter({ $0.birthdayRemind ?? true }).isEmpty
-            guard onGrowth || onTodo || anyBday || settings.suppReminderOn || settings.medReminderOn else { return }
+            let hasVaxPlan = children.contains { !($0.plans ?? [:]).isEmpty }
+            guard onGrowth || onTodo || anyBday || settings.suppReminderOn || settings.medReminderOn || hasVaxPlan else { return }
             if onGrowth { self.addGrowth(children: children, settings: settings) }
             if onTodo { self.addTodos(children: children, settings: settings) }
             self.addBirthdays(children: children)
             self.addDoseReminders(settings: settings)
+            self.addVaxReminders(children: children)
             self.debugList()
         }
     }
@@ -259,6 +262,40 @@ final class NotificationManager {
                 center.add(req, withCompletionHandler: nil)
             }
             count += 1
+        }
+    }
+
+    // MARK: 接种提醒（按「安排」里的计划：提前 N 天，带地点）
+
+    private func addVaxReminders(children: [Child]) {
+        let cal = Calendar.current
+        let now = Date()
+        for child in children {
+            guard let plans = child.plans, !plans.isEmpty else { continue }
+            let doses = GrowthMath.schedule(for: child)
+            for dose in doses {
+                guard let plan = plans[dose.key],
+                      plan.remindOn,
+                      dose.status != .done, dose.status != .locked else { continue }
+                let target: Date
+                if let d = plan.date {
+                    target = d
+                } else {
+                    target = cal.date(bySettingHour: 9, minute: 0, second: 0, of: dose.dueDate) ?? dose.dueDate
+                }
+                guard let fire = cal.date(byAdding: .day, value: -plan.advanceEffective, to: target), fire > now else { continue }
+                let content = UNMutableNotificationContent()
+                content.title = "💉 \(child.name)：该接种疫苗啦"
+                content.body = "\(dose.vaccine.name)（\(dose.vaccine.dose)）"
+                    + (plan.place.isEmpty ? "" : "，地点：\(plan.place)")
+                    + "，记得带《预防接种证》。"
+                content.sound = .default
+                let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+                let req = UNNotificationRequest(identifier: vaxPrefix + dose.key,
+                                                content: content,
+                                                trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
+                center.add(req, withCompletionHandler: nil)
+            }
         }
     }
 

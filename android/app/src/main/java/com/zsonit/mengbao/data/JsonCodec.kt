@@ -3,6 +3,8 @@ package com.zsonit.mengbao.data
 import com.zsonit.mengbao.model.AppSettings
 import com.zsonit.mengbao.model.AppState
 import com.zsonit.mengbao.model.Child
+import com.zsonit.mengbao.model.CustomShot
+import com.zsonit.mengbao.model.DosePlan
 import com.zsonit.mengbao.model.FeedLog
 import com.zsonit.mengbao.model.GrowthRecord
 import com.zsonit.mengbao.model.QuickEntry
@@ -100,6 +102,33 @@ object JsonCodec {
         }
         child.optVaccines?.takeIf { it.isNotEmpty() }?.let { ids ->
             put("optVaccines", JSONArray().apply { ids.forEach { put(it) } })
+        }
+        child.plans?.takeIf { it.isNotEmpty() }?.let { plans ->
+            put("plans", JSONObject().apply {
+                plans.forEach { (key, p) ->
+                    put(key, JSONObject().apply {
+                        p.date?.let { put("date", encodeMoment(it)) }
+                        put("remindOn", p.remindOn)
+                        put("advanceDays", p.advanceDays)
+                        put("place", p.place)
+                        put("note", p.note)
+                        put("calSync", p.calSync)
+                    })
+                }
+            })
+        }
+        child.customShots?.takeIf { it.isNotEmpty() }?.let { shots ->
+            put("customShots", JSONArray().apply {
+                shots.forEach { s ->
+                    put(JSONObject().apply {
+                        put("id", s.id)
+                        put("name", s.name)
+                        put("date", encodeDate(s.date))
+                        put("place", s.place)
+                        put("note", s.note)
+                    })
+                }
+            })
         }
         put("todos", JSONArray().apply { child.todos.forEach { put(encodeTodo(it)) } })
         child.updatedAt?.let { put("updatedAt", encodeMoment(it)) }
@@ -236,6 +265,33 @@ object JsonCodec {
         teethDecay = decodeTeethDecay(o),
         optVaccines = o.optJSONArray("optVaccines")?.let { arr ->
             (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.ifEmpty { null }
+        },
+        plans = o.optJSONObject("plans")?.let { po ->
+            val out = mutableMapOf<String, DosePlan>()
+            po.keys().forEach { key ->
+                val p = po.optJSONObject(key) ?: return@forEach
+                out[key] = DosePlan(
+                    date = decodeMoment(p.optDoubleOrNull("date")),
+                    remindOn = p.optBoolean("remindOn", true),
+                    advanceDays = p.optIntOrNull("advanceDays") ?: 1,
+                    place = p.optString("place"),
+                    note = p.optString("note"),
+                    calSync = p.optBoolean("calSync", false),
+                )
+            }
+            out.ifEmpty { null }
+        },
+        customShots = o.optJSONArray("customShots")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                val s = arr.optJSONObject(i) ?: return@mapNotNull null
+                CustomShot(
+                    id = s.optString("id").ifEmpty { newId() },
+                    name = s.optString("name"),
+                    date = decodeDate(s.optDoubleOrNull("date")),
+                    place = s.optString("place"),
+                    note = s.optString("note"),
+                )
+            }.ifEmpty { null }
         },
         updatedAt = o.optDoubleOrNull("updatedAt")?.let { decodeMoment(it) },
         birthdayRemind = o.optBooleanOrNull("birthdayRemind"),

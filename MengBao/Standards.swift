@@ -359,6 +359,40 @@ enum Standards {
     static let optionalById: [String: OptionalVaccine] =
         Dictionary(uniqueKeysWithValues: optionalCatalog.map { ($0.id, $0) })
 
+    // MARK: 疫苗补充信息（预防疾病 / 每剂剂量）与「二选一」分组
+
+    /// code -> (预防什么, 每剂剂量)；展示用，不在程序表里重复写
+    static let extraByCode: [String: (prevents: String, amount: String)] = [
+        "HepB":   ("乙型肝炎", "0.5 ml"),
+        "IPV":    ("脊髓灰质炎", "0.5 ml"),
+        "bOPV":   ("脊髓灰质炎", "口服 2 滴"),
+        "DTaP":   ("百日咳、白喉、破伤风", "0.5 ml"),
+        "MMR":    ("麻疹、流行性腮腺炎、风疹", "0.5 ml"),
+        "JE-L":   ("流行性乙型脑炎", "0.5 ml"),
+        "JE-I":   ("流行性乙型脑炎", "0.5 ml"),
+        "MPV-A":  ("流行性脑脊髓膜炎（A 群）", "0.5 ml"),
+        "MPV-AC": ("流行性脑脊髓膜炎（A 群、C 群）", "0.5 ml"),
+        "HepA-L": ("甲型肝炎", "0.5 ml"),
+        "HepA-I": ("甲型肝炎", "0.5 ml"),
+    ]
+
+    /// 减毒活疫苗 / 灭活疫苗「二选一」组：接种其一后，组内另一种自动锁定
+    static let altGroups: [String: [String]] = [
+        "JE":   ["JE-L", "JE-I"],
+        "HepA": ["HepA-L", "HepA-I"],
+    ]
+
+    /// code -> 所属二选一组名（不在组内返回 nil）
+    static func altGroup(of code: String) -> String? {
+        altGroups.first(where: { $0.value.contains(code) })?.key
+    }
+
+    /// code 的中文名（用于锁定提示）
+    static let altLabel: [String: String] = [
+        "JE-L": "乙脑减毒活疫苗", "JE-I": "乙脑灭活疫苗",
+        "HepA-L": "甲肝减毒活疫苗", "HepA-I": "甲肝灭活疫苗",
+    ]
+
     static let optionalVaccines: [(String, String)] = [
         ("五联疫苗", "2 / 3 / 4 月龄 + 18 月龄"),
         ("13 价肺炎", "2 / 4 / 6 月龄 + 12–15 月龄"),

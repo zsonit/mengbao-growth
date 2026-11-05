@@ -42,6 +42,8 @@ object Reminders {
     /** 每日补剂 / 用药提醒（开关 + 自定义时间点，每天重复） */
     private const val SUPP_PREFIX = "mb.supp."
     private const val MED_PREFIX = "mb.med."
+    /** 接种提醒（按每剂「安排」里的计划） */
+    private const val VAX_PREFIX = "mb.vax."
     /** 定期测量一次往前排几个周期（App 长期不打开也能撑住） */
     private const val GROWTH_SLOTS = 8
     /** 待办提醒最多排多少条 */
@@ -88,8 +90,9 @@ object Reminders {
         val s = Store.settings
         val children = Store.state.children
         val anyBday = children.any { it.birthdayRemind != false }
+        val hasVaxPlan = children.any { !(it.plans ?: emptyMap()).isEmpty() }
         if (!s.growthReminderOn && !s.todoReminderOn && !anyBday &&
-            !s.suppReminderOn && !s.medReminderOn
+            !s.suppReminderOn && !s.medReminderOn && !hasVaxPlan
         ) return
         if (!permissionGranted(app)) return
         val ids = mutableSetOf<String>()
@@ -97,6 +100,7 @@ object Reminders {
         if (s.todoReminderOn) ids += scheduleTodos(app, children, s)
         ids += scheduleBirthdays(app, children)
         ids += scheduleDose(app, s)
+        ids += scheduleVax(app, children)
         saveIds(app, ids)
         AppLog.i("Remind", "提醒已排：测量 ${ids.count { it.startsWith(GROWTH_PREFIX) }} 条，待办 ${ids.count { it.startsWith(TODO_PREFIX) }} 条，生日 ${ids.count { it.startsWith(BDAY_PREFIX) }} 条，用药补剂 ${ids.count { it.startsWith(MED_PREFIX) || it.startsWith(SUPP_PREFIX) }} 条")
     }
@@ -292,6 +296,36 @@ object Reminders {
         var fire = now.toLocalDate().atTime(h, m)
         if (!fire.isAfter(now)) fire = fire.plusDays(1)
         runCatching { setAlarm(context, alarm(context), id, fire, title, body) }
+    }
+
+    // MARK: 接种提醒（按每剂「安排」里的计划：提前 N 天，带地点）
+
+    private fun scheduleVax(context: Context, children: List<Child>): Set<String> {
+        val am = alarm(context)
+        val ids = mutableSetOf<String>()
+        val now = LocalDateTime.now()
+
+        for (child in children) {
+            val plans = child.plans ?: continue
+            if (plans.isEmpty()) continue
+            val doses = GrowthMath.schedule(child)
+            for (dose in doses) {
+                val plan = plans[dose.key] ?: continue
+                if (!plan.remindOn) continue
+                if (dose.status == Dose.Status.DONE || dose.status == Dose.Status.LOCKED) continue
+                val target = plan.date ?: dose.dueDate.atTime(9, 0)
+                val fire = target.minusDays(plan.advanceEffective.toLong())
+                if (!fire.isAfter(now)) continue
+                val body = buildString {
+                    append("${dose.vaccine.name}（${dose.vaccine.dose}）")
+                    if (plan.place.isNotEmpty()) append("，地点：${plan.place}")
+                    append("，记得带《预防接种证》。")
+                }
+                val id = VAX_PREFIX + dose.key
+                if (setAlarm(context, am, id, fire, "💉 ${child.name}：该接种疫苗啦", body)) ids.add(id)
+            }
+        }
+        return ids
     }
 
     // MARK: 闹钟底层

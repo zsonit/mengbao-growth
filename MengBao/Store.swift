@@ -215,6 +215,26 @@ final class Store: ObservableObject {
         }
     }
 
+    /// 保存 / 清除某剂的接种安排（nil = 清除）；改完自动重排本机提醒
+    func setDosePlan(key: String, _ plan: DosePlan?) {
+        update { s in
+            guard let id = s.currentID, let idx = s.children.firstIndex(where: { $0.id == id }) else { return }
+            var plans = s.children[idx].plans ?? [:]
+            if let plan { plans[key] = plan } else { plans.removeValue(forKey: key) }
+            s.children[idx].plans = plans.isEmpty ? nil : plans
+            s.children[idx].updatedAt = Date()
+        }
+    }
+
+    /// 其他接种记录（时间表外的疫苗）
+    func addCustomShot(_ shot: CustomShot) {
+        updateCurrent { $0.customShots = ($0.customShots ?? []) + [shot] }
+    }
+
+    func removeCustomShot(_ id: UUID) {
+        updateCurrent { $0.customShots = ($0.customShots ?? []).filter { $0.id != id } }
+    }
+
     // MARK: 待办
 
     func addTodo(_ todo: TodoItem) {

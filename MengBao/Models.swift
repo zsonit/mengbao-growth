@@ -269,6 +269,8 @@ struct Child: Identifiable, Codable, Hashable {
     var teethFallen: [Int: Date]? = nil   // 换牙档案：乳牙 FDI 编码 -> 脱落日期
     var teethDecay: [Int: ToothDecay]? = nil  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     var optVaccines: [String]? = nil      // 自选（自费）疫苗 id，见 Standards.optionalCatalog
+    var plans: [String: DosePlan]? = nil  // 接种安排：dose key -> 计划时间/提醒/地点
+    var customShots: [CustomShot]? = nil  // 其他接种记录：时间表外的疫苗（狂犬、破伤风等）
     var updatedAt: Date? = nil            // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
     var birthdayRemind: Bool? = nil       // 旧字段：生日提醒总开关（兼容旧版本数据，nil = 开）
     var birthdayTime: Int? = nil          // 旧字段：生日提醒时刻（0-1439 分钟，nil = 9:00）
@@ -313,6 +315,28 @@ struct Child: Identifiable, Codable, Hashable {
 }
 
 // MARK: - 快捷入口配置
+
+/// 单剂接种安排（对应疫苗页「安排」弹窗；date 为 nil 时提醒按当天 09:00 计算）
+struct DosePlan: Codable, Hashable {
+    var date: Date? = nil            // 指定接种时刻（nil = 用推荐接种时间当天 09:00）
+    var remindOn: Bool = true        // 接种提醒开关
+    var advanceDays: Int = 1         // 提前几天提醒（至少 1）
+    var place: String = ""           // 接种地点（可选）
+    var note: String = ""            // 备注（可选）
+    var calSync: Bool = false        // 是否写入系统日历
+
+    /// 有效提醒提前天数
+    var advanceEffective: Int { max(1, advanceDays) }
+}
+
+/// 其他接种记录：时间表外的疫苗（狂犬、破伤风、流感等）
+struct CustomShot: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var name: String                 // 疫苗名称
+    var date: Date                   // 接种日期
+    var place: String = ""           // 接种地点
+    var note: String = ""            // 备注（剂次、厂家等）
+}
 
 struct QuickEntry: Identifiable, Codable, Hashable {
     var id: String                  // 内置项用 kind 值，自定义项用 "custom-<UUID>"

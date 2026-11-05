@@ -192,6 +192,29 @@ data class ShotRecord(
     val note: String = "",
 )
 
+// MARK: - 接种安排 / 其他接种记录
+
+/** 单剂接种安排（对应疫苗页「安排」弹窗；date 为 null 时提醒按当天 09:00 计算） */
+data class DosePlan(
+    val date: LocalDateTime? = null,  // 指定接种时刻（null = 用推荐接种时间当天 09:00）
+    val remindOn: Boolean = true,     // 接种提醒开关
+    val advanceDays: Int = 1,         // 提前几天提醒（至少 1）
+    val place: String = "",           // 接种地点（可选）
+    val note: String = "",            // 备注（可选）
+    val calSync: Boolean = false,     // 是否写入系统日历
+) {
+    val advanceEffective: Int get() = maxOf(1, advanceDays)
+}
+
+/** 其他接种记录：时间表外的疫苗（狂犬、破伤风、流感等） */
+data class CustomShot(
+    val id: String = newId(),
+    val name: String,                 // 疫苗名称
+    val date: LocalDate,              // 接种日期
+    val place: String = "",           // 接种地点
+    val note: String = "",            // 备注（剂次、厂家等）
+)
+
 // MARK: - 龋齿（换牙档案）
 
 /** 一颗乳牙的龋齿（烂牙）记录，与 iOS ToothDecay 保持一致 */
@@ -229,6 +252,8 @@ data class Child(
     val teethFallen: Map<Int, LocalDate>? = null,  // 换牙档案：乳牙 FDI 编码 -> 脱落日期
     val teethDecay: Map<Int, ToothDecay>? = null,  // 换牙档案：乳牙 FDI 编码 -> 龋齿（烂牙）记录
     val optVaccines: List<String>? = null,         // 自选（自费）疫苗 id，见 Standards.optionalCatalog
+    val plans: Map<String, DosePlan>? = null,      // 接种安排：dose key -> 计划时间/提醒/地点
+    val customShots: List<CustomShot>? = null,     // 其他接种记录：时间表外的疫苗（狂犬、破伤风等）
     val updatedAt: LocalDateTime? = null,          // 配对同步：档案最后一次修改时刻（冲突时后改的赢）
     val birthdayRemind: Boolean? = null,           // 旧字段：生日提醒总开关（兼容旧版本数据，null = 开）
     val birthdayTime: Int? = null,                 // 旧字段：生日提醒时刻（0-1439 分钟，null = 9:00）

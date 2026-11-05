@@ -49,7 +49,7 @@ struct Evaluation {
 
 struct Dose: Identifiable, Hashable {
     enum Status: String {
-        case done, due, soon, pending
+        case done, due, soon, pending, locked
 
         var label: String {
             switch self {
@@ -57,6 +57,7 @@ struct Dose: Identifiable, Hashable {
             case .due: return "已到期"
             case .soon: return "近期接种"
             case .pending: return "待接种"
+            case .locked: return "已锁定"
             }
         }
     }
@@ -433,6 +434,21 @@ enum GrowthMath {
                 list.append(Dose(key: key, months: months, ageLabel: ageText(for: months),
                                  dueDate: dueDate, vaccine: vaccine, status: status, doneDate: done?.date))
             }
+        }
+
+        // 减毒活 / 灭活「二选一」：接种其一后，组内另一种自动锁定（红字提示，不能再打勾）
+        let doneCodes = Set(child.shots.keys.compactMap { key -> String? in
+            let parts = key.split(separator: "|")
+            return parts.count >= 2 ? String(parts[1]) : nil
+        })
+        list = list.map { dose in
+            guard dose.status != .done, let group = Standards.altGroup(of: dose.vaccine.code) else { return dose }
+            let rivals = (Standards.altGroups[group] ?? []).filter { $0 != dose.vaccine.code }
+            if rivals.contains(where: { doneCodes.contains($0) }) {
+                return Dose(key: dose.key, months: dose.months, ageLabel: dose.ageLabel,
+                            dueDate: dose.dueDate, vaccine: dose.vaccine, status: .locked, doneDate: nil)
+            }
+            return dose
         }
         return list
     }

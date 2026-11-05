@@ -1,9 +1,12 @@
 package com.zsonit.mengbao.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,9 +31,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,23 +59,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zsonit.mengbao.data.Clinic
+import com.zsonit.mengbao.data.CalendarSync
 import com.zsonit.mengbao.data.Dose
 import com.zsonit.mengbao.data.GrowthMath
 import com.zsonit.mengbao.data.Standards
 import com.zsonit.mengbao.data.Store
 import com.zsonit.mengbao.model.Child
+import com.zsonit.mengbao.model.CustomShot
+import com.zsonit.mengbao.model.DosePlan
 import com.zsonit.mengbao.ui.ChipLabel
 import com.zsonit.mengbao.ui.Avatar
+import com.zsonit.mengbao.ui.DateField
 import com.zsonit.mengbao.ui.DividerLine
 import com.zsonit.mengbao.ui.EmptyHint
 import com.zsonit.mengbao.ui.HintBlock
 import com.zsonit.mengbao.ui.KVRow
+import com.zsonit.mengbao.ui.NumberInput
 import com.zsonit.mengbao.ui.Palette
 import com.zsonit.mengbao.ui.SectionHeader
 import com.zsonit.mengbao.ui.TagTone
 import com.zsonit.mengbao.ui.TagView
+import com.zsonit.mengbao.ui.TextInput
 import com.zsonit.mengbao.ui.TopBar
 import com.zsonit.mengbao.ui.cardStyle
+import java.time.LocalDate
 import java.util.Locale
 
 // MARK: - 接种计划
@@ -93,6 +110,11 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
     var filter by remember { mutableStateOf("全部") }
     var statusFilter by remember { mutableStateOf("全部") }
     var showOptional by remember { mutableStateOf(false) }
+    var planDose by remember { mutableStateOf<Dose?>(null) }
+    var showCustomShot by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val calPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     Column(Modifier.fillMaxSize().background(Palette.background)) {
         TopBar(title = "接种计划", onBack = onBack)
@@ -114,6 +136,8 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
                     onOpenYamiao = onOpenYamiao,
                     onOpenNearby = onOpenNearby,
                     onOpenOptional = { showOptional = true },
+                    onPlan = { planDose = it },
+                    onAddCustomShot = { showCustomShot = true },
                 )
             }
         }
@@ -125,6 +149,23 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
             onDismiss = { showOptional = false },
             onSave = { Store.setOptVaccines(it) },
         )
+    }
+
+    if (planDose != null && child != null) {
+        DosePlanDialog(
+            dose = planDose!!,
+            child = child,
+            onDismiss = { planDose = null },
+            onRequestCalendarPermission = {
+                if (!CalendarSync.permissionGranted(context)) {
+                    calPerm.launch(Manifest.permission.WRITE_CALENDAR)
+                }
+            },
+        )
+    }
+
+    if (showCustomShot) {
+        CustomShotDialog(onDismiss = { showCustomShot = false })
     }
 }
 
@@ -139,6 +180,8 @@ private fun VaccineContent(
     onOpenYamiao: () -> Unit,
     onOpenNearby: () -> Unit,
     onOpenOptional: () -> Unit,
+    onPlan: (Dose) -> Unit,
+    onAddCustomShot: () -> Unit,
 ) {
     val schedule = GrowthMath.schedule(child)
     val done = schedule.count { it.status == Dose.Status.DONE }
@@ -316,10 +359,15 @@ private fun VaccineContent(
     }
 
     visible.forEach { dose ->
-        Box(Modifier.padding(horizontal = 16.dp).padding(top = 9.dp)) {
-            DoseCard(dose = dose, onToggle = { Store.toggleShot(dose.key) })
+        Column(Modifier.padding(horizontal = 16.dp).padding(top = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            DoseCard(dose = dose, onToggle = {
+                if (dose.status != Dose.Status.LOCKED) Store.toggleShot(dose.key)
+            })
+            PlanBar(dose = dose, plan = (child.plans ?: emptyMap())[dose.key], onClick = { onPlan(dose) })
         }
     }
+
+    CustomShotsCard(child = child, onAdd = onAddCustomShot)
 
     SectionHeader(title = "非免疫规划疫苗（自费 · 自愿）")
     Column(
@@ -373,21 +421,25 @@ private fun VaccineContent(
 
 @Composable
 private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
+    val isLocked = dose.status == Dose.Status.LOCKED
     val tone = when (dose.status) {
         Dose.Status.DONE -> TagTone.OK
         Dose.Status.DUE -> TagTone.BAD
         Dose.Status.SOON -> TagTone.WARN
+        Dose.Status.LOCKED -> TagTone.GRAY
         Dose.Status.PENDING -> TagTone.GRAY
     }
     val statusText = when (dose.status) {
         Dose.Status.DONE -> "已接种" + (dose.doneDate?.let { " · " + GrowthMath.dateString(it) } ?: "")
         Dose.Status.DUE -> "已到期 · 尽快补种"
         Dose.Status.SOON -> "近期接种"
+        Dose.Status.LOCKED -> "已锁定"
         Dose.Status.PENDING -> "待接种"
     }
     val statusColor = when (dose.status) {
         Dose.Status.DONE -> Palette.ok
         Dose.Status.DUE -> Palette.bad
+        Dose.Status.LOCKED -> Palette.subtle
         else -> Palette.warn
     }
     val borderColor = when (dose.status) {
@@ -396,6 +448,7 @@ private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
         else -> Palette.hairline
     }
     val shape = RoundedCornerShape(16.dp)
+    val altGroup = Standards.altGroupOf(dose.vaccine.code)
 
     Column(
         Modifier
@@ -403,8 +456,14 @@ private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
             .clip(shape)
             .background(Palette.card)
             .border(1.dp, borderColor, shape)
-            .alpha(if (dose.status == Dose.Status.DONE) 0.78f else 1f)
-            .clickable { onToggle() },
+            .alpha(
+                when {
+                    dose.status == Dose.Status.DONE -> 0.78f
+                    isLocked -> 0.62f
+                    else -> 1f
+                }
+            )
+            .clickable(enabled = !isLocked) { onToggle() },
     ) {
         Row(
             Modifier
@@ -423,13 +482,39 @@ private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
             Spacer(Modifier.weight(1f))
             TagView(text = dose.vaccine.dose, tone = tone)
         }
+
+        // 减毒 / 灭活「二选一」提示条（橙红字）
+        if (altGroup != null) {
+            Text(
+                if (isLocked) "已接种${Standards.altLabel[dose.vaccine.code] ?: "另一种"}，此项自动锁定"
+                else "减毒 / 灭活 二选一。接种其一后另一种自动锁定",
+                fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
+                color = if (isLocked) Palette.subtle else Palette.bad,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isLocked) Palette.hairlineSoft.copy(alpha = 0.4f) else Palette.bad.copy(alpha = 0.08f))
+                    .padding(horizontal = 15.dp, vertical = 8.dp),
+            )
+        }
+
         Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 10.dp)) {
-            KVRow(key = "建议时间", value = "${dose.ageLabel}（约 ${GrowthMath.dateString(dose.dueDate)}）")
-            KVRow(key = "接种途径", value = dose.vaccine.route)
+            KVRow(key = "推荐接种时间", value = GrowthMath.dateString(dose.dueDate))
             KVRow(key = "接种部位", value = dose.vaccine.site)
             KVRow(key = "状态", value = statusText, valueColor = statusColor)
             Box(Modifier.padding(vertical = 6.dp)) {
                 DividerLine(Palette.hairlineSoft)
+            }
+            // 预防什么 + 接种方式 + 剂量（剂量加粗）
+            val extra = Standards.extraByCode[dose.vaccine.code]
+            if (extra != null) {
+                Column {
+                    Text("预防${extra.first}", fontSize = 12.5.sp, color = Palette.subtle, lineHeight = 17.sp)
+                    Row {
+                        Text("接种方式：${dose.vaccine.route}。剂量：", fontSize = 12.5.sp, color = Palette.subtle)
+                        Text(extra.second, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Palette.ink)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
             }
             Text(
                 "📌 ${dose.vaccine.note}",
@@ -437,6 +522,246 @@ private fun DoseCard(dose: Dose, onToggle: () -> Unit) {
             )
         }
     }
+}
+
+// MARK: - 安排接种条 / 弹窗
+
+/** 「安排接种」小条：显示计划摘要，点开安排弹窗 */
+@Composable
+private fun PlanBar(dose: Dose, plan: DosePlan?, onClick: () -> Unit) {
+    val summary = if (plan == null) {
+        "推荐接种时间 ${GrowthMath.dateString(dose.dueDate)}"
+    } else {
+        buildList {
+            add("计划 ${GrowthMath.dateString(plan.date?.toLocalDate() ?: dose.dueDate)}")
+            if (plan.remindOn) add("提前 ${plan.advanceEffective} 天提醒")
+            if (plan.place.isNotEmpty()) add("📍 ${plan.place}")
+            if (plan.calSync) add("已同步日历")
+        }.joinToString(" · ")
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(11.dp))
+            .background(Palette.card)
+            .border(1.dp, Palette.hairlineSoft, RoundedCornerShape(11.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Event,
+            contentDescription = null,
+            tint = Palette.purple,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(summary, fontSize = 11.5.sp, color = if (plan == null) Palette.subtle else Palette.ink, maxLines = 1)
+        Spacer(Modifier.weight(1f))
+        Text("安排", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple)
+    }
+}
+
+/** 「安排接种」弹窗：指定时刻 / 提醒提前天数 / 地点 / 备注 / 同步系统日历 */
+@Composable
+private fun DosePlanDialog(
+    dose: Dose,
+    child: Child,
+    onDismiss: () -> Unit,
+    onRequestCalendarPermission: () -> Unit,
+) {
+    val existing = (child.plans ?: emptyMap())[dose.key]
+    var specifyTime by remember { mutableStateOf(existing?.date != null) }
+    var planDate by remember {
+        mutableStateOf(existing?.date?.toLocalDate() ?: dose.dueDate.coerceAtLeast(LocalDate.now()))
+    }
+    var planHour by remember { mutableStateOf(existing?.date?.hour ?: 9) }
+    var planMinute by remember { mutableStateOf(existing?.date?.minute ?: 0) }
+    var remindOn by remember { mutableStateOf(existing?.remindOn ?: true) }
+    var advanceDays by remember { mutableStateOf(existing?.advanceEffective ?: 1) }
+    var place by remember { mutableStateOf(existing?.place ?: "") }
+    var note by remember { mutableStateOf(existing?.note ?: "") }
+    var calSync by remember { mutableStateOf(existing?.calSync ?: false) }
+    var calMsg by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${dose.vaccine.name} ${dose.vaccine.dose}", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "默认使用推荐接种时间（${GrowthMath.dateString(dose.dueDate)}），可按门诊安排调整。保存安排后仍需单独记录实际接种。",
+                    fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 16.sp,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("指定接种时刻", fontSize = 14.sp, color = Palette.ink, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = specifyTime,
+                        onCheckedChange = { specifyTime = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
+                    )
+                }
+                Text(
+                    if (specifyTime) "计划接种时间（含时刻）" else "计划接种日期",
+                    fontSize = 11.5.sp, color = Palette.subtle,
+                )
+                if (specifyTime) {
+                    DateField(label = "日期", date = planDate, onDate = { planDate = it })
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        NumberInput("时", planHour.toString(), unit = "点", modifier = Modifier.weight(1f)) {
+                            planHour = (it.toIntOrNull() ?: 9).coerceIn(0, 23)
+                        }
+                        NumberInput("分", planMinute.toString(), unit = "分", modifier = Modifier.weight(1f)) {
+                            planMinute = (it.toIntOrNull() ?: 0).coerceIn(0, 59)
+                        }
+                    }
+                } else {
+                    DateField(label = "日期", date = planDate, onDate = { planDate = it })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("接种提醒", fontSize = 14.sp, color = Palette.ink, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = remindOn,
+                        onCheckedChange = { remindOn = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
+                    )
+                }
+                if (remindOn) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("提前", fontSize = 13.sp, color = Palette.subtle)
+                        listOf(1, 3, 7).forEach { d ->
+                            ChipLabel(text = if (d == 1) "提前一天" else "提前 $d 天", selected = advanceDays == d, onClick = { advanceDays = d })
+                        }
+                    }
+                }
+                TextInput(label = "接种地点（可选）", value = place, placeholder = "例如 区妇幼保健院", onChange = { place = it })
+                TextInput(label = "备注（可选）", value = note, placeholder = "剂次、医生交代等", onChange = { note = it })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("同步到系统日历", fontSize = 14.sp, color = Palette.ink)
+                        Text("写进手机日历，到点由日历提醒", fontSize = 11.sp, color = Palette.subtle)
+                    }
+                    Switch(
+                        checked = calSync,
+                        onCheckedChange = { on ->
+                            calSync = on
+                            if (on) onRequestCalendarPermission()
+                        },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Palette.purple),
+                    )
+                }
+                calMsg?.let { Text(it, fontSize = 11.5.sp, color = Palette.bad) }
+                Text("未指定接种时刻时，提醒以当天 09:00 计算。", fontSize = 11.sp, color = Palette.subtle)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val plan = DosePlan(
+                    date = if (specifyTime) planDate.atTime(planHour, planMinute) else null,
+                    remindOn = remindOn,
+                    advanceDays = advanceDays,
+                    place = place.trim(),
+                    note = note.trim(),
+                    calSync = calSync,
+                )
+                Store.setDosePlan(dose.key, plan)
+                if (calSync) {
+                    val err = CalendarSync.addDoseEvent(context, child, dose, plan)
+                    if (err != null) {
+                        calMsg = err
+                        return@TextButton
+                    }
+                }
+                onDismiss()
+            }) { Text("保存安排") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
+
+// MARK: - 其他接种记录
+
+/** 其他接种记录卡片（狂犬、破伤风等时间表外的疫苗） */
+@Composable
+private fun CustomShotsCard(child: Child, onAdd: () -> Unit) {
+    val shots = child.customShots ?: emptyList()
+    SectionHeader(title = "其他接种记录")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .cardStyle(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (shots.isEmpty()) {
+            Text(
+                "暂无记录。狂犬、破伤风等时间表外的疫苗可以在这里登记。",
+                fontSize = 12.sp, color = Palette.subtle,
+            )
+        } else {
+            shots.forEach { shot ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Text("💉", fontSize = 15.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(shot.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
+                        Text(
+                            GrowthMath.dateString(shot.date) + if (shot.place.isNotEmpty()) " · ${shot.place}" else "",
+                            fontSize = 11.5.sp, color = Palette.subtle,
+                        )
+                        if (shot.note.isNotEmpty()) {
+                            Text(shot.note, fontSize = 11.5.sp, color = Palette.subtle)
+                        }
+                    }
+                    TextButton(onClick = { Store.removeCustomShot(shot.id) }) {
+                        Text("删除", fontSize = 12.sp, color = Palette.subtle)
+                    }
+                }
+            }
+        }
+        TextButton(onClick = onAdd) {
+            Text("＋ 记一次", fontSize = 13.sp, color = Palette.purple, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/** 其他接种登记弹窗 */
+@Composable
+private fun CustomShotDialog(onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now()) }
+    var place by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("其他疫苗接种登记", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "狂犬、破伤风、流感等时间表外的疫苗：打了什么、时间、地点、剂次都可以记。",
+                    fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 16.sp,
+                )
+                TextInput(label = "疫苗名称", value = name, placeholder = "例如 狂犬疫苗 第 2 针", onChange = { name = it })
+                DateField(label = "接种日期", date = date, onDate = { date = it })
+                TextInput(label = "接种地点（可选）", value = place, placeholder = "例如 市疾控中心", onChange = { place = it })
+                TextInput(label = "备注（可选）", value = note, placeholder = "剂次、厂家等", onChange = { note = it })
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.trim().isEmpty()) return@TextButton
+                Store.addCustomShot(CustomShot(name = name.trim(), date = date, place = place.trim(), note = note.trim()))
+                onDismiss()
+            }) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
 }
 
 // MARK: - 自选疫苗入口

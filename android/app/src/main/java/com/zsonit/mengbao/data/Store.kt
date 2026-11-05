@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.zsonit.mengbao.model.AppState
 import com.zsonit.mengbao.model.Child
+import com.zsonit.mengbao.model.CustomShot
+import com.zsonit.mengbao.model.DosePlan
 import com.zsonit.mengbao.model.FeedLog
 import com.zsonit.mengbao.model.GrowthRecord
 import com.zsonit.mengbao.model.QuickEntry
@@ -187,6 +189,27 @@ object Store {
                 }
             },
         )
+    }
+
+    /** 保存 / 清除某剂的接种安排（null = 清除）；改完自动重排本机提醒 */
+    fun setDosePlan(key: String, plan: DosePlan?) = update { s ->
+        val id = s.currentId ?: return@update s
+        s.copy(children = s.children.map { c ->
+            if (c.id != id) c else {
+                val plans = (c.plans ?: emptyMap()).toMutableMap()
+                if (plan != null) plans[key] = plan else plans.remove(key)
+                c.copy(plans = plans.ifEmpty { null }, updatedAt = java.time.LocalDateTime.now())
+            }
+        })
+    }
+
+    /** 其他接种记录（时间表外的疫苗） */
+    fun addCustomShot(shot: CustomShot) = updateCurrent { c ->
+        c.copy(customShots = (c.customShots ?: emptyList()) + shot, updatedAt = java.time.LocalDateTime.now())
+    }
+
+    fun removeCustomShot(shotId: String) = updateCurrent { c ->
+        c.copy(customShots = (c.customShots ?: emptyList()).filter { it.id != shotId }, updatedAt = java.time.LocalDateTime.now())
     }
 
     // MARK: 待办

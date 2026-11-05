@@ -56,7 +56,7 @@ data class Dose(
     val doneDate: LocalDate? = null,
 ) {
     enum class Status(val label: String) {
-        DONE("已接种"), DUE("已到期"), SOON("近期接种"), PENDING("待接种")
+        DONE("已接种"), DUE("已到期"), SOON("近期接种"), PENDING("待接种"), LOCKED("已锁定")
     }
 }
 
@@ -400,7 +400,20 @@ object GrowthMath {
                 list.add(Dose(key, months, ageTextForMonths(months), child.birthDate.plusMonths(months.toLong()), vaccine, status, done?.date))
             }
         }
-        return list
+
+        // 减毒活 / 灭活「二选一」：接种其一后，组内另一种自动锁定（红字提示，不能再打勾）
+        val doneCodes = child.shots.keys.mapNotNull { key -> key.split("|").getOrNull(1) }.toSet()
+        val locked = list.map { dose ->
+            if (dose.status == Dose.Status.DONE) return@map dose
+            val group = Standards.altGroupOf(dose.vaccine.code) ?: return@map dose
+            val rivals = (Standards.altGroups[group] ?: emptyList()).filter { it != dose.vaccine.code }
+            if (rivals.any { doneCodes.contains(it) }) {
+                dose.copy(status = Dose.Status.LOCKED, doneDate = null)
+            } else {
+                dose
+            }
+        }
+        return locked
     }
 
     /** 月龄 -> 中文年龄提示（自选疫苗的月龄不一定在标准表里） */

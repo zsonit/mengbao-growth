@@ -25,8 +25,9 @@ struct MengBaoApp: App {
         let hasDueTodo = store.state.children.contains { child in
             child.todos.contains { !$0.done && $0.due != nil }
         }
+        let hasVaxPlan = store.state.children.contains { !($0.plans ?? [:]).isEmpty }
         if store.settings.growthReminderOn || (store.settings.todoReminderOn && hasDueTodo)
-            || store.settings.suppReminderOn || store.settings.medReminderOn {
+            || store.settings.suppReminderOn || store.settings.medReminderOn || hasVaxPlan {
             NotificationManager.shared.ensureAuthorized()
         }
     }

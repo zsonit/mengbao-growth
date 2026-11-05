@@ -362,6 +362,39 @@ object Standards {
 
     val optionalById: Map<String, OptionalVaccine> = optionalCatalog.associateBy { it.id }
 
+    // MARK: 疫苗补充信息（预防疾病 / 每剂剂量）与「二选一」分组
+
+    /** code -> (预防什么, 每剂剂量)；展示用，不在程序表里重复写 */
+    val extraByCode: Map<String, Pair<String, String>> = mapOf(
+        "HepB" to ("乙型肝炎" to "0.5 ml"),
+        "IPV" to ("脊髓灰质炎" to "0.5 ml"),
+        "bOPV" to ("脊髓灰质炎" to "口服 2 滴"),
+        "DTaP" to ("百日咳、白喉、破伤风" to "0.5 ml"),
+        "MMR" to ("麻疹、流行性腮腺炎、风疹" to "0.5 ml"),
+        "JE-L" to ("流行性乙型脑炎" to "0.5 ml"),
+        "JE-I" to ("流行性乙型脑炎" to "0.5 ml"),
+        "MPV-A" to ("流行性脑脊髓膜炎（A 群）" to "0.5 ml"),
+        "MPV-AC" to ("流行性脑脊髓膜炎（A 群、C 群）" to "0.5 ml"),
+        "HepA-L" to ("甲型肝炎" to "0.5 ml"),
+        "HepA-I" to ("甲型肝炎" to "0.5 ml"),
+    )
+
+    /** 减毒活疫苗 / 灭活疫苗「二选一」组：接种其一后，组内另一种自动锁定 */
+    val altGroups: Map<String, List<String>> = mapOf(
+        "JE" to listOf("JE-L", "JE-I"),
+        "HepA" to listOf("HepA-L", "HepA-I"),
+    )
+
+    /** code -> 所属二选一组名（不在组内返回 null） */
+    fun altGroupOf(code: String): String? =
+        altGroups.entries.firstOrNull { it.value.contains(code) }?.key
+
+    /** code 的中文名（用于锁定提示） */
+    val altLabel: Map<String, String> = mapOf(
+        "JE-L" to "乙脑减毒活疫苗", "JE-I" to "乙脑灭活疫苗",
+        "HepA-L" to "甲肝减毒活疫苗", "HepA-I" to "甲肝灭活疫苗",
+    )
+
     val optionalVaccines = listOf(
         "五联疫苗" to "2 / 3 / 4 月龄 + 18 月龄",
         "13 价肺炎" to "2 / 4 / 6 月龄 + 12–15 月龄",

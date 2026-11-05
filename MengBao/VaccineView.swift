@@ -13,6 +13,8 @@ struct VaccineView: View {
     @State private var ageFilter = "全部"
     @State private var filter = "全部"
     @State private var showOptional = false
+    @State private var planDose: Dose?
+    @State private var showCustomShot = false
 
     private let statusFilters = ["全部", "待接种", "已完成"]
 
@@ -32,6 +34,108 @@ struct VaccineView: View {
                 store.setOptVaccines(ids)
             }
         }
+        .sheet(item: $planDose) { dose in
+            PlanSheet(dose: dose)
+        }
+        .sheet(isPresented: $showCustomShot) {
+            CustomShotSheet()
+        }
+    }
+
+    /// 「安排接种」小条：显示计划摘要，点开安排弹窗
+    @ViewBuilder
+    private func planBar(_ dose: Dose) -> some View {
+        let plan = store.current?.plans?[dose.key]
+        Button { planDose = dose } label: {
+            HStack(spacing: 8) {
+                Image(systemName: plan == nil ? "calendar.badge.plus" : "calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Palette.purple)
+                Text(planSummary(dose, plan))
+                    .font(.system(size: 11.5))
+                    .foregroundColor(plan == nil ? Palette.subtle : Palette.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Text("安排")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(Palette.purple)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(Palette.subtle)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Palette.card)
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Palette.hairlineSoft, lineWidth: 1))
+        }
+        .buttonStyle(SoftPressStyle())
+    }
+
+    private func planSummary(_ dose: Dose, _ plan: DosePlan?) -> String {
+        guard let plan else { return "推荐接种时间 \(GrowthMath.dateString(dose.dueDate))" }
+        let dateText = GrowthMath.dateString(plan.date ?? dose.dueDate)
+        var parts = ["计划 \(dateText)"]
+        if plan.remindOn { parts.append("提前 \(plan.advanceEffective) 天提醒") }
+        if !plan.place.isEmpty { parts.append("📍 \(plan.place)") }
+        if plan.calSync { parts.append("已同步日历") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 其他接种记录（狂犬、破伤风等时间表外的疫苗）
+    @ViewBuilder
+    private func customShotsCard(_ child: Child) -> some View {
+        let shots = child.customShots ?? []
+        SectionHeader(title: "其他接种记录")
+        VStack(spacing: 0) {
+            if shots.isEmpty {
+                Text("暂无记录。狂犬、破伤风等时间表外的疫苗可以在这里登记。")
+                    .font(.system(size: 12)).foregroundColor(Palette.subtle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(shots) { shot in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("💉").font(.system(size: 15))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(shot.name).font(.system(size: 13.5, weight: .semibold)).foregroundColor(Palette.ink)
+                            Text(GrowthMath.dateString(shot.date) + (shot.place.isEmpty ? "" : " · \(shot.place)"))
+                                .font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                            if !shot.note.isEmpty {
+                                Text(shot.note).font(.system(size: 11.5)).foregroundColor(Palette.subtle)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Button {
+                            store.removeCustomShot(shot.id)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 17))
+                                .foregroundColor(Palette.subtle.opacity(0.55))
+                        }
+                        .buttonStyle(SoftPressStyle())
+                    }
+                    .padding(.vertical, 7)
+                    if shot.id != shots.last?.id {
+                        Divider().background(Palette.hairlineSoft)
+                    }
+                }
+            }
+            Button {
+                showCustomShot = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus.circle.fill").font(.system(size: 13))
+                    Text("记一次").font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundColor(Palette.purple)
+            }
+            .buttonStyle(SoftPressStyle())
+            .padding(.top, 8)
+        }
+        .cardStyle(padding: 14)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
     }
 
     private func content(_ child: Child) -> some View {
@@ -141,17 +245,25 @@ struct VaccineView: View {
                 .padding(.top, 10)
 
             ForEach(visible) { dose in
-                Button {
-                    withAnimation(Anim.pop) { store.toggleShot(key: dose.key) }
-                } label: {
-                    DoseCard(dose: dose)
+                VStack(spacing: 6) {
+                    Button {
+                        guard dose.status != .locked else { return }
+                        withAnimation(Anim.pop) { store.toggleShot(key: dose.key) }
+                    } label: {
+                        DoseCard(dose: dose)
+                    }
+                    .buttonStyle(SoftPressStyle())
+                    .disabled(dose.status == .locked)
+
+                    planBar(dose)
                 }
-                .buttonStyle(SoftPressStyle())
                 .padding(.horizontal, 16)
                 .padding(.top, 9)
             }
             .transition(.opacity)
             .animation(Anim.soft, value: visible.map(\.key))
+
+            customShotsCard(child)
 
             SectionHeader(title: "非免疫规划疫苗（自费 · 自愿）")
             VStack(spacing: 0) {
@@ -370,11 +482,15 @@ struct OptionalVaccineSheet: View {
 struct DoseCard: View {
     let dose: Dose
 
+    private var isLocked: Bool { dose.status == .locked }
+    private var isAlt: Bool { Standards.altGroup(of: dose.vaccine.code) != nil }
+
     private var tone: TagView.Tone {
         switch dose.status {
         case .done: return .ok
         case .due: return .bad
         case .soon: return .warn
+        case .locked: return .gray
         case .pending: return .gray
         }
     }
@@ -385,7 +501,17 @@ struct DoseCard: View {
             return "已接种" + (dose.doneDate.map { " · " + GrowthMath.dateString($0) } ?? "")
         case .due: return "已到期 · 尽快补种"
         case .soon: return "近期接种"
+        case .locked: return "已锁定"
         case .pending: return "待接种"
+        }
+    }
+
+    private var statusColor: Color {
+        switch dose.status {
+        case .done: return Palette.ok
+        case .due: return Palette.bad
+        case .locked: return Palette.subtle
+        default: return Palette.warn
         }
     }
 
@@ -393,8 +519,21 @@ struct DoseCard: View {
         switch dose.status {
         case .due: return Palette.bad.opacity(0.4)
         case .soon: return Palette.warn.opacity(0.4)
+        case .locked: return Palette.hairline
         default: return Palette.hairline
         }
+    }
+
+    /// 「预防 / 接种方式 + 剂量」说明行（剂量加粗，和参考 App 一致）
+    private var extraLine: Text {
+        let extra = Standards.extraByCode[dose.vaccine.code]
+        var base = Text(extra.map { "预防\($0.prevents)\n" } ?? "")
+        base = base + Text("接种方式：\(dose.vaccine.route)。")
+        if let amount = extra?.amount {
+            base = base + Text("剂量：").foregroundColor(Palette.subtle)
+                + Text(amount).font(.system(size: 13.5, weight: .bold)).foregroundColor(Palette.ink)
+        }
+        return base
     }
 
     var body: some View {
@@ -411,12 +550,34 @@ struct DoseCard: View {
             .padding(.horizontal, 15).padding(.vertical, 12)
             .background(dose.status == .done ? Palette.okBg : Palette.purpleTint)
 
+            // 减毒 / 灭活「二选一」提示条（橙红字）
+            if isAlt {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(isLocked
+                         ? "已接种\(Standards.altLabel[dose.vaccine.code] ?? "另一种")，此项自动锁定"
+                         : "减毒 / 灭活 二选一。接种其一后另一种自动锁定")
+                        .font(.system(size: 11.5, weight: .semibold))
+                }
+                .foregroundColor(isLocked ? Palette.subtle : Palette.bad)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 8)
+                .background(isLocked ? Palette.hairlineSoft.opacity(0.4) : Palette.bad.opacity(0.08))
+            }
+
             VStack(spacing: 0) {
-                KVRow(key: "建议时间", value: "\(dose.ageLabel)（约 \(GrowthMath.dateString(dose.dueDate))）")
-                KVRow(key: "接种途径", value: dose.vaccine.route)
+                KVRow(key: "推荐接种时间", value: GrowthMath.dateString(dose.dueDate))
                 KVRow(key: "接种部位", value: dose.vaccine.site)
-                KVRow(key: "状态", value: statusText, valueColor: dose.status == .done ? Palette.ok : (dose.status == .due ? Palette.bad : Palette.warn))
+                KVRow(key: "状态", value: statusText, valueColor: statusColor)
                 Divider().background(Palette.hairlineSoft).padding(.vertical, 6)
+                extraLine
+                    .font(.system(size: 12.5))
+                    .foregroundColor(Palette.subtle)
+                    .lineSpacing(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 6)
                 Text("📌 \(dose.vaccine.note)")
                     .font(.system(size: 12))
                     .foregroundColor(Palette.subtle)
@@ -429,7 +590,216 @@ struct DoseCard: View {
         .background(Palette.card)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(borderColor, lineWidth: 1))
-        .opacity(dose.status == .done ? 0.78 : 1)
+        .opacity(dose.status == .done ? 0.78 : (isLocked ? 0.62 : 1))
+    }
+}
+
+// MARK: - 接种安排弹窗
+
+/// 「安排接种」：指定时刻 / 提醒提前天数 / 地点 / 备注 / 写入系统日历
+struct PlanSheet: View {
+    let dose: Dose
+
+    @EnvironmentObject private var store: Store
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var specifyTime = false
+    @State private var planDate = Date()
+    @State private var remindOn = true
+    @State private var advanceDays = 1
+    @State private var place = ""
+    @State private var note = ""
+    @State private var calSync = false
+    @State private var calMsg = ""
+    @State private var saving = false
+
+    private let advanceOptions = [1, 3, 7]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule().fill(Palette.hairline).frame(width: 38, height: 5).padding(.top, 8).padding(.bottom, 10)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("\(dose.vaccine.name) \(dose.vaccine.dose)")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Palette.ink)
+                    Text("默认使用推荐接种时间，可按门诊安排调整计划接种时间。保存安排后仍需单独记录实际接种。")
+                        .font(.system(size: 12)).foregroundColor(Palette.subtle).lineSpacing(3)
+
+                    // 接种安排
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("接种安排").font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.ink)
+                        Toggle(isOn: $specifyTime) {
+                            Text("指定接种时刻").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        }
+                        .tint(Palette.purple)
+                        Group {
+                            if specifyTime {
+                                DatePicker("计划接种时间", selection: $planDate,
+                                           displayedComponents: [.date, .hourAndMinute])
+                                    .font(.system(size: 14))
+                            } else {
+                                DatePicker("计划接种日期", selection: $planDate, displayedComponents: [.date])
+                                    .font(.system(size: 14))
+                            }
+                        }
+                        .labelsHidden()
+                        .environment(\.locale, Locale(identifier: "zh_CN"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .cardStyle(padding: 14)
+
+                    // 接种提醒
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("接种提醒").font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.ink)
+                        Toggle(isOn: $remindOn) {
+                            Text("到点提醒我").font(.system(size: 14)).foregroundColor(Palette.ink)
+                        }
+                        .tint(Palette.purple)
+                        if remindOn {
+                            HStack(spacing: 8) {
+                                Text("提前").font(.system(size: 13)).foregroundColor(Palette.subtle)
+                                ForEach(advanceOptions, id: \.self) { d in
+                                    Button {
+                                        advanceDays = d
+                                    } label: {
+                                        ChipLabel(text: d == 1 ? "提前一天" : "提前 \(d) 天",
+                                                  selected: advanceDays == d)
+                                    }
+                                    .buttonStyle(SoftPressStyle())
+                                }
+                            }
+                        }
+                        Text("未指定接种时刻时，提醒以当天 09:00 计算。")
+                            .font(.system(size: 11)).foregroundColor(Palette.subtle)
+                    }
+                    .cardStyle(padding: 14)
+
+                    // 地点与备注
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("地点与备注").font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.ink)
+                        TextField("接种地点（可选），例如 区妇幼保健院", text: $place)
+                            .font(.system(size: 14))
+                        TextField("备注（可选）", text: $note)
+                            .font(.system(size: 14))
+                    }
+                    .cardStyle(padding: 14)
+
+                    // 系统日历
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(isOn: $calSync) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("同步到系统日历").font(.system(size: 14)).foregroundColor(Palette.ink)
+                                Text("保存后写进手机日历，到点由日历提醒，换手机也在")
+                                    .font(.system(size: 11)).foregroundColor(Palette.subtle)
+                            }
+                        }
+                        .tint(Palette.purple)
+                        if let calMsg { Text(calMsg).font(.system(size: 11.5)).foregroundColor(Palette.bad) }
+                    }
+                    .cardStyle(padding: 14)
+
+                    Button("保存安排") { save() }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(saving)
+                        .padding(.bottom, 14)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 2)
+            }
+        }
+        .background(Palette.background.ignoresSafeArea())
+        .presentationDetents([.medium, .large])
+        .onAppear {
+            if let plan = store.current?.plans?[dose.key] {
+                specifyTime = plan.date != nil
+                planDate = plan.date ?? Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dose.dueDate) ?? dose.dueDate
+                remindOn = plan.remindOn
+                advanceDays = plan.advanceEffective
+                place = plan.place
+                note = plan.note
+                calSync = plan.calSync
+            } else {
+                planDate = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dose.dueDate) ?? dose.dueDate
+            }
+        }
+    }
+
+    private func save() {
+        let plan = DosePlan(date: specifyTime ? planDate : nil,
+                            remindOn: remindOn,
+                            advanceDays: advanceDays,
+                            place: place.trimmed(),
+                            note: note.trimmed(),
+                            calSync: calSync)
+        store.setDosePlan(key: dose.key, plan)
+        if calSync, let child = store.current {
+            saving = true
+            CalendarSync.addDoseEvent(child: child, dose: dose, plan: plan) { err in
+                DispatchQueue.main.async {
+                    saving = false
+                    if let err { calMsg = err } else { dismiss() }
+                }
+            }
+        } else {
+            dismiss()
+        }
+    }
+}
+
+// MARK: - 其他接种记录
+
+struct CustomShotSheet: View {
+    @EnvironmentObject private var store: Store
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var date = Date()
+    @State private var place = ""
+    @State private var note = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule().fill(Palette.hairline).frame(width: 38, height: 5).padding(.top, 8).padding(.bottom, 10)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("其他疫苗接种登记")
+                        .font(.system(size: 16, weight: .bold)).foregroundColor(Palette.ink)
+                    Text("狂犬、破伤风、流感等时间表外的疫苗，打了什么、时间、地点、剂次都可以记。")
+                        .font(.system(size: 12)).foregroundColor(Palette.subtle).lineSpacing(3)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        TextField("疫苗名称，例如 狂犬疫苗 第 2 针", text: $name)
+                            .font(.system(size: 14))
+                        Divider().background(Palette.hairlineSoft)
+                        DatePicker("接种日期", selection: $date, displayedComponents: [.date])
+                            .labelsHidden()
+                            .environment(\.locale, Locale(identifier: "zh_CN"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Divider().background(Palette.hairlineSoft)
+                        TextField("接种地点（可选）", text: $place)
+                            .font(.system(size: 14))
+                        TextField("备注（可选）：剂次、厂家等", text: $note)
+                            .font(.system(size: 14))
+                    }
+                    .cardStyle(padding: 14)
+
+                    Button("保存") {
+                        guard !name.trimmed().isEmpty else { return }
+                        store.addCustomShot(CustomShot(name: name.trimmed(), date: date,
+                                                       place: place.trimmed(), note: note.trimmed()))
+                        dismiss()
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .padding(.bottom, 14)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 2)
+            }
+        }
+        .background(Palette.background.ignoresSafeArea())
+        .presentationDetents([.medium, .large])
     }
 }
 
