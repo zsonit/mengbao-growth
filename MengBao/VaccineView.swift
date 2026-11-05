@@ -2,15 +2,18 @@ import SwiftUI
 
 // MARK: - 接种计划
 
+/// 按年龄段折叠分组（参考「疫苗时间表」式手风琴：每组一个年龄段，点开显示该年龄段要打的疫苗）
+private struct AgeGroup {
+    let months: Int
+    let label: String
+    let doses: [Dose]
+}
+
 struct VaccineView: View {
     @EnvironmentObject private var store: Store
 
-    private let ageFilters: [(String, ClosedRange<Int>?)] = [
-        ("全部", nil), ("0 岁", 0...11), ("1 岁", 12...17), ("2 岁", 18...35),
-        ("3 岁", 36...47), ("4 岁", 48...71), ("6 岁", 72...400)
-    ]
-
-    @State private var ageFilter = "全部"
+    @State private var expanded: Set<Int> = []
+    @State private var didInit = false
     @State private var filter = "全部"
     @State private var showOptional = false
     @State private var planDose: Dose?
@@ -21,7 +24,9 @@ struct VaccineView: View {
     var body: some View {
         ScrollView {
             if let child = store.current {
-                content(child)
+                ScrollViewReader { proxy in
+                    content(child, proxy: proxy)
+                }
             } else {
                 EmptyHint(text: "先添加宝宝档案，自动生成接种计划")
             }
@@ -29,6 +34,7 @@ struct VaccineView: View {
         .background(Palette.background.ignoresSafeArea())
         .navigationTitle("接种计划")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { defaultExpand() }
         .sheet(isPresented: $showOptional) {
             OptionalVaccineSheet(selected: store.current?.optVaccines ?? []) { ids in
                 store.setOptVaccines(ids)
@@ -40,6 +46,22 @@ struct VaccineView: View {
         .sheet(isPresented: $showCustomShot) {
             CustomShotSheet()
         }
+    }
+
+    /// 首次进入：默认展开「已到期 / 近期接种」的年龄段
+    private func defaultExpand() {
+        guard !didInit, let child = store.current else { return }
+        didInit = true
+        let sched = GrowthMath.schedule(for: child)
+        expanded = Set(sched.filter { $0.status == .due || $0.status == .soon }.map(\.months))
+    }
+
+    /// 年龄段标签：优先用程序表里的叫法，自选疫苗的月龄现场生成
+    private func ageGroupLabel(_ months: Int) -> String {
+        if let hit = Standards.vaccineAges.first(where: { $0.1 == months }) { return hit.0 }
+        if months < 12 { return "\(months) 月龄" }
+        if months % 12 == 0 { return "\(months / 12) 岁" }
+        return "\(months) 月龄"
     }
 
     /// 「安排接种」小条：显示计划摘要，点开安排弹窗
@@ -138,19 +160,28 @@ struct VaccineView: View {
         .padding(.top, 14)
     }
 
-    private func content(_ child: Child) -> some View {
+    private func content(_ child: Child, proxy: ScrollViewProxy) -> some View {
         let schedule = GrowthMath.schedule(for: child)
         let done = schedule.filter { $0.status == .done }.count
         let due = schedule.filter { $0.status == .due }.count
         let total = schedule.count
         let percent = Int(Double(done) / Double(max(total, 1)) * 100)
         let next = schedule.first { $0.status == .soon }
-        let range = ageFilters.first { $0.0 == ageFilter }?.1
-        var visible = range == nil ? schedule : schedule.filter { range!.contains($0.months) }
-        if filter == "待接种" {
-            visible = visible.filter { $0.status != .done }
-        } else if filter == "已完成" {
-            visible = visible.filter { $0.status == .done }
+
+        // 按年龄段（月龄）分组，含自选疫苗剂次，按月龄升序
+        var buckets: [Int: [Dose]] = [:]
+        for dose in schedule { buckets[dose.months, default: []].append(dose) }
+        let groups = buckets.keys.sorted().map { m in
+            AgeGroup(months: m, label: ageGroupLabel(m), doses: buckets[m] ?? [])
+        }
+        let visible = groups.compactMap { g -> AgeGroup? in
+            var doses = g.doses
+            if filter == "待接种" {
+                doses = doses.filter { $0.status != .done }
+            } else if filter == "已完成" {
+                doses = doses.filter { $0.status == .done }
+            }
+            return doses.isEmpty ? nil : AgeGroup(months: g.months, label: g.label, doses: doses)
         }
 
         return VStack(spacing: 0) {
@@ -229,9 +260,13 @@ struct VaccineView: View {
                         .buttonStyle(SoftPressStyle())
                     }
                     Divider().frame(height: 18).padding(.horizontal, 2)
-                    ForEach(ageFilters, id: \.0) { item in
-                        Button { withAnimation(Anim.tap) { ageFilter = item.0 } } label: {
-                            ChipLabel(text: item.0, selected: ageFilter == item.0)
+                    // 年龄段导航：点一下展开并跳到对应分组
+                    ForEach(groups, id: \.months) { group in
+                        Button {
+                            withAnimation(Anim.soft) { expanded.insert(group.months) }
+                            withAnimation { proxy.scrollTo(group.months, anchor: .top) }
+                        } label: {
+                            ChipLabel(text: group.label, selected: expanded.contains(group.months))
                         }
                         .buttonStyle(SoftPressStyle())
                     }
@@ -240,28 +275,21 @@ struct VaccineView: View {
             }
             .padding(.top, 14)
 
-            HintBlock(text: "点击卡片可切换「已接种 / 未接种」。同一天可同时接种多种疫苗（不同部位），接种后需留观 30 分钟。补种原则：未完成剂次按程序补齐，不需重新开始。")
+            HintBlock(text: "点年龄段可展开 / 收起这一阶段要打的疫苗；点击疫苗卡片可切换「已接种 / 未接种」。同一天可同时接种多种疫苗（不同部位），接种后需留观 30 分钟。")
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
 
-            ForEach(visible) { dose in
-                VStack(spacing: 6) {
-                    Button {
-                        guard dose.status != .locked else { return }
-                        withAnimation(Anim.pop) { store.toggleShot(key: dose.key) }
-                    } label: {
-                        DoseCard(dose: dose)
-                    }
-                    .buttonStyle(SoftPressStyle())
-                    .disabled(dose.status == .locked)
-
-                    planBar(dose)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 9)
+            if visible.isEmpty {
+                Text("这个筛选下没有疫苗")
+                    .font(.system(size: 13)).foregroundColor(Palette.subtle)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 24)
             }
-            .transition(.opacity)
-            .animation(Anim.soft, value: visible.map(\.key))
+
+            ForEach(visible, id: \.months) { group in
+                ageGroupSection(group)
+                    .id(group.months)
+            }
 
             customShotsCard(child)
 
@@ -310,6 +338,67 @@ struct VaccineView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
         }
+    }
+
+    /// 年龄段折叠分组：标题（年龄段 · 已种 x/y）+ 展开后的疫苗卡列表
+    private func ageGroupSection(_ group: AgeGroup) -> some View {
+        let isOpen = expanded.contains(group.months)
+        let doneCount = group.doses.filter { $0.status == .done }.count
+        let dueCount = group.doses.filter { $0.status == .due }.count
+        let allDone = doneCount == group.doses.count
+
+        return VStack(spacing: 0) {
+            Button {
+                withAnimation(Anim.soft) {
+                    if isOpen { expanded.remove(group.months) } else { expanded.insert(group.months) }
+                }
+            } label: {
+                HStack(spacing: 9) {
+                    Circle()
+                        .fill(dueCount > 0 ? Palette.bad : (allDone ? Palette.ok : Palette.subtle.opacity(0.55)))
+                        .frame(width: 9, height: 9)
+                    Text(group.label)
+                        .font(.system(size: 15.5, weight: .bold))
+                        .foregroundColor(Palette.ink)
+                    Text("已种 \(doneCount)/\(group.doses.count)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(allDone ? Palette.ok : (dueCount > 0 ? Palette.bad : Palette.subtle))
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Palette.subtle)
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Palette.card)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .stroke(dueCount > 0 ? Palette.bad.opacity(0.35) : Palette.hairlineSoft, lineWidth: 1))
+            }
+            .buttonStyle(SoftPressStyle())
+
+            if isOpen {
+                ForEach(group.doses) { dose in
+                    VStack(spacing: 6) {
+                        Button {
+                            guard dose.status != .locked else { return }
+                            withAnimation(Anim.pop) { store.toggleShot(key: dose.key) }
+                        } label: {
+                            DoseCard(dose: dose)
+                        }
+                        .buttonStyle(SoftPressStyle())
+                        .disabled(dose.status == .locked)
+
+                        planBar(dose)
+                    }
+                    .padding(.top, 9)
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 
     // MARK: 自选疫苗入口

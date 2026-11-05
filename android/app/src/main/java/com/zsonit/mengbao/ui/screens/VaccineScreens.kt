@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -44,14 +45,19 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -82,20 +88,24 @@ import com.zsonit.mengbao.ui.TagView
 import com.zsonit.mengbao.ui.TextInput
 import com.zsonit.mengbao.ui.TopBar
 import com.zsonit.mengbao.ui.cardStyle
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
 
 // MARK: - 接种计划
 
-private val ageFilters: List<Pair<String, IntRange?>> = listOf(
-    "全部" to null,
-    "0 岁" to 0..11,
-    "1 岁" to 12..17,
-    "2 岁" to 18..35,
-    "3 岁" to 36..47,
-    "4 岁" to 48..71,
-    "6 岁" to 72..400,
-)
+/** 按年龄段折叠分组（每组一个年龄段，点开显示该年龄段要打的疫苗） */
+private data class AgeGroup(val months: Int, val label: String, val doses: List<Dose>)
+
+/** 年龄段标签：优先用程序表叫法，自选疫苗的月龄现场生成 */
+private fun ageGroupLabel(months: Int): String {
+    Standards.vaccineAges.firstOrNull { it.second == months }?.let { return it.first }
+    return when {
+        months < 12 -> "${months} 月龄"
+        months % 12 == 0 -> "${months / 12} 岁"
+        else -> "${months} 月龄"
+    }
+}
 
 private val scopeMap = mapOf(
     '①' to "儿童免疫规划",
@@ -107,11 +117,13 @@ private val scopeMap = mapOf(
 @Composable
 fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: () -> Unit, onOpenNearby: () -> Unit) {
     val child = Store.current
-    var filter by remember { mutableStateOf("全部") }
     var statusFilter by remember { mutableStateOf("全部") }
     var showOptional by remember { mutableStateOf(false) }
     var planDose by remember { mutableStateOf<Dose?>(null) }
     var showCustomShot by remember { mutableStateOf(false) }
+
+    val scrollState = rememberScrollState()
+    var containerTopY by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current
     val calPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -124,14 +136,15 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
             Column(
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scrollState)
+                    .onGloballyPositioned { containerTopY = it.positionInRoot().y.toInt() },
             ) {
                 VaccineContent(
                     child = child,
-                    filter = filter,
-                    onFilter = { filter = it },
                     statusFilter = statusFilter,
                     onStatusFilter = { statusFilter = it },
+                    scrollState = scrollState,
+                    containerTopY = containerTopY,
                     onOpenClinics = onOpenClinics,
                     onOpenYamiao = onOpenYamiao,
                     onOpenNearby = onOpenNearby,
@@ -172,10 +185,10 @@ fun VaccineScreen(onBack: () -> Unit, onOpenClinics: () -> Unit, onOpenYamiao: (
 @Composable
 private fun VaccineContent(
     child: Child,
-    filter: String,
-    onFilter: (String) -> Unit,
     statusFilter: String,
     onStatusFilter: (String) -> Unit,
+    scrollState: ScrollState,
+    containerTopY: Int,
     onOpenClinics: () -> Unit,
     onOpenYamiao: () -> Unit,
     onOpenNearby: () -> Unit,
@@ -189,14 +202,32 @@ private fun VaccineContent(
     val total = schedule.size
     val percent = (done.toDouble() / maxOf(total, 1).toDouble() * 100).toInt()
     val next = schedule.firstOrNull { it.status == Dose.Status.SOON }
-    val range = ageFilters.firstOrNull { it.first == filter }?.second
-    val ageVisible = if (range == null) schedule else schedule.filter { it.months in range }
-    val visible = when (statusFilter) {
-        "待接种" -> ageVisible.filter { it.status != Dose.Status.DONE }
-        "已完成" -> ageVisible.filter { it.status == Dose.Status.DONE }
-        else -> ageVisible
-    }
     val statusFilters = listOf("全部", "待接种", "已完成")
+
+    // 按年龄段（月龄）分组，含自选疫苗剂次，按月龄升序
+    val buckets = linkedMapOf<Int, MutableList<Dose>>()
+    schedule.forEach { dose -> buckets.getOrPut(dose.months) { mutableListOf() }.add(dose) }
+    val groups = buckets.keys.sorted().map { m -> AgeGroup(m, ageGroupLabel(m), buckets[m].orEmpty()) }
+    val groupVisible = groups.mapNotNull { g ->
+        val doses = when (statusFilter) {
+            "待接种" -> g.doses.filter { it.status != Dose.Status.DONE }
+            "已完成" -> g.doses.filter { it.status == Dose.Status.DONE }
+            else -> g.doses
+        }
+        if (doses.isEmpty()) null else g.copy(doses = doses)
+    }
+    val visibleCount = groupVisible.sumOf { it.doses.size }
+
+    // 默认展开「已到期 / 近期接种」的年龄段；手动展开收起的状态保存在 remember(child)
+    val expanded = remember(child) {
+        mutableStateOf(
+            schedule.filter { it.status == Dose.Status.DUE || it.status == Dose.Status.SOON }
+                .map { it.months }.toSet(),
+        )
+    }
+    // 各分组标题在滚动内容中的纵向偏移，供顶部年龄段 chips 跳转定位
+    val groupOffsets = remember { mutableStateMapOf<Int, Int>() }
+    val scope = rememberCoroutineScope()
 
     // Hero
     Box(
@@ -320,6 +351,7 @@ private fun VaccineContent(
 
     OptionalEntryCard(child = child, onClick = onOpenOptional)
 
+    // 年龄段导航：点一下展开并跳到对应分组
     Row(
         Modifier
             .fillMaxWidth()
@@ -328,8 +360,17 @@ private fun VaccineContent(
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ageFilters.forEach { (label, _) ->
-            ChipLabel(text = label, selected = filter == label, onClick = { onFilter(label) })
+        groups.forEach { group ->
+            ChipLabel(
+                text = group.label,
+                selected = expanded.value.contains(group.months),
+                onClick = {
+                    expanded.value = expanded.value + group.months
+                    scope.launch {
+                        groupOffsets[group.months]?.let { scrollState.animateScrollTo(it) }
+                    }
+                },
+            )
         }
     }
 
@@ -346,25 +387,36 @@ private fun VaccineContent(
             ChipLabel(text = label, selected = statusFilter == label, onClick = { onStatusFilter(label) })
         }
         Spacer(Modifier.weight(1f))
-        Text("${visible.size} 剂", fontSize = 11.5.sp, color = Palette.subtle)
+        Text("$visibleCount 剂", fontSize = 11.5.sp, color = Palette.subtle)
     }
 
     HintBlock(
-        text = "点击卡片可切换「已接种 / 未接种」。同一天可同时接种多种疫苗（不同部位），接种后需留观 30 分钟。补种原则：未完成剂次按程序补齐，不需重新开始。",
+        text = "点年龄段可展开 / 收起这一阶段要打的疫苗；点击疫苗卡片可切换「已接种 / 未接种」。同一天可同时接种多种疫苗（不同部位），接种后需留观 30 分钟。",
         modifier = Modifier.padding(horizontal = 16.dp).padding(top = 10.dp),
     )
 
-    if (visible.isEmpty()) {
+    if (groupVisible.isEmpty()) {
         EmptyHint("这个筛选下还没有疫苗")
     }
 
-    visible.forEach { dose ->
-        Column(Modifier.padding(horizontal = 16.dp).padding(top = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            DoseCard(dose = dose, onToggle = {
+    groupVisible.forEach { group ->
+        AgeGroupSection(
+            group = group,
+            isExpanded = expanded.value.contains(group.months),
+            onToggleExpand = {
+                expanded.value = if (expanded.value.contains(group.months)) {
+                    expanded.value - group.months
+                } else {
+                    expanded.value + group.months
+                }
+            },
+            onDoseToggle = { dose ->
                 if (dose.status != Dose.Status.LOCKED) Store.toggleShot(dose.key)
-            })
-            PlanBar(dose = dose, plan = (child.plans ?: emptyMap())[dose.key], onClick = { onPlan(dose) })
-        }
+            },
+            onPlan = onPlan,
+            planOf = { dose -> (child.plans ?: emptyMap())[dose.key] },
+            recordOffset = { y -> groupOffsets[group.months] = y - containerTopY + scrollState.value },
+        )
     }
 
     CustomShotsCard(child = child, onAdd = onAddCustomShot)
@@ -415,6 +467,86 @@ private fun VaccineContent(
         modifier = Modifier.padding(horizontal = 16.dp).padding(top = 12.dp),
     )
     Spacer(Modifier.height(28.dp))
+}
+
+/** 年龄段折叠分组：标题（年龄段 · 已种 x/y）+ 展开后的疫苗卡列表 */
+@Composable
+private fun AgeGroupSection(
+    group: AgeGroup,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onDoseToggle: (Dose) -> Unit,
+    onPlan: (Dose) -> Unit,
+    planOf: (Dose) -> DosePlan?,
+    recordOffset: (Int) -> Unit,
+) {
+    val doneCount = group.doses.count { it.status == Dose.Status.DONE }
+    val dueCount = group.doses.count { it.status == Dose.Status.DUE }
+    val allDone = doneCount == group.doses.size
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(13.dp))
+                .background(Palette.card)
+                .border(
+                    1.dp,
+                    if (dueCount > 0) Palette.bad.copy(alpha = 0.35f) else Palette.hairlineSoft,
+                    RoundedCornerShape(13.dp),
+                )
+                .clickable { onToggleExpand() }
+                .padding(horizontal = 14.dp, vertical = 11.dp)
+                .onGloballyPositioned { recordOffset(it.positionInRoot().y.toInt()) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when {
+                            dueCount > 0 -> Palette.bad
+                            allDone -> Palette.ok
+                            else -> Palette.subtle.copy(alpha = 0.55f)
+                        },
+                    ),
+            )
+            Spacer(Modifier.width(9.dp))
+            Text(group.label, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = Palette.ink)
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "已种 $doneCount/${group.doses.size}",
+                fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = when {
+                    allDone -> Palette.ok
+                    dueCount > 0 -> Palette.bad
+                    else -> Palette.subtle
+                },
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (isExpanded) "⌃" else "⌄",
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.subtle,
+            )
+        }
+
+        if (isExpanded) {
+            group.doses.forEach { dose ->
+                Column(
+                    Modifier.padding(top = 9.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    DoseCard(dose = dose, onToggle = { onDoseToggle(dose) })
+                    PlanBar(dose = dose, plan = planOf(dose), onClick = { onPlan(dose) })
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 单剂卡片
