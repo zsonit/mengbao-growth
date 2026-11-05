@@ -3,13 +3,18 @@ import SwiftUI
 // MARK: - 配对同步
 
 /// 一台手机创建配对码，另一台输入同一个码，之后双方联网就自动双向同步全部资料。
+/// 创建配对码的设备是「管理员」，可以在下面管理加入的设备（强制解绑 / 清除对方数据 / 定向同步指定类别）。
 struct SyncView: View {
     @ObservedObject private var sync = SyncManager.shared
+    @EnvironmentObject private var store: Store
     @Environment(\.dismiss) private var dismiss
 
     @State private var joinText = ""
     @State private var running = false
     @State private var toast: String?
+    @State private var confirmTarget: SyncManager.PeerDevice?
+    @State private var confirmType: String = "unbind"
+    @State private var scopeTarget: SyncManager.PeerDevice?
 
     private var code: String? { sync.pairedCode }
 
@@ -29,11 +34,36 @@ struct SyncView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 30)
             }
+            .onAppear { sync.claimAdminIfVacant() }
             .background(Palette.background.ignoresSafeArea())
             .navigationTitle("☁️ 配对同步")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
+            }
+            .alert(
+                confirmType == "wipe" ? "清除「\(confirmTarget?.name ?? "")」的数据？"
+                                      : "强制解绑「\(confirmTarget?.name ?? "")」？",
+                isPresented: Binding(
+                    get: { confirmTarget != nil },
+                    set: { if !$0 { confirmTarget = nil } },
+                ),
+            ) {
+                Button(confirmType == "wipe" ? "清除数据" : "解绑", role: .destructive) {
+                    if let t = confirmTarget {
+                        run { confirmType == "wipe" ? sync.wipeDevice(t.id) : sync.forceUnbind(t.id) }
+                    }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text(confirmType == "wipe"
+                     ? "对方手机将解除配对，并删除本机全部资料（宝宝、喂养、生长、接种等），无法恢复。"
+                     : "对方手机会立即停止同步（资料保留）；重新输入配对码可再次加入。")
+            }
+            .sheet(item: $scopeTarget) { peer in
+                ScopePickerView(peer: peer) { scopes in
+                    run { sync.pushScope(peer.id, scopes: scopes) }
+                }
             }
         }
         .overlay(alignment: .bottom) {
@@ -132,6 +162,8 @@ struct SyncView: View {
                 .frame(maxWidth: .infinity)
             }
 
+            deviceManagementCard
+
             card {
                 VStack(spacing: 12) {
                     HStack {
@@ -197,6 +229,88 @@ struct SyncView: View {
         }
     }
 
+    // MARK: 设备管理（仅管理员可见）
+
+    static let scopeOptions: [(key: String, label: String)] = [
+        ("profile", "宝宝档案（姓名/生日/头像/生日提醒）"),
+        ("growth", "生长记录（身高体重头围等）"),
+        ("feed", "喂养记录"),
+        ("vaccine", "疫苗接种（含自选/计划/其他接种）"),
+        ("todo", "待办事项"),
+        ("size", "尺码鞋服记录"),
+        ("teeth", "换牙记录"),
+        ("settings", "应用设置（家长身高/提醒等）"),
+    ]
+
+    @ViewBuilder
+    private var deviceManagementCard: some View {
+        if sync.isAdmin(store.state) {
+            let list = sync.peers(store.state)
+            card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("设备管理").font(.system(size: 13, weight: .bold)).foregroundColor(Palette.ink)
+                    if list.isEmpty {
+                        Text("还没有其他设备加入。家人手机输入这个配对码后，会出现在这里。")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Palette.subtle)
+                            .lineSpacing(3)
+                    } else {
+                        ForEach(list) { peer in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(peer.name)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(Palette.ink)
+                                        Text("加入于 \(peer.joinedAt)")
+                                            .font(.system(size: 10.5))
+                                            .foregroundColor(Palette.subtle)
+                                    }
+                                    Spacer()
+                                }
+                                HStack(spacing: 20) {
+                                    Button {
+                                        scopeTarget = peer
+                                    } label: {
+                                        Text("同步数据")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(Palette.purple)
+                                    }
+                                    .buttonStyle(SoftPressStyle())
+                                    Button {
+                                        confirmType = "unbind"
+                                        confirmTarget = peer
+                                    } label: {
+                                        Text("强制解绑")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(Palette.warn)
+                                    }
+                                    .buttonStyle(SoftPressStyle())
+                                    Button {
+                                        confirmType = "wipe"
+                                        confirmTarget = peer
+                                    } label: {
+                                        Text("清除数据")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(Palette.warn)
+                                    }
+                                    .buttonStyle(SoftPressStyle())
+                                    Spacer()
+                                }
+                            }
+                            .padding(.vertical, 6)
+                        }
+                        Text("· 同步数据：把选中的内容推送给对方覆盖（对方其他内容不动）\n· 强制解绑：对方立刻停止同步，资料保留\n· 清除数据：对方解除配对并删除全部资料，不可恢复\n· 指令在对方打开 App 后自动执行（3 天内有效）")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(Palette.subtle)
+                            .lineSpacing(3)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
     // MARK: 工具
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -229,5 +343,69 @@ extension String {
             let end = index(start, offsetBy: min(size, count - $0))
             return String(self[start..<end])
         }
+    }
+}
+
+// MARK: - 定向同步内容选择
+
+struct ScopePickerView: View {
+    let peer: SyncManager.PeerDevice
+    var onSend: ([String]) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var selection: Set<String> = []
+    @State private var sending = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("选择要推送给「\(peer.name)」的内容，确认后覆盖对方手机上的对应数据；没选的类别对方保持不变。")
+                        .font(.system(size: 12))
+                        .foregroundColor(Palette.ink2)
+                        .lineSpacing(4)
+                        .padding(.bottom, 10)
+                    ForEach(SyncView.scopeOptions, id: \.key) { opt in
+                        Button {
+                            if selection.contains(opt.key) { selection.remove(opt.key) } else { selection.insert(opt.key) }
+                        } label: {
+                            HStack {
+                                Image(systemName: selection.contains(opt.key) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(selection.contains(opt.key) ? Palette.purple : Palette.subtle)
+                                Text(opt.label)
+                                    .font(.system(size: 13.5))
+                                    .foregroundColor(Palette.ink)
+                                Spacer()
+                            }
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(SoftPressStyle())
+                    }
+                    Button("全选 / 全不选") {
+                        if selection.count == SyncView.scopeOptions.count { selection = [] } else { selection = Set(SyncView.scopeOptions.map(\.key)) }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Palette.purple)
+                    .padding(.top, 8)
+                }
+                .padding(16)
+            }
+            .background(Palette.background.ignoresSafeArea())
+            .navigationTitle("同步数据给「\(peer.name)」")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(sending ? "发送中…" : "确认推送") {
+                        sending = true
+                        let scopes = Array(selection)
+                        dismiss()
+                        onSend(scopes)
+                    }
+                    .disabled(selection.isEmpty || sending)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

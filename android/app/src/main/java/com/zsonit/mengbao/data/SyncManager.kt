@@ -1,8 +1,10 @@
 package com.zsonit.mengbao.data
 
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,14 +12,20 @@ import com.zsonit.mengbao.model.AppState
 import com.zsonit.mengbao.model.Child
 import com.zsonit.mengbao.model.GrowthRecord
 import com.zsonit.mengbao.model.SizeRecord
+import com.zsonit.mengbao.model.SyncCommand
+import com.zsonit.mengbao.model.SyncDevice
 import com.zsonit.mengbao.model.ToothDecay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 
 /**
@@ -52,6 +60,12 @@ object SyncManager {
     private const val UNDECRYPTABLE = "undecryptable"
     /// 云端还没有这一行的标记
     private const val EMPTY = "empty"
+    /// 已执行的管理指令 id 集合
+    private const val KEY_EXEC = "exec_cmds"
+    /// 已强制解绑/清除的设备：KEY_REMOVED_PREFIX + 设备id = 解绑时的 joinedAt
+    private const val KEY_REMOVED_PREFIX = "removed_peer_"
+    /// 管理指令的有效期：离线超过这么久的设备不再收到旧指令
+    private const val CMD_TTL = 3L * 24 * 60 * 60 * 1000
 
     private var appContext: Context? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -161,6 +175,8 @@ object SyncManager {
             val exists = codeExists(code)
             if (exists == false) {
                 prefs()?.edit()?.putString(KEY_CODE, code)?.remove(KEY_SALT)?.apply()
+                // 建码方即管理员：先登记再推，让这条登记随首次快照一起上去
+                registerSelf("owner", silent = true)
                 val r = syncNow(manual = true)
                 return if (r.ok) SyncResult(true, "配对码 $code 已就绪") else r
             }
@@ -184,6 +200,8 @@ object SyncManager {
             }
         }
         val r = syncNow(manual = true)
+        // 加入方登记为成员（非 silent：本机为空时上面 syncNow 可能没推成功，下次改动/手动同步会补推）
+        registerSelf("member")
         return if (r.ok) SyncResult(true, "配对成功：$c") else r
     }
 
@@ -203,6 +221,247 @@ object SyncManager {
         localDirty = false
         lastRev = 0L
         pollHandler.removeCallbacks(pollRunnable)
+    }
+
+    // MARK: 设备管理（A 端建码后可管理加入的设备）
+
+    data class PeerDevice(val id: String, val name: String, val role: String, val joinedAt: String)
+
+    private fun nowLocal(): String =
+        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+
+    private fun utcNow(): String {
+        val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        f.timeZone = TimeZone.getTimeZone("UTC")
+        return f.format(Date())
+    }
+
+    private fun deviceName(): String = try {
+        val custom = Settings.Global.getString(appContext?.contentResolver, "device_name")
+        (custom ?: Build.MODEL).take(16)
+    } catch (e: Exception) {
+        Build.MODEL.take(16)
+    }
+
+    /** 把本机登记进设备表；已有条目时只在改名/角色变化时更新 */
+    private fun registerSelf(role: String, silent: Boolean = false) {
+        val id = deviceId()
+        val name = deviceName()
+        val joined = nowLocal()
+        if (silent) Store.suppressSync = true
+        try {
+            Store.update { s ->
+                val cur = s.devices[id]
+                when {
+                    cur == null -> s.copy(devices = s.devices + (id to SyncDevice(name, role, joined)))
+                    cur.name != name || cur.role != role -> {
+                        val newRole = if (role == "owner" || cur.role != "owner") role else cur.role
+                        s.copy(devices = s.devices + (id to cur.copy(name = name, role = newRole)))
+                    }
+                    else -> s
+                }
+            }
+        } finally {
+            if (silent) Store.suppressSync = false
+        }
+    }
+
+    /** 本机是否管理员：自己是 owner，或整张表还没有 owner（老版本升级后首次进入时可接任） */
+    fun isAdmin(state: AppState): Boolean {
+        state.devices[deviceId()]?.let { if (it.role == "owner") return true }
+        return state.devices.values.none { it.role == "owner" }
+    }
+
+    /** 老版本升级：整张表还没有 owner 时本机接任管理员 */
+    fun claimAdminIfVacant() {
+        if (Store.state.devices.values.none { it.role == "owner" }) registerSelf("owner")
+    }
+
+    private fun removedPeers(): Map<String, String> {
+        val p = prefs() ?: return emptyMap()
+        return p.all
+            .filterKeys { it.startsWith(KEY_REMOVED_PREFIX) }
+            .mapKeys { it.key.removePrefix(KEY_REMOVED_PREFIX) }
+            .mapValues { it.value as? String ?: "" }
+    }
+
+    /** 其他设备列表（已强制解绑/清除的不再显示，除非对方重新配对） */
+    fun peers(state: AppState): List<PeerDevice> {
+        val removed = removedPeers()
+        val myId = deviceId()
+        return state.devices
+            .filter { (id, d) ->
+                if (id == myId || d.role == "removed") return@filter false
+                removed[id]?.let { d.joinedAt <= it } != true
+            }
+            .map { PeerDevice(it.key, it.value.name, it.value.role, it.value.joinedAt) }
+            .sortedBy { it.joinedAt }
+    }
+
+    /** 发指令：随本机改动在几秒内推上云端，对方打开 App 后自动执行 */
+    private fun sendCommand(type: String, to: String, payload: String? = null): SyncResult {
+        if (pairedCode == null) return SyncResult(false, "尚未配对")
+        if (to == deviceId()) return SyncResult(false, "不能对本机下发指令")
+        val cmd = SyncCommand(
+            id = UUID.randomUUID().toString(),
+            from = deviceId(),
+            to = to,
+            type = type,
+            payload = payload,
+            createdAt = utcNow(),
+        )
+        Store.update { it.copy(commands = it.commands + cmd) }
+        if (type != "scope") {
+            // 本机立即把对方标记为已移除（不再显示在设备管理里）；对方重新配对（joinedAt 更新）会重新出现
+            prefs()?.edit()?.putString(KEY_REMOVED_PREFIX + to, nowLocal())?.apply()
+        }
+        AppLog.i("Sync", "下发管理指令 $type → $to")
+        return SyncResult(
+            true,
+            if (type == "scope") "已发起定向同步，对方打开 App 后自动接收"
+            else "指令已发出，对方打开 App 后自动执行",
+        )
+    }
+
+    /** 强制解绑：对方停止同步（对方资料保留） */
+    fun forceUnbind(to: String): SyncResult = sendCommand("unbind", to)
+
+    /** 清除对方数据：对方解除配对并删除本机全部资料 */
+    fun wipeDevice(to: String): SyncResult = sendCommand("wipe", to)
+
+    /** 定向同步：把选中的类别（宝宝档案/生长/喂养/疫苗/待办/尺码/换牙/设置）推给对方覆盖 */
+    fun pushScope(to: String, scopes: List<String>): SyncResult {
+        if (scopes.isEmpty()) return SyncResult(false, "请先选择要同步的内容")
+        val payload = try {
+            JSONObject()
+                .put("scopes", JSONArray(scopes))
+                .put("state", JSONObject(JsonCodec.encode(Store.state)))
+                .toString()
+        } catch (e: Exception) {
+            return SyncResult(false, "数据编码失败")
+        }
+        return sendCommand("scope", to, payload)
+    }
+
+    // MARK: 管理指令的接收与执行（两端逻辑一致）
+
+    private fun executedCmds(): Set<String> =
+        prefs()?.getStringSet(KEY_EXEC, emptySet())?.toSet() ?: emptySet()
+
+    private fun markExecuted(id: String) {
+        prefs()?.edit()?.putStringSet(KEY_EXEC, executedCmds() + id)?.apply()
+    }
+
+    /** 取出「发给我、还没执行过」的指令：scope 的数据直接并入状态并打上 done；unbind/wipe 返回待执行动作 */
+    private fun takeCommands(state: AppState): Pair<AppState, List<String>> {
+        val executed = executedCmds()
+        val myId = deviceId()
+        val mine = state.commands.filter { it.to == myId && myId !in it.done && it.id !in executed }
+        if (mine.isEmpty()) return state to emptyList()
+        var s = state
+        val actions = mutableListOf<String>()
+        for (c in mine) {
+            if (c.type == "scope" && c.payload != null) {
+                s = applyScope(c.payload, s)
+            } else {
+                actions.add(c.type)
+            }
+            s = s.copy(commands = s.commands.map {
+                if (it.id == c.id) it.copy(done = (it.done + myId).distinct()) else it
+            })
+            markExecuted(c.id)
+            AppLog.i("Sync", "执行管理指令 ${c.type}（来自 ${c.from}）")
+        }
+        return s to actions
+    }
+
+    /** 清理指令：所有其他设备都已执行（发起方视角）或已过期的，不再保存 */
+    private fun pruneCommands(cmds: List<SyncCommand>, devices: Map<String, SyncDevice>, myId: String): List<SyncCommand> {
+        val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        f.timeZone = TimeZone.getTimeZone("UTC")
+        val now = System.currentTimeMillis()
+        val activeCount = maxOf(1, devices.values.count { it.role != "removed" })
+        return cmds.filter { c ->
+            val age = try { now - (f.parse(c.createdAt)?.time ?: 0L) } catch (e: Exception) { 0L }
+            if (age > CMD_TTL) return@filter false
+            if (c.from == myId) {
+                val others = maxOf(1, activeCount - 1)
+                if (c.done.distinct().size >= others) return@filter false
+            }
+            true
+        }
+    }
+
+    /** 指令落地：unbind/wipe 在推送完成后执行（scope 已在 takeCommands 里并入状态） */
+    private fun executeActions(types: List<String>) {
+        for (t in types) {
+            when (t) {
+                "unbind" -> {
+                    clearLocal()
+                    lastMessage = "管理员已解除本机配对"
+                    AppLog.i("Sync", "已按管理员指令解除本机配对")
+                }
+                "wipe" -> {
+                    clearLocal()
+                    Store.update {
+                        it.copy(
+                            children = emptyList(),
+                            currentId = null,
+                            tombstones = emptySet(),
+                            clearedAt = null,
+                            commands = emptyList(),
+                        )
+                    }
+                    lastMessage = "管理员已清除本机数据"
+                    AppLog.i("Sync", "已按管理员指令清除本机数据")
+                }
+            }
+        }
+    }
+
+    /** 应用定向同步数据：按类别把对方（管理员）的数据覆盖到本机，没选中的类别原样保留 */
+    private fun applyScope(payload: String, state: AppState): AppState {
+        val obj = try { JSONObject(payload) } catch (e: Exception) {
+            AppLog.w("Sync", "定向同步数据解析失败，忽略")
+            return state
+        }
+        val scopes = obj.optJSONArray("scopes")?.let { arr -> (0 until arr.length()).map { arr.optString(it) } } ?: emptyList()
+        val incoming: AppState = try {
+            JsonCodec.decode(obj.getJSONObject("state").toString())
+        } catch (e: Exception) {
+            AppLog.w("Sync", "定向同步数据解析失败，忽略")
+            return state
+        }
+        val now = LocalDateTime.now()
+        val incomingById = incoming.children.associateBy { it.id }
+        val existingIds = state.children.map { it.id }.toSet()
+        val children = state.children.map { c ->
+            val inc = incomingById[c.id] ?: return@map c
+            var out = c
+            if ("profile" in scopes) {
+                out = out.copy(
+                    name = inc.name, sex = inc.sex, birthDate = inc.birthDate,
+                    avatar = inc.avatar, avatarPath = inc.avatarPath,
+                    bdaySameDayOn = inc.bdaySameDayOn, bdaySameDayTime = inc.bdaySameDayTime,
+                    bdayAdvanceOn = inc.bdayAdvanceOn, bdayAdvanceDays = inc.bdayAdvanceDays,
+                    bdayAdvanceTime = inc.bdayAdvanceTime,
+                )
+            }
+            if ("growth" in scopes) out = out.copy(records = inc.records)
+            if ("feed" in scopes) out = out.copy(feeds = inc.feeds)
+            if ("vaccine" in scopes) {
+                out = out.copy(shots = inc.shots, optVaccines = inc.optVaccines, plans = inc.plans, customShots = inc.customShots)
+            }
+            if ("todo" in scopes) out = out.copy(todos = inc.todos)
+            if ("size" in scopes) out = out.copy(sizes = inc.sizes)
+            if ("teeth" in scopes) out = out.copy(teethFallen = inc.teethFallen, teethDecay = inc.teethDecay)
+            out.copy(updatedAt = now)   // 让这份覆盖在后续合并里成为权威版本
+        } + incoming.children.filter { it.id !in existingIds }.map { it.copy(updatedAt = now) }
+        return state.copy(
+            children = children,
+            currentId = state.currentId ?: children.firstOrNull()?.id,
+            settings = if ("settings" in scopes) incoming.settings else state.settings,
+        )
     }
 
     // MARK: 同步主链路
@@ -310,7 +569,7 @@ object SyncManager {
             // 云端还没有这一行（刚创建配对码）时必须推一次，否则对方永远拉不到数据
             var mustPush = localDirty || lastRev == 0L || remote?.updatedBy == EMPTY
             if (remote != null) {
-                val (m, remoteClear) = mergeState(local, remote.state)
+                val (m, remoteClear) = mergeState(local, remote.state, deviceId())
                 merged = m
                 if (remoteClear) clearPrompt = true
                 if (merged != local) {
@@ -323,6 +582,30 @@ object SyncManager {
                     mustPush = true
                 }
             }
+            // 登记本机设备（老版本升级后第一次同步时补登）
+            val myId = deviceId()
+            if (merged.devices[myId] == null) {
+                merged = merged.copy(devices = merged.devices + (myId to SyncDevice(deviceName(), "member", nowLocal())))
+                mustPush = true
+            }
+            // 执行发给我的管理指令（scope 直接并入 merged，unbind/wipe 随后落地）
+            var cmdActions: List<String> = emptyList()
+            run {
+                val (s2, actions) = takeCommands(merged)
+                if (actions.isNotEmpty()) {
+                    merged = s2
+                    cmdActions = actions
+                    mustPush = true
+                }
+            }
+            // 清理已完成/过期的管理指令
+            val prunedCmds = pruneCommands(merged.commands, merged.devices, myId)
+            if (prunedCmds.size != merged.commands.size) {
+                merged = merged.copy(commands = prunedCmds)
+                mustPush = true
+            }
+            // 强拆/清除类指令立即落地（本轮推送会带着 done 标记上去；即使推送失败指令也已执行）
+            executeActions(cmdActions)
             if (!mustPush) {
                 // 本机没改、云端也没新东西：什么都不推，避免两端互相蹭出无限推送
                 lastMessage = "已是最新"
@@ -338,6 +621,15 @@ object SyncManager {
             val ts = System.currentTimeMillis()
             lastSyncAt = ts
             prefs()?.edit()?.putLong(KEY_LAST_SYNC, ts)?.apply()
+            // 指令执行产生的状态变化（done 标记、scope 覆盖）也要写回本机
+            if (merged != local) {
+                Store.suppressSync = true
+                try {
+                    Store.update { merged.copy(currentId = merged.currentId ?: merged.children.firstOrNull()?.id) }
+                } finally {
+                    Store.suppressSync = false
+                }
+            }
             val mergedNew = remote != null && merged != local
             lastMessage = if (mergedNew) "已同步（收到对方的新记录）" else "已同步"
             if (manual) AppLog.i("Sync", "手动同步完成：${merged.children.size} 个宝宝")
@@ -360,17 +652,29 @@ object SyncManager {
     private fun applyRemote(context: Context, code: String, remote: RemoteSnapshot): SyncResult {
         busy = true
         try {
+            var st = remote.state.copy(currentId = remote.state.currentId ?: remote.state.children.firstOrNull()?.id)
+            // 登记本机设备（老版本升级后第一次以空机接入时补登）
+            val myId = deviceId()
+            if (st.devices[myId] == null) {
+                st = st.copy(devices = st.devices + (myId to SyncDevice(deviceName(), "member", nowLocal())))
+            }
+            // 空机也可能收到管理指令（如刚配对就被定向同步），照常执行并把 done 标记推回去
+            var actions: List<String> = emptyList()
+            run {
+                val (s2, a) = takeCommands(st)
+                st = s2
+                actions = a
+            }
             Store.suppressSync = true
             try {
-                Store.update {
-                    remote.state.copy(currentId = remote.state.currentId ?: remote.state.children.firstOrNull()?.id)
-                }
+                Store.update { st }
             } finally {
                 Store.suppressSync = false
             }
             val payload = Store.state
             val resp = upsert(code, payload)
             if (resp.ok) localDirty = false
+            if (actions.isNotEmpty()) executeActions(actions)
             val ts = System.currentTimeMillis()
             lastSyncAt = ts
             prefs()?.edit()?.putLong(KEY_LAST_SYNC, ts)?.apply()
@@ -387,7 +691,7 @@ object SyncManager {
     var clearPrompt by mutableStateOf(false)
 
     /** 返回合并结果 + 是否检测到「对方已清空全部数据」（本机还有数据时，由 UI 弹窗让用户选择） */
-    private fun mergeState(local: AppState, remote: AppState): Pair<AppState, Boolean> {
+    private fun mergeState(local: AppState, remote: AppState, myId: String): Pair<AppState, Boolean> {
         val lc = local.clearedAt.orEmpty()
         val rc = remote.clearedAt.orEmpty()
         // 对方刚清空（clearedAt 更新）且本机还有数据：不自动合并，弹窗让用户选择「同步清除 / 忽略」
@@ -421,7 +725,22 @@ object SyncManager {
             local.clearedAt != null && remote.clearedAt != null -> maxOf(local.clearedAt!!, remote.clearedAt!!)
             else -> local.clearedAt ?: remote.clearedAt
         }
-        return local.copy(children = children, tombstones = tom, clearedAt = cleared) to false
+        var out = local.copy(children = children, tombstones = tom, clearedAt = cleared)
+        // 设备登记：每个条目只由那台设备自己写，key != myId 时以云端/对方为准，本机的保留
+        var devs = remote.devices
+        for ((k, v) in local.devices) {
+            if (k == myId || devs[k] == null) devs = devs + (k to v)
+        }
+        out = out.copy(devices = devs)
+        // 管理指令：按 id 并集，done 取并集（谁执行了就记谁），按创建时间排序
+        val byId = LinkedHashMap<String, SyncCommand>()
+        for (c in local.commands) byId[c.id] = c
+        for (c in remote.commands) {
+            val e = byId[c.id]
+            byId[c.id] = if (e == null) c else e.copy(done = (e.done + c.done).distinct().sorted())
+        }
+        out = out.copy(commands = byId.values.sortedBy { it.createdAt })
+        return out to false
     }
 
     private fun authIsLocal(l: Child, r: Child): Boolean {

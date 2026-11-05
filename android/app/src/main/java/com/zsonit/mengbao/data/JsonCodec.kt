@@ -62,6 +62,32 @@ object JsonCodec {
             root.put("tombstones", JSONArray().apply { state.tombstones.forEach { put(it) } })
         }
         state.clearedAt?.let { root.put("clearedAt", it) }
+        if (state.devices.isNotEmpty()) {
+            root.put("devices", JSONObject().apply {
+                state.devices.forEach { (id, d) ->
+                    put(id, JSONObject().apply {
+                        put("name", d.name)
+                        put("role", d.role)
+                        put("joinedAt", d.joinedAt)
+                    })
+                }
+            })
+        }
+        if (state.commands.isNotEmpty()) {
+            root.put("commands", JSONArray().apply {
+                state.commands.forEach { c ->
+                    put(JSONObject().apply {
+                        put("id", c.id)
+                        put("from", c.from)
+                        put("to", c.to)
+                        put("type", c.type)
+                        c.payload?.let { put("payload", it) }
+                        put("createdAt", c.createdAt)
+                        put("done", JSONArray().apply { c.done.forEach { put(it) } })
+                    })
+                }
+            })
+        }
         return root.toString(2)
     }
 
@@ -239,6 +265,36 @@ object JsonCodec {
                 (0 until arr.length()).mapNotNull { arr.optString(it).ifEmpty { null } }.toSet()
             } ?: emptySet(),
             clearedAt = root.optStringOrNull("clearedAt"),
+            devices = root.optJSONObject("devices")?.let { devs ->
+                buildMap {
+                    devs.keys().forEach { id ->
+                        devs.optJSONObject(id)?.let { d ->
+                            put(id, com.zsonit.mengbao.model.SyncDevice(
+                                name = d.optString("name"),
+                                role = d.optString("role").ifEmpty { "member" },
+                                joinedAt = d.optString("joinedAt"),
+                            ))
+                        }
+                    }
+                }
+            } ?: emptyMap(),
+            commands = root.optJSONArray("commands")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    arr.optJSONObject(i)?.let { c ->
+                        com.zsonit.mengbao.model.SyncCommand(
+                            id = c.optString("id"),
+                            from = c.optString("from"),
+                            to = c.optString("to"),
+                            type = c.optString("type"),
+                            payload = c.optStringOrNull("payload"),
+                            createdAt = c.optString("createdAt"),
+                            done = c.optJSONArray("done")?.let { da ->
+                                (0 until da.length()).mapNotNull { da.optString(it).ifEmpty { null } }
+                            } ?: emptyList(),
+                        )
+                    }
+                }
+            } ?: emptyList(),
         )
     }
 

@@ -448,6 +448,26 @@ struct AppSettings: Codable, Hashable {
 
 // MARK: - 根状态
 
+/// 配对设备登记：谁创建配对码谁是「管理员」，其余为成员；随同步数据一起走。
+/// 各设备只写自己的条目，合并时以设备自己上报的为准。
+struct SyncDevice: Codable, Hashable {
+    var name: String
+    var role: String        // owner / member
+    var joinedAt: String    // 本地时间 yyyy-MM-dd HH:mm
+}
+
+/// 管理员发给指定设备的指令，随同步数据走；对方执行后在自己的 done 里记一笔。
+/// 三天后过期清理，防止离线设备囤积旧指令。
+struct SyncCommand: Codable, Hashable {
+    var id: String
+    var from: String        // 发起设备 id
+    var to: String          // 目标设备 id
+    var type: String        // unbind = 强制解绑 / wipe = 解绑并清除数据 / scope = 定向同步指定类别
+    var payload: String?    // type == scope：{"scopes":[...],"state":{...}} 互通 JSON
+    var createdAt: String   // UTC yyyy-MM-dd'T'HH:mm:ss，用于过期清理
+    var done: [String]      // 已执行的设备 id
+}
+
 struct AppState: Codable, Hashable {
     var children: [Child] = []
     var currentID: UUID? = nil
@@ -458,8 +478,12 @@ struct AppState: Codable, Hashable {
     /// 最近一次「清空全部数据」的时间戳（UTC yyyy-MM-dd'T'HH:mm:ss）。
     /// 清空不同步删除对方数据：对方会收到提示，自行选择「同步清除 / 忽略」
     var clearedAt: String? = nil
+    /// 配对设备登记（管理员据此展示「设备管理」）
+    var devices: [String: SyncDevice] = [:]
+    /// 待执行的管理指令
+    var commands: [SyncCommand] = []
 
-    private enum CodingKeys: String, CodingKey { case children, currentID, settings, tombstones, clearedAt }
+    private enum CodingKeys: String, CodingKey { case children, currentID, settings, tombstones, clearedAt, devices, commands }
 
     init() {}
 
@@ -470,5 +494,7 @@ struct AppState: Codable, Hashable {
         settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
         tombstones = try c.decodeIfPresent(Set<String>.self, forKey: .tombstones) ?? []
         clearedAt = try c.decodeIfPresent(String.self, forKey: .clearedAt)
+        devices = try c.decodeIfPresent([String: SyncDevice].self, forKey: .devices) ?? [:]
+        commands = try c.decodeIfPresent([SyncCommand].self, forKey: .commands) ?? []
     }
 }

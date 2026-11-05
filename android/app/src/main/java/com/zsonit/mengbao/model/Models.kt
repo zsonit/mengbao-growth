@@ -360,6 +360,26 @@ data class AppSettings(
         }
 }
 
+// MARK: - 配对设备登记 / 管理指令（A 端设备管理）
+
+/** 配对设备登记：谁创建配对码谁是「管理员」，其余为成员；随同步数据一起走，各设备只写自己的条目 */
+data class SyncDevice(
+    val name: String,
+    val role: String,       // owner / member
+    val joinedAt: String,   // 本地时间 yyyy-MM-dd HH:mm
+)
+
+/** 管理员发给指定设备的指令，随同步数据走；对方执行后在自己的 done 里记一笔，三天后过期清理 */
+data class SyncCommand(
+    val id: String,
+    val from: String,               // 发起设备 id
+    val to: String,                 // 目标设备 id
+    val type: String,               // unbind = 强制解绑 / wipe = 解绑并清除数据 / scope = 定向同步指定类别
+    val payload: String? = null,    // type == scope：{"scopes":[...],"state":{...}} 互通 JSON
+    val createdAt: String,          // UTC yyyy-MM-dd'T'HH:mm:ss，用于过期清理
+    val done: List<String> = emptyList(),
+)
+
 // MARK: - 根状态
 
 data class AppState(
@@ -370,4 +390,8 @@ data class AppState(
     val tombstones: Set<String> = emptySet(),
     /** 最近一次「清空全部数据」的时间戳（UTC yyyy-MM-dd'T'HH:mm:ss）。清空不同步删对方数据：对方收到提示自行选择 */
     val clearedAt: String? = null,
+    /** 配对设备登记（管理员据此展示「设备管理」） */
+    val devices: Map<String, SyncDevice> = emptyMap(),
+    /** 待执行的管理指令 */
+    val commands: List<SyncCommand> = emptyList(),
 )
