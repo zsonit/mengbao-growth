@@ -8,24 +8,36 @@ struct GrowthTableView: View {
 
     @State private var metric: GrowthMetric = .height
     @State private var didInit = false
+    @State private var didScroll = false
 
     var body: some View {
-        ScrollView {
-            if let child = store.current {
-                content(child)
-            } else {
-                EmptyHint(text: "先添加宝宝档案")
+        ScrollViewReader { proxy in
+            ScrollView {
+                if let child = store.current {
+                    content(child)
+                } else {
+                    EmptyHint(text: "先添加宝宝档案")
+                }
+            }
+            .background(Palette.background.ignoresSafeArea())
+            .onAppear {
+                if !didInit {
+                    didInit = true
+                    metric = initialMetric
+                }
+                if let child = store.current, !didScroll {
+                    didScroll = true
+                    let current = GrowthMath.ageMonths(from: child.birthDate)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        withAnimation(Anim.soft) {
+                            proxy.scrollTo(current, anchor: .center)
+                        }
+                    }
+                }
             }
         }
-        .background(Palette.background.ignoresSafeArea())
         .navigationTitle("数据表格")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            if !didInit {
-                didInit = true
-                metric = initialMetric
-            }
-        }
     }
 
     private func content(_ child: Child) -> some View {
@@ -78,11 +90,13 @@ struct GrowthTableView: View {
             .padding(.horizontal, 16)
 
             // 逐月行：0 ~ 216 月
+            let currentMonths = GrowthMath.ageMonths(from: child.birthDate)
             ForEach(0...216, id: \.self) { m in
-                tableRow(child: child, months: m, values: values)
+                tableRow(child: child, months: m, values: values, currentMonths: currentMonths)
+                    .id(m)
             }
 
-            Text("百分位说明：P3 表示同龄同性别孩子中约 3% 的水平，P50 为中位数，以此类推。高亮行是宝宝有记录的月份，紫色格是数值所在的百分位档，「\(metric.rawValue)」列是当月实测值。0–5 岁用 WHO 标准（LMS 法），5–7 岁用中国 7 岁以下参照标准，7–18 岁用 WS/T 423 等级评价表。")
+            Text("百分位说明：P3 表示同龄同性别孩子中约 3% 的水平，P50 为中位数，以此类推。带「现在」标记的紫色行是宝宝当前月龄。0–18 岁身高体重采用首都儿科研究所《0~18岁儿童青少年身高、体重百分位数值表》（李辉），BMI 采用 WHO 及 WS/T 相关标准。")
                 .font(.system(size: 11.5))
                 .foregroundColor(Palette.subtle)
                 .lineSpacing(4)
@@ -90,7 +104,8 @@ struct GrowthTableView: View {
         }
     }
 
-    private func tableRow(child: Child, months: Int, values: [Int: Double]) -> some View {
+    private func tableRow(child: Child, months: Int, values: [Int: Double], currentMonths: Int) -> some View {
+        let isCurrent = months == currentMonths
         let bands = GrowthMath.refBands(sex: child.sex, metric: metric, months: months)
         let value = values[months]
         // 数值落在哪一档百分位：0=P3 档内 … 4=≥P97
@@ -104,10 +119,26 @@ struct GrowthTableView: View {
         let fmt = value.map { String(format: "%.1f", $0) } ?? ""
 
         return HStack(spacing: 0) {
-            Text(ageLabel(months))
-                .font(.system(size: 12, weight: value != nil ? .bold : .regular))
-                .foregroundColor(value != nil ? Palette.ink : Palette.ink2)
-                .frame(width: 72, alignment: .leading)
+            if isCurrent {
+                Capsule()
+                    .fill(Palette.purple)
+                    .frame(width: 3.5)
+                    .padding(.vertical, 4)
+            }
+            HStack(spacing: 4) {
+                Text(ageLabel(months))
+                    .font(.system(size: 12, weight: isCurrent || value != nil ? .bold : .regular))
+                    .foregroundColor(value != nil ? Palette.ink : Palette.ink2)
+                if isCurrent {
+                    Text("现在")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1.5)
+                        .background(Capsule().fill(Palette.purple))
+                }
+            }
+            .frame(width: isCurrent ? 68 : 72, alignment: .leading)
             ForEach(0..<5, id: \.self) { i in
                 Text(String(format: "%.1f", bands[i]))
                     .font(.system(size: 12, weight: hit == i ? .bold : .regular))
@@ -122,7 +153,10 @@ struct GrowthTableView: View {
                 .frame(width: 56)
         }
         .padding(.horizontal, 16)
-        .background(value != nil ? Palette.purpleSoft.opacity(0.5) : Color.clear)
+        .background(
+            isCurrent ? Palette.purple.opacity(0.09)
+            : (value != nil ? Palette.purpleSoft.opacity(0.5) : Color.clear)
+        )
         .overlay(alignment: .bottom) {
             Rectangle().fill(Palette.hairlineSoft).frame(height: 0.5)
         }

@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
@@ -30,6 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -515,7 +518,13 @@ fun GrowthTableScreen(initialMetric: GrowthMetric, onBack: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 Text(GrowthMath.ageText(child.birthDate), fontSize = 11.5.sp, color = Palette.subtle)
             }
-            LazyColumn(Modifier.fillMaxSize()) {
+            val currentMonths = remember(child) { GrowthMath.ageMonths(child.birthDate, java.time.LocalDate.now()) }
+            val listState = rememberLazyListState()
+            LaunchedEffect(child) {
+                // 打开表格自动定位到宝宝当前月龄那一行（+1 为表头 item）
+                listState.scrollToItem(currentMonths + 1)
+            }
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 item { TableHeaderRow(metric.label) }
                 items((0..216).toList()) { months ->
                     GrowthTableRow(
@@ -523,11 +532,12 @@ fun GrowthTableScreen(initialMetric: GrowthMetric, onBack: () -> Unit) {
                         metric = metric,
                         months = months,
                         value = values[months],
+                        isCurrent = months == currentMonths,
                     )
                 }
                 item {
                     Text(
-                        "百分位说明：P3 表示同龄同性别孩子中约 3% 的水平，P50 为中位数，以此类推。高亮行是宝宝有记录的月份，紫色格是数值所在的百分位档，「${metric.label}」列是当月实测值。0–5 岁用 WHO 标准（LMS 法），5–7 岁用中国 7 岁以下参照标准，7–18 岁用 WS/T 423 等级评价表。",
+                        "百分位说明：P3 表示同龄同性别孩子中约 3% 的水平，P50 为中位数，以此类推。带「现在」标记的紫色行是宝宝当前月龄。0–18 岁身高体重采用首都儿科研究所《0~18岁儿童青少年身高、体重百分位数值表》（李辉），BMI 采用 WHO 及 WS/T 相关标准。",
                         fontSize = 11.5.sp,
                         color = Palette.subtle,
                         lineHeight = 17.sp,
@@ -574,6 +584,7 @@ private fun GrowthTableRow(
     metric: GrowthMetric,
     months: Int,
     value: Double?,
+    isCurrent: Boolean = false,
 ) {
     val bands = GrowthMath.refBands(child.sex, metric, months)
     // 数值落在哪一档百分位：0=P3 档内 … 4=≥P97
@@ -591,39 +602,67 @@ private fun GrowthTableRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .background(if (value != null) Palette.purpleSoft.copy(alpha = 0.5f) else Color.Transparent)
-            .padding(vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .height(IntrinsicSize.Min)
+            .background(
+                when {
+                    isCurrent -> Palette.purple.copy(alpha = 0.09f)
+                    value != null -> Palette.purpleSoft.copy(alpha = 0.5f)
+                    else -> Color.Transparent
+                }
+            ),
     ) {
-        Text(
-            growthTableAgeLabel(months),
-            fontSize = 12.sp,
-            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Normal,
-            color = if (value != null) Palette.ink else Palette.ink2,
-            modifier = Modifier.width(64.dp),
-        )
-        bands.forEachIndexed { i, band ->
+        if (isCurrent) {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(Palette.purple))
+        }
+        Row(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = if (isCurrent) 13.dp else 16.dp)
+                .padding(vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.width(if (isCurrent) 64.dp else 64.dp)) {
+                Text(
+                    growthTableAgeLabel(months),
+                    fontSize = 12.sp,
+                    fontWeight = if (isCurrent || value != null) FontWeight.Bold else FontWeight.Normal,
+                    color = if (value != null) Palette.ink else Palette.ink2,
+                )
+                if (isCurrent) {
+                    Text(
+                        "现在",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .background(Palette.purple, RoundedCornerShape(50))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
+            bands.forEachIndexed { i, band ->
+                Text(
+                    String.format(Locale.US, "%.1f", band),
+                    fontSize = 12.sp,
+                    fontWeight = if (hit == i) FontWeight.Bold else FontWeight.Normal,
+                    color = if (hit == i) Palette.purple else Palette.ink2,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(if (hit == i) Palette.purple.copy(alpha = 0.14f) else Color.Transparent)
+                        .padding(vertical = 2.dp),
+                )
+            }
             Text(
-                String.format(Locale.US, "%.1f", band),
+                value?.let { String.format(Locale.US, "%.1f", it) } ?: "",
                 fontSize = 12.sp,
-                fontWeight = if (hit == i) FontWeight.Bold else FontWeight.Normal,
-                color = if (hit == i) Palette.purple else Palette.ink2,
+                fontWeight = if (value != null) FontWeight.Bold else FontWeight.Normal,
+                color = Palette.ink,
+                modifier = Modifier.width(52.dp),
                 textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .background(if (hit == i) Palette.purple.copy(alpha = 0.14f) else Color.Transparent)
-                    .padding(vertical = 2.dp),
             )
         }
-        Text(
-            value?.let { String.format(Locale.US, "%.1f", it) } ?: "",
-            fontSize = 12.sp,
-            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Normal,
-            color = Palette.ink,
-            modifier = Modifier.width(52.dp),
-            textAlign = TextAlign.Center,
-        )
     }
     Box(
         Modifier

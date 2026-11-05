@@ -183,60 +183,53 @@ object GrowthMath {
     fun refBands(sex: Sex, metric: GrowthMetric, months: Int): List<Double> {
         val m = months.toDouble()
 
-        if (months <= 60) {
-            if (metric == GrowthMetric.BMI) {
+        if (metric == GrowthMetric.BMI) {
+            if (months <= 60) {
                 val median = bmiMedian(sex, m)
                 val cv = 0.085 + 0.015 * min(1.0, m / 60)
                 return zValues.map { median * (1 + cv * it) }
             }
-            val rows = when (metric) {
-                GrowthMetric.HEIGHT -> if (sex == Sex.BOY) Standards.boyLMSHeight else Standards.girlLMSHeight
-                else -> if (sex == Sex.BOY) Standards.boyLMSWeight else Standards.girlLMSWeight
+            if (months <= 84) {
+                val median = bmiMedian(sex, 60.0)
+                return zValues.map { median * (1 + 0.10 * it) }
             }
-            val row = lmsRow(rows, m)
-            return zValues.map { valueAtZ(it, row) }
+            val years = min(18.0, max(7.0, m / 12))
+            val rows = if (sex == Sex.BOY) Standards.boyBMI7to18 else Standards.girlBMI7to18
+            val median = interp(rows, years, 1)
+            val cv = 0.11 + 0.02 * min(1.0, max(0.0, (m - 84) / 132))
+            return zValues.map { max(9.0, median * (1 + cv * it)) }
         }
 
-        if (months <= 84) {
-            when (metric) {
-                GrowthMetric.HEIGHT -> {
-                    val median = interp(
-                        if (sex == Sex.BOY) Standards.boyMedianHeight36to84 else Standards.girlMedianHeight36to84, m, 1,
-                    )
-                    return zValues.map { median * (1 + 0.042 * it) }
-                }
-                GrowthMetric.WEIGHT -> {
-                    val median = interp(
-                        if (sex == Sex.BOY) Standards.boyMedianWeight36to84 else Standards.girlMedianWeight36to84, m, 1,
-                    )
-                    return zValues.map { median * (1 + 0.155 * it) }
-                }
-                GrowthMetric.BMI -> {
-                    val median = bmiMedian(sex, 60.0)
-                    return zValues.map { median * (1 + 0.10 * it) }
-                }
-            }
+        // 身高 / 体重：首都儿科研究所《0~18岁儿童青少年身高、体重百分位数值表》（李辉），
+        // 半年/年点线性插值到月；女孩 10岁6月~11岁9月 用参考 App 精确值覆盖
+        if (sex == Sex.GIRL && metric == GrowthMetric.HEIGHT) {
+            Standards.liGirlHeightOverride[months]?.let { return it }
+        }
+        if (sex == Sex.GIRL && metric == GrowthMetric.WEIGHT) {
+            Standards.liGirlWeightOverride[months]?.let { return it }
         }
 
-        val years = min(18.0, max(7.0, m / 12))
-        return when (metric) {
-            GrowthMetric.HEIGHT -> {
-                val rows = if (sex == Sex.BOY) Standards.boyHeight7to18 else Standards.girlHeight7to18
-                (1..5).map { interp(rows, years, it) }
-            }
-            GrowthMetric.WEIGHT -> {
-                val rows = if (sex == Sex.BOY) Standards.boyWeight7to18 else Standards.girlWeight7to18
-                val median = interp(rows, years, 1)
-                val cv = 0.16 + 0.06 * min(1.0, max(0.0, (m - 84) / 132))
-                zValues.map { median * (1 + cv * it) }
-            }
-            GrowthMetric.BMI -> {
-                val rows = if (sex == Sex.BOY) Standards.boyBMI7to18 else Standards.girlBMI7to18
-                val median = interp(rows, years, 1)
-                val cv = 0.11 + 0.02 * min(1.0, max(0.0, (m - 84) / 132))
-                zValues.map { max(9.0, median * (1 + cv * it)) }
-            }
+        val table = if (metric == GrowthMetric.HEIGHT) Standards.liHeightStd else Standards.liWeightStd
+        val row = liRow(table, months)
+        val p3 = row[0]
+        val p50 = row[3]
+        val p97 = row[6]
+        val sigma = (p97 - p3) / 3.757
+        return listOf(p3, p50 - 1.036 * sigma, p50, p50 + 1.036 * sigma, p97)
+    }
+
+    /// 李辉表按月龄线性插值，返回 7 列 [P3, P10, P25, P50, P75, P90, P97/95]
+    fun liRow(table: List<List<Double>>, months: Int): List<Double> {
+        var prev = table.first()
+        var next = table.last()
+        for (r in table) {
+            if (r[0] <= months) prev = r
+            if (r[0] > months) { next = r; break }
         }
+        val m = months.toDouble()
+        if (next[0] <= prev[0] || m <= prev[0]) return prev.drop(1)
+        val t = min(1.0, (m - prev[0]) / (next[0] - prev[0]))
+        return (1..7).map { i -> prev[i] + (next[i] - prev[i]) * t }
     }
 
     fun percentile(sex: Sex, metric: GrowthMetric, months: Int, value: Double): Double {

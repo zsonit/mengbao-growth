@@ -227,49 +227,47 @@ enum GrowthMath {
     static func refBands(sex: Sex, metric: GrowthMetric, months: Int) -> [Double] {
         let m = Double(months)
 
-        if months <= 60 {
-            if metric == .bmi {
+        if metric == .bmi {
+            if months <= 60 {
                 let median = bmiMedian(sex: sex, months: m)
                 let cv = 0.085 + 0.015 * min(1, m / 60)
                 return zValues.map { median * (1 + cv * $0) }
             }
-            let rows = metric == .height
-                ? (sex == .boy ? Standards.boyLMSHeight : Standards.girlLMSHeight)
-                : (sex == .boy ? Standards.boyLMSWeight : Standards.girlLMSWeight)
-            let row = lmsRow(rows, m)
-            return zValues.map { value(atZ: $0, row: row) }
-        }
-
-        if months <= 84 {
-            switch metric {
-            case .height:
-                let median = interp(sex == .boy ? Standards.boyMedianHeight36_84 : Standards.girlMedianHeight36_84, m, 1)
-                return zValues.map { median * (1 + 0.042 * $0) }
-            case .weight:
-                let median = interp(sex == .boy ? Standards.boyMedianWeight36_84 : Standards.girlMedianWeight36_84, m, 1)
-                return zValues.map { median * (1 + 0.155 * $0) }
-            case .bmi:
+            if months <= 84 {
                 let median = bmiMedian(sex: sex, months: 60)
                 return zValues.map { median * (1 + 0.10 * $0) }
             }
-        }
-
-        let years = min(18, max(7, m / 12))
-        switch metric {
-        case .height:
-            let rows = sex == .boy ? Standards.boyHeight7_18 : Standards.girlHeight7_18
-            return (1...5).map { interp(rows, years, $0) }
-        case .weight:
-            let rows = sex == .boy ? Standards.boyWeight7_18 : Standards.girlWeight7_18
-            let median = interp(rows, years, 1)
-            let cv = 0.16 + 0.06 * min(1, max(0, (m - 84) / 132))
-            return zValues.map { median * (1 + cv * $0) }
-        case .bmi:
+            let years = min(18, max(7, m / 12))
             let rows = sex == .boy ? Standards.boyBMI7_18 : Standards.girlBMI7_18
             let median = interp(rows, years, 1)
             let cv = 0.11 + 0.02 * min(1, max(0, (m - 84) / 132))
             return zValues.map { max(9, median * (1 + cv * $0)) }
         }
+
+        // 身高 / 体重：首都儿科研究所《0~18岁儿童青少年身高、体重百分位数值表》（李辉），
+        // 半年/年点线性插值到月；女孩 10岁6月~11岁9月 用参考 App 精确值覆盖
+        if sex == .girl, metric == .height, let ov = Standards.liGirlHeightOverride[months] { return ov }
+        if sex == .girl, metric == .weight, let ov = Standards.liGirlWeightOverride[months] { return ov }
+
+        let table = metric == .height ? Standards.liHeightStd : Standards.liWeightStd
+        let row = liRow(table, months)
+        let p3 = row[0], p50 = row[3], p97 = row[6]
+        let sigma = (p97 - p3) / 3.757
+        return [p3, p50 - 1.036 * sigma, p50, p50 + 1.036 * sigma, p97]
+    }
+
+    /// 李辉表按月龄线性插值，返回该性别 7 列 [P3, P10, P25, P50, P75, P90, P97/95]
+    static func liRow(_ table: [[Double]], _ months: Int) -> [Double] {
+        var prev = table[0]
+        var next = table[table.count - 1]
+        for r in table {
+            if r[0] <= Double(months) { prev = r }
+            if r[0] > Double(months) { next = r; break }
+        }
+        let m = Double(months)
+        if next[0] <= prev[0] || m <= prev[0] { return Array(prev[1...7]) }
+        let t = min(1, (m - prev[0]) / (next[0] - prev[0]))
+        return (1...7).map { i in prev[i] + (next[i] - prev[i]) * t }
     }
 
     static func percentile(sex: Sex, metric: GrowthMetric, months: Int, value: Double) -> Double {
@@ -319,8 +317,7 @@ enum GrowthMath {
                            heightPercentile: nil, weightPercentile: nil,
                            bmi: nil, bmiPercentile: nil,
                            heightLevel: nil, bmiLevel: nil,
-                           source: months <= 60 ? "WHO 儿童生长标准（简化 LMS）"
-                                   : (months <= 84 ? "中国 7 岁以下儿童生长发育参照标准" : "WS/T 423 身高发育等级评价"))
+                           source: "首都儿科研究所《0~18岁儿童青少年身高、体重百分位数值表》")
 
         if let h = record.height, h > 0 {
             let p = percentile(sex: child.sex, metric: .height, months: months, value: h)
