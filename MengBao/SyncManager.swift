@@ -176,6 +176,14 @@ final class SyncManager: ObservableObject {
         }
         Self.defaults.set(code, forKey: Self.keyCode)
         Self.defaults.removeObject(forKey: Self.keySalt)
+        // 重新输入配对码＝重新接入：本机是空的时候要把「清空标记 / 删除墓碑」一起清掉，
+        // 否则空设备会把自己的空状态推上去，把对方云端的数据盖掉
+        if Store.shared.state.children.isEmpty {
+            Store.shared.update({ s in
+                s.clearedAt = nil
+                s.tombstones = []
+            }, silent: true)
+        }
         let r = syncNow(manual: true)
         return r.ok ? SyncOutcome(ok: true, message: "配对成功：\(code)") : r
     }

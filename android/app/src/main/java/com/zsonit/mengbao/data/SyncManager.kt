@@ -173,6 +173,16 @@ object SyncManager {
         val c = code.trim()
         if (!Regex("\\d{6}").matches(c)) return SyncResult(false, "配对码是 6 位数字")
         prefs()?.edit()?.putString(KEY_CODE, c)?.remove(KEY_SALT)?.apply()
+        // 重新输入配对码＝重新接入：本机是空的时候要把「清空标记 / 删除墓碑」一起清掉，
+        // 否则空设备会把自己的空状态推上去，把对方云端的数据盖掉
+        if (Store.state.children.isEmpty()) {
+            Store.suppressSync = true
+            try {
+                Store.update { it.copy(clearedAt = null, tombstones = emptySet()) }
+            } finally {
+                Store.suppressSync = false
+            }
+        }
         val r = syncNow(manual = true)
         return if (r.ok) SyncResult(true, "配对成功：$c") else r
     }
