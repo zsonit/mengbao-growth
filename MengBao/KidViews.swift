@@ -314,47 +314,110 @@ struct KidEditorView: View {
 struct KidsListView: View {
     @EnvironmentObject private var store: Store
     @Environment(\.dismiss) private var dismiss
-    @State private var showAdd = false
+    @State private var pendingDelete: Child?
+
+    private enum KidSheet: Identifiable {
+        case add
+        case edit(Child)
+        var id: String {
+            switch self {
+            case .add: return "add"
+            case .edit(let c): return "edit-" + c.id.uuidString
+            }
+        }
+    }
+
+    @State private var kidSheet: KidSheet?
+
+    private var deleteAlertShown: Binding<Bool> {
+        Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 10) {
+            List {
+                Section {
                     ForEach(store.state.children) { kid in
-                        HStack(spacing: 12) {
-                            AvatarView(child: kid, size: 44, fontSize: 24, bg: Palette.purpleSoft)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(kid.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Palette.ink)
-                                Text("\(kid.sex.label) · \(GrowthMath.ageText(from: kid.birthDate))")
-                                    .font(.system(size: 12)).foregroundColor(Palette.subtle)
+                        row(kid)
+                            .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            // 左滑显示删除按钮（滑到底也不会直接删，避免误触）
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) { pendingDelete = kid } label: {
+                                    Label("删除", systemImage: "trash")
+                                }
                             }
-                            Spacer()
-                            if kid.id == store.state.currentID {
-                                TagView(text: "当前", tone: .ok)
-                            } else {
-                                Button("切换") { store.selectChild(kid.id); dismiss() }
-                                    .font(.system(size: 12.5, weight: .semibold))
-                                    .foregroundColor(Palette.purple)
-                            }
-                        }
-                        .padding(14)
-                        .background(Palette.card)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
                     }
 
-                    Button("＋ 添加宝宝") { showAdd = true }
+                    Button("＋ 添加宝宝") { kidSheet = .add }
                         .buttonStyle(PrimaryButtonStyle(filled: false))
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 10, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } footer: {
+                    Text("向左滑动某个宝宝档案，即可删除（会同时删除 TA 的全部生长、喂养与接种记录）。")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Palette.subtle)
+                        .padding(.horizontal, 8)
                 }
-                .padding(16)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .background(Palette.background.ignoresSafeArea())
             .navigationTitle("管理宝宝")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }
-            .sheet(isPresented: $showAdd) { KidEditorView(child: nil) }
+            .sheet(item: $kidSheet) { target in
+                switch target {
+                case .add: KidEditorView(child: nil)
+                case .edit(let kid): KidEditorView(child: kid)
+                }
+            }
+            .alert("删除「\(pendingDelete?.name ?? "")」？", isPresented: deleteAlertShown) {
+                Button("取消", role: .cancel) { pendingDelete = nil }
+                Button("删除", role: .destructive) {
+                    if let kid = pendingDelete { store.deleteChild(kid.id) }
+                    pendingDelete = nil
+                }
+            } message: {
+                Text("将同时删除该宝宝的全部生长、喂养与接种记录，且无法撤销。")
+            }
         }
+    }
+
+    private func row(_ kid: Child) -> some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 12) {
+                AvatarView(child: kid, size: 44, fontSize: 24, bg: Palette.purpleSoft)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kid.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Palette.ink)
+                    Text("\(kid.sex.label) · \(GrowthMath.ageText(from: kid.birthDate))")
+                        .font(.system(size: 12)).foregroundColor(Palette.subtle)
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { kidSheet = .edit(kid) }
+
+            if kid.id == store.state.currentID {
+                TagView(text: "当前", tone: .ok)
+            } else {
+                Button("切换") { store.selectChild(kid.id); dismiss() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundColor(Palette.purple)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Palette.subtle.opacity(0.6))
+        }
+        .padding(14)
+        .background(Palette.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
     }
 }

@@ -4,6 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -85,45 +90,107 @@ import java.time.LocalDate
 
 // MARK: - 宝宝列表
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun KidsScreen(onBack: () -> Unit, onEdit: (String?) -> Unit) {
     val children = Store.state.children
     val currentId = Store.state.currentId
+    var pendingDelete by remember { mutableStateOf<Child?>(null) }
 
     Column(Modifier.fillMaxSize().background(Palette.background)) {
         TopBar(title = "管理宝宝", onBack = onBack)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
             children.forEach { kid ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp)
-                        .cardStyle(padding = 14.dp, radius = 16.dp)
-                        .clickable { onEdit(kid.id) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Avatar(child = kid, size = 44.dp, fontSize = 24.sp, bg = Palette.purpleSoft)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(kid.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
-                        Text(
-                            "${kid.sex.label} · ${GrowthMath.ageText(kid.birthDate)}",
-                            fontSize = 12.sp, color = Palette.subtle,
-                        )
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (kid.id == currentId) {
-                        TagView(text = "当前", tone = TagTone.OK)
-                    } else {
-                        Text(
-                            "切换", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
-                            modifier = Modifier.clickable { Store.selectChild(kid.id); onBack() }.padding(4.dp),
-                        )
+                key(kid.id) {
+                    // 左滑露出删除按钮；滑到底不直接删，先弹确认框，避免误删整份档案
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) pendingDelete = kid
+                            false
+                        },
+                    )
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        enableDismissFromStartToEnd = false,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                        backgroundContent = {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xFFE64F4D)),
+                                contentAlignment = Alignment.CenterEnd,
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(end = 20.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Delete,
+                                        contentDescription = "删除",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text("删除", fontSize = 10.5.sp, color = Color.White)
+                                }
+                            }
+                        },
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .cardStyle(padding = 14.dp, radius = 16.dp)
+                                .clickable { onEdit(kid.id) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Avatar(child = kid, size = 44.dp, fontSize = 24.sp, bg = Palette.purpleSoft)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(kid.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Palette.ink)
+                                Text(
+                                    "${kid.sex.label} · ${GrowthMath.ageText(kid.birthDate)}",
+                                    fontSize = 12.sp, color = Palette.subtle,
+                                )
+                            }
+                            Spacer(Modifier.weight(1f))
+                            if (kid.id == currentId) {
+                                TagView(text = "当前", tone = TagTone.OK)
+                            } else {
+                                Text(
+                                    "切换", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Palette.purple,
+                                    modifier = Modifier.clickable { Store.selectChild(kid.id); onBack() }.padding(4.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }
+
+            Text(
+                "向左滑动某个宝宝档案，即可删除（会同时删除 TA 的全部生长、喂养与接种记录）。",
+                fontSize = 11.5.sp, color = Palette.subtle, lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+            )
+
             PrimaryButton(text = "＋ 添加宝宝", filled = false, onClick = { onEdit(null) })
         }
+    }
+
+    pendingDelete?.let { kid ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除「${kid.name}」？") },
+            text = { Text("将同时删除该宝宝的全部生长、喂养与接种记录，且无法撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    Store.deleteChild(kid.id)
+                    pendingDelete = null
+                }) { Text("删除", color = Palette.bad) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+            },
+        )
     }
 }
 
