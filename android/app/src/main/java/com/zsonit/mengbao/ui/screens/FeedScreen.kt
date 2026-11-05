@@ -346,8 +346,11 @@ private fun FeedEditorDialog(child: Child, initialKind: FeedLog.Kind, onDismiss:
                 FeedLog(date = LocalDate.now(), time = now, kind = kind, diaperKind = diaperKind)
             FeedLog.Kind.PUMPING ->
                 FeedLog(date = LocalDate.now(), time = now, kind = kind, ml = ml.toDoubleOrNull())
+            FeedLog.Kind.STORAGE ->
+                FeedLog(date = LocalDate.now(), time = now, kind = kind, ml = ml.toDoubleOrNull())
             FeedLog.Kind.TEMP ->
                 FeedLog(date = LocalDate.now(), time = now, kind = kind, value = ml.toDoubleOrNull() ?: 36.5)
+            FeedLog.Kind.MEDICINE, FeedLog.Kind.NOTEBOOK,
             FeedLog.Kind.SOLID, FeedLog.Kind.SUPPLEMENT, FeedLog.Kind.CUSTOM ->
                 FeedLog(date = LocalDate.now(), time = now, kind = kind, note = note.trim())
         }

@@ -452,7 +452,7 @@ struct HomeView: View {
         let now = Date()
         var logs = child.feeds.filter { $0.date >= cutoff && $0.date <= now }
         if !store.settings.showFeed {
-            logs = logs.filter { $0.kind == .temp || $0.kind == .custom }
+            logs = logs.filter { $0.kind == .temp || $0.kind == .custom || $0.kind == .notebook || $0.kind == .medicine }
         }
         let items = Array(logs.sorted { $0.date > $1.date }.prefix(6))
 

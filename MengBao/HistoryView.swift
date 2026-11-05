@@ -56,7 +56,7 @@ struct HistoryView: View {
         if store.settings.showFeed {
             items.append(contentsOf: child.feeds.map { Item.feed($0) })
         } else {
-            items.append(contentsOf: child.feeds.filter { $0.kind == .temp || $0.kind == .custom }.map { Item.feed($0) })
+            items.append(contentsOf: child.feeds.filter { $0.kind == .temp || $0.kind == .custom || $0.kind == .notebook || $0.kind == .medicine }.map { Item.feed($0) })
         }
         if store.settings.showSize { items.append(contentsOf: child.sizes.filter { $0.hasContent }.map { Item.size($0) }) }
         items.sort { $0.date > $1.date }

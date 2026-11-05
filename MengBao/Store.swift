@@ -369,7 +369,7 @@ final class Store: ObservableObject {
 
     /// 首页要展示的入口（过滤掉喂养类，若喂养模块关闭）
     var homeQuickEntries: [QuickEntry] {
-        let feedKinds: Set<String> = ["bottle", "breast", "pumping", "solid", "supplement"]
+        let feedKinds: Set<String> = ["bottle", "breast", "pumping", "storage", "solid", "supplement", "medicine"]
         return quickEntries.filter { $0.visible && (settings.showFeed || !feedKinds.contains($0.kind)) }
     }
 

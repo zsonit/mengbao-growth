@@ -15,7 +15,7 @@ struct EntrySheet: View {
     @State private var note = ""
 
     // 各类型各自的值
-    @State private var amount: Double = 150          // 瓶喂 / 吸奶 ml
+    @State private var amount: Double = 150          // 瓶喂 / 吸奶 / 储奶 ml
     @State private var side = "左"
     @State private var minutes: Double = 15          // 亲喂 / 睡眠
     @State private var diaperKind = "小便"
@@ -27,6 +27,14 @@ struct EntrySheet: View {
     @State private var height: Double = 50
     @State private var head: Double = 40
     @State private var customText = ""
+    @State private var milkSource = "奶粉"            // 瓶喂：奶粉 / 人奶
+    @State private var storageKind = "冷藏"           // 储奶：冷藏 / 冷冻
+    @State private var medicineName = ""             // 喂药：药名
+    @State private var dose: Double = 5              // 喂药：剂量 ml
+    @State private var medicineReason = ""           // 喂药：原因
+    @State private var notebookTag = ""              // 记事本：异常标签
+    @State private var notebookText = ""             // 记事本：正文
+    @State private var detent: PresentationDetent = .fraction(0.7)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,7 +51,6 @@ struct EntrySheet: View {
                 VStack(spacing: 14) {
                     content
                     dateRows
-                    if showsExtraNote { noteField }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 2)
@@ -58,7 +65,8 @@ struct EntrySheet: View {
                 .padding(.bottom, 12)
         }
         .background(Palette.background.ignoresSafeArea())
-        .presentationDetents([.medium, .large])
+        // 默认 70% 高度：比原来的半屏高，备注一眼能看到；内容多的类型可以再往上拖到全高
+        .presentationDetents([.fraction(0.7), .large], selection: $detent)
         .presentationDragIndicator(.hidden)
         .onAppear { prepare() }
     }
@@ -88,11 +96,63 @@ struct EntrySheet: View {
     @ViewBuilder
     private var content: some View {
         switch entry.kind {
-        case "bottle", "pumping":
+        case "bottle":
+            VStack(alignment: .leading, spacing: 12) {
+                sectionLabel("这一顿喝的是")
+                textChips(EntryPresets.milkSources, current: milkSource) { milkSource = $0 }
+                Divider().background(Palette.hairlineSoft)
+                bigValue(String(format: "%.0f", amount), unit: "ml")
+                RulerPicker(value: $amount, range: 0...300, step: 5, format: "%.0f", unit: "ml")
+                numberChips(EntryPresets.milkAmounts, format: "%.0f", unit: "ml", current: amount) { amount = $0 }
+            }
+            .cardStyle()
+
+        case "pumping":
             VStack(spacing: 12) {
                 bigValue(String(format: "%.0f", amount), unit: "ml")
                 RulerPicker(value: $amount, range: 0...300, step: 5, format: "%.0f", unit: "ml")
                 numberChips(EntryPresets.milkAmounts, format: "%.0f", unit: "ml", current: amount) { amount = $0 }
+            }
+            .cardStyle()
+
+        case "storage":
+            VStack(alignment: .leading, spacing: 12) {
+                sectionLabel("存放方式")
+                textChips(EntryPresets.storageKinds, current: storageKind) { storageKind = $0 }
+                Divider().background(Palette.hairlineSoft)
+                bigValue(String(format: "%.0f", amount), unit: "ml")
+                RulerPicker(value: $amount, range: 0...300, step: 5, format: "%.0f", unit: "ml")
+                numberChips(EntryPresets.milkAmounts, format: "%.0f", unit: "ml", current: amount) { amount = $0 }
+                Text(storageHint)
+                    .font(.system(size: 12))
+                    .foregroundColor(Palette.subtle)
+            }
+            .cardStyle()
+
+        case "medicine":
+            VStack(alignment: .leading, spacing: 12) {
+                simpleField(title: "吃了什么药", placeholder: "例如 美林 布洛芬混悬液", text: $medicineName)
+                textChips(EntryPresets.medicineNames, current: medicineName) { medicineName = $0 }
+                Divider().background(Palette.hairlineSoft)
+                sectionLabel("吃了多少")
+                bigValue(String(format: "%.1f", dose), unit: "ml")
+                RulerPicker(value: $dose, range: 0...20, step: 0.5, format: "%.1f", unit: "ml")
+                Divider().background(Palette.hairlineSoft)
+                sectionLabel("为什么吃（可不选）")
+                textChips(EntryPresets.medicineReasons, current: medicineReason) { reason in
+                    medicineReason = (medicineReason == reason) ? "" : reason
+                }
+            }
+            .cardStyle()
+
+        case "notebook":
+            VStack(alignment: .leading, spacing: 12) {
+                sectionLabel("异常情况（点一下加进记录）")
+                textChips(EntryPresets.notebookTags, current: notebookTag) { tag in
+                    notebookTag = (notebookTag == tag) ? "" : tag
+                }
+                Divider().background(Palette.hairlineSoft)
+                multilineField(placeholder: "详细记一笔：什么时候、什么样、有没有处理…", text: $notebookText)
             }
             .cardStyle()
 
@@ -243,6 +303,42 @@ struct EntrySheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundColor(Palette.subtle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 记事本用的多行输入：自带配色与占位提示，避免 TextEditor 默认白底
+    private func multilineField(placeholder: String, text: Binding<String>) -> some View {
+        ZStack(alignment: .topLeading) {
+            if text.wrappedValue.isEmpty {
+                Text(placeholder)
+                    .font(.system(size: 14.5))
+                    .foregroundColor(Palette.subtle.opacity(0.65))
+                    .padding(.top, 8)
+                    .padding(.leading, 4)
+            }
+            TextEditor(text: text)
+                .font(.system(size: 15))
+                .frame(minHeight: 118)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.purpleTint)
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+
+    private var storageHint: String {
+        storageKind == "冷冻"
+            ? "冷冻一般可存 3 个月左右，放冰箱最里层，写明日期先存先用。"
+            : "冷藏一般 24 小时内喝完，放冰箱最里层，别放门上。"
+    }
+
     // MARK: 日期 / 时间 / 备注
 
     private var dateRows: some View {
@@ -266,6 +362,12 @@ struct EntrySheet: View {
                     .environment(\.locale, Locale(identifier: "zh_CN"))
             }
             .padding(.vertical, 4)
+
+            // 备注跟日期时间放同一张卡里：70% 高度下也能直接看到「备注（可选）」
+            if showsExtraNote {
+                Divider().background(Palette.hairlineSoft)
+                noteField.padding(.top, 8)
+            }
         }
         .cardStyle(padding: 14)
     }
@@ -282,9 +384,9 @@ struct EntrySheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
-    /// 辅食 / 补剂 / 自定义自己就是备注，不再多一个备注框
+    /// 辅食 / 补剂 / 喂药 / 记事本 / 自定义自己就是备注，不再多一个备注框
     private var showsExtraNote: Bool {
-        !["solid", "supplement", "custom"].contains(entry.kind)
+        !["solid", "supplement", "medicine", "notebook", "custom"].contains(entry.kind)
     }
 
     // MARK: 体温提示
@@ -328,8 +430,23 @@ struct EntrySheet: View {
     private func saveFeed() {
         var log = FeedLog(date: date, kind: FeedLog.Kind(rawValue: entry.kind) ?? .custom)
         switch entry.kind {
-        case "bottle", "pumping":
+        case "bottle":
             log.ml = amount
+            log.tag = milkSource
+        case "pumping":
+            log.ml = amount
+        case "storage":
+            log.ml = amount
+            log.tag = storageKind
+        case "medicine":
+            let name = medicineName.trimmed()
+            log.note = name.isEmpty ? "喂药" : name
+            log.value = dose
+            log.tag = medicineReason.isEmpty ? nil : medicineReason
+        case "notebook":
+            let body = notebookText.trimmed()
+            log.note = body.isEmpty ? (notebookTag.isEmpty ? "记事本" : notebookTag) : body
+            log.tag = notebookTag.isEmpty ? nil : notebookTag
         case "breast":
             log.minutes = Int(minutes.rounded())
             log.side = side

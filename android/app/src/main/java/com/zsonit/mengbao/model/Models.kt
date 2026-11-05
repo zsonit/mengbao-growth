@@ -46,8 +46,10 @@ data class FeedLog(
     val ml: Double? = null,
     val side: String? = null,
     val diaperKind: String? = null,
-    /** 通用数值位：体温（℃）、辅食克数等 */
+    /** 通用数值位：体温（℃）、辅食克数、喂药剂量（ml）等 */
     val value: Double? = null,
+    /** 通用标签位：瓶喂（奶粉/人奶）、储奶（冷藏/冷冻）、喂药/记事本（发烧/感冒…） */
+    val tag: String? = null,
     val note: String = "",
 ) {
     enum class Kind(val title: String, val icon: String, val unit: String) {
@@ -55,10 +57,13 @@ data class FeedLog(
         BREAST("亲喂", "🤱", "分钟"),
         BOTTLE("瓶喂", "🍼", "ml"),
         PUMPING("吸奶", "🧴", "ml"),
+        STORAGE("储奶", "🥛", "ml"),
         DIAPER("尿布", "🧷", "次"),
         SOLID("辅食", "🍚", ""),
         SUPPLEMENT("补剂", "💊", ""),
+        MEDICINE("喂药", "🩺", "ml"),
         TEMP("体温", "🌡️", "℃"),
+        NOTEBOOK("记事本", "📒", ""),
         CUSTOM("记录", "📝", "");
 
         val isFeedLike: Boolean
@@ -78,12 +83,19 @@ data class FeedLog(
         get() = when (kind) {
             Kind.SLEEP -> "${minutes ?: 0} 分钟"
             Kind.BREAST -> "${side ?: "左"} ${minutes?.let { "$it 分钟" } ?: ""}".trim()
-            Kind.BOTTLE -> "${(ml ?: 0.0).toInt()} ml"
+            Kind.BOTTLE -> "${(ml ?: 0.0).toInt()} ml" + (tag?.let { " · $it" } ?: "")
             Kind.PUMPING -> "${(ml ?: 0.0).toInt()} ml"
+            Kind.STORAGE -> "${(ml ?: 0.0).toInt()} ml" + (tag?.let { " · $it" } ?: "")
             Kind.DIAPER -> diaperKind ?: "小便"
             Kind.SOLID -> note.ifEmpty { "已添加辅食" }
             Kind.SUPPLEMENT -> note.ifEmpty { "已服用" }
+            Kind.MEDICINE -> {
+                val dose = if ((value ?: 0.0) > 0) String.format("%.1f ml", value ?: 0.0) else ""
+                val name = note.ifEmpty { "喂药" }
+                (if (dose.isEmpty()) name else "$name $dose") + (tag?.let { " · $it" } ?: "")
+            }
             Kind.TEMP -> String.format("%.1f ℃", value ?: 36.5)
+            Kind.NOTEBOOK -> note.ifEmpty { "记事本" }
             Kind.CUSTOM -> note.ifEmpty { "记录" }
         }
 
@@ -92,12 +104,18 @@ data class FeedLog(
         get() = when (kind) {
             Kind.SLEEP -> "睡了 ${minutes ?: 0} 分钟"
             Kind.BREAST -> "亲喂 ${side ?: "左"} 侧 ${minutes ?: 0} 分钟"
-            Kind.BOTTLE -> "喝了 ${(ml ?: 0.0).toInt()} 毫升奶"
+            Kind.BOTTLE -> "喝了 ${(ml ?: 0.0).toInt()} 毫升${tag ?: "奶"}"
             Kind.PUMPING -> "吸奶 ${(ml ?: 0.0).toInt()} 毫升"
+            Kind.STORAGE -> "储奶 ${(ml ?: 0.0).toInt()} 毫升" + (tag?.let { "（$it）" } ?: "")
             Kind.DIAPER -> diaperKind ?: "小便"
             Kind.SOLID -> "吃了 $note"
             Kind.SUPPLEMENT -> "补了 $note"
+            Kind.MEDICINE -> {
+                val dose = if ((value ?: 0.0) > 0) String.format("%.1f 毫升", value ?: 0.0) else ""
+                "喂了 $note" + (if (dose.isEmpty()) "" else " $dose") + (tag?.let { "（$it）" } ?: "")
+            }
             Kind.TEMP -> String.format("体温 %.1f 度", value ?: 36.5)
+            Kind.NOTEBOOK -> "记录：$note"
             Kind.CUSTOM -> note
         }
 }
@@ -264,11 +282,14 @@ data class QuickEntry(
             QuickEntry("bottle", "bottle", "瓶喂", "🍼"),
             QuickEntry("breast", "breast", "亲喂", "🤱"),
             QuickEntry("pumping", "pumping", "吸奶", "🧴"),
+            QuickEntry("storage", "storage", "储奶", "🥛"),
             QuickEntry("sleep", "sleep", "睡眠", "😴"),
             QuickEntry("diaper", "diaper", "尿布", "🧷"),
             QuickEntry("solid", "solid", "辅食", "🍚"),
             QuickEntry("supplement", "supplement", "补剂", "💊"),
+            QuickEntry("medicine", "medicine", "喂药", "🩺"),
             QuickEntry("temp", "temp", "体温", "🌡️"),
+            QuickEntry("notebook", "notebook", "记事本", "📒"),
             QuickEntry("weight", "weight", "体重", "⚖️"),
             QuickEntry("height", "height", "身高", "📏"),
             QuickEntry("head", "head", "头围", "🧢"),
@@ -300,7 +321,12 @@ data class AppSettings(
     val mutedTodoReminders: Set<String> = emptySet(),
 ) {
     val resolvedQuickEntries: List<QuickEntry>
-        get() = if (quickEntries.isEmpty()) QuickEntry.builtins else quickEntries
+        get() {
+            if (quickEntries.isEmpty()) return QuickEntry.builtins
+            // 老版本存过自定义顺序时，把后来新增的内置入口（储奶/喂药/记事本等）补在末尾
+            val existing = quickEntries.map { it.kind }.toSet()
+            return quickEntries + QuickEntry.builtins.filter { it.kind !in existing }
+        }
 }
 
 // MARK: - 根状态

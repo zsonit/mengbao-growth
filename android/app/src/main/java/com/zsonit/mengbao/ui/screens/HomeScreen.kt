@@ -535,7 +535,8 @@ private fun RecentActivitySection(child: Child, showFeed: Boolean, onOpenHistory
     val recent = child.feeds.filter { log ->
         val at = LocalDateTime.of(log.date, log.time ?: LocalTime.MIN)
         val kindOk = showFeed ||
-            log.kind == FeedLog.Kind.TEMP || log.kind == FeedLog.Kind.CUSTOM
+            log.kind == FeedLog.Kind.TEMP || log.kind == FeedLog.Kind.CUSTOM ||
+            log.kind == FeedLog.Kind.NOTEBOOK || log.kind == FeedLog.Kind.MEDICINE
         at.isAfter(cutoff) && kindOk
     }.sortedWith(
         compareByDescending<FeedLog> { it.date }
@@ -580,10 +581,13 @@ private fun tintForKind(kind: FeedLog.Kind): Color = when (kind) {
     FeedLog.Kind.BREAST -> Palette.pinkBg
     FeedLog.Kind.BOTTLE -> Palette.blueBg
     FeedLog.Kind.PUMPING -> Palette.blueBg
+    FeedLog.Kind.STORAGE -> Palette.blueBg
     FeedLog.Kind.DIAPER -> Palette.okBg
     FeedLog.Kind.SOLID -> Palette.warnBg
     FeedLog.Kind.SUPPLEMENT -> Palette.okBg
+    FeedLog.Kind.MEDICINE -> Palette.warnBg
     FeedLog.Kind.TEMP -> Palette.badBg
+    FeedLog.Kind.NOTEBOOK -> Palette.purpleTint
     FeedLog.Kind.CUSTOM -> Palette.purpleTint
 }
 

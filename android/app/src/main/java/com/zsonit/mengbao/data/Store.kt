@@ -285,7 +285,7 @@ object Store {
     /** 首页要展示的入口（喂养模块关闭时过滤掉喂养类） */
     val homeQuickEntries: List<QuickEntry>
         get() {
-            val feedKinds = setOf("bottle", "breast", "pumping", "solid", "supplement")
+            val feedKinds = setOf("bottle", "breast", "pumping", "storage", "solid", "supplement", "medicine")
             return quickEntries.filter { it.visible && (settings.showFeed || it.kind !in feedKinds) }
         }
 

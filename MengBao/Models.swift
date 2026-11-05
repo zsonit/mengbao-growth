@@ -31,7 +31,7 @@ struct GrowthRecord: Identifiable, Codable, Hashable {
 
 struct FeedLog: Identifiable, Codable, Hashable {
     enum Kind: String, Codable, CaseIterable, Identifiable {
-        case sleep, breast, bottle, pumping, diaper, solid, supplement, temp, custom
+        case sleep, breast, bottle, pumping, storage, diaper, solid, supplement, medicine, temp, notebook, custom
 
         var id: String { rawValue }
 
@@ -41,10 +41,13 @@ struct FeedLog: Identifiable, Codable, Hashable {
             case .breast: return "亲喂"
             case .bottle: return "瓶喂"
             case .pumping: return "吸奶"
+            case .storage: return "储奶"
             case .diaper: return "尿布"
             case .solid: return "辅食"
             case .supplement: return "补剂"
+            case .medicine: return "喂药"
             case .temp: return "体温"
+            case .notebook: return "记事本"
             case .custom: return "记录"
             }
         }
@@ -55,10 +58,13 @@ struct FeedLog: Identifiable, Codable, Hashable {
             case .breast: return "🤱"
             case .bottle: return "🍼"
             case .pumping: return "🧴"
+            case .storage: return "🥛"
             case .diaper: return "🧷"
             case .solid: return "🍚"
             case .supplement: return "💊"
+            case .medicine: return "🩺"
             case .temp: return "🌡️"
+            case .notebook: return "📒"
             case .custom: return "📝"
             }
         }
@@ -66,11 +72,12 @@ struct FeedLog: Identifiable, Codable, Hashable {
         var unit: String {
             switch self {
             case .sleep, .breast, .pumping: return "分钟"
-            case .bottle: return "ml"
+            case .bottle, .storage, .medicine: return "ml"
             case .diaper: return "次"
             case .solid: return ""
             case .supplement: return ""
             case .temp: return "℃"
+            case .notebook: return ""
             case .custom: return ""
             }
         }
@@ -91,20 +98,33 @@ struct FeedLog: Identifiable, Codable, Hashable {
     var ml: Double?
     var side: String?
     var diaperKind: String?
-    /// 通用数值位：体温（℃）、辅食克数等
+    /// 通用数值位：体温（℃）、辅食克数、喂药剂量（ml）等
     var value: Double?
+    /// 通用标签位：瓶喂（奶粉/人奶）、储奶（冷藏/冷冻）、喂药/记事本（发烧/感冒…）
+    var tag: String?
     var note: String = ""
 
     var summary: String {
         switch kind {
         case .sleep: return "\(minutes ?? 0) 分钟"
         case .breast: return "\((side ?? "左")) \(minutes.map { "\($0) 分钟" } ?? "")"
-        case .bottle: return "\(Int(ml ?? 0)) ml"
+        case .bottle:
+            let base = "\(Int(ml ?? 0)) ml"
+            return tag.map { "\(base) · \($0)" } ?? base
         case .pumping: return "\(Int(ml ?? 0)) ml"
+        case .storage:
+            let base = "\(Int(ml ?? 0)) ml"
+            return tag.map { "\(base) · \($0)" } ?? base
         case .diaper: return diaperKind ?? "小便"
         case .solid: return note.isEmpty ? "已添加辅食" : note
         case .supplement: return note.isEmpty ? "已服用" : note
+        case .medicine:
+            let dose = (value ?? 0) > 0 ? String(format: "%.1f ml", value ?? 0) : ""
+            let name = note.isEmpty ? "喂药" : note
+            let body = dose.isEmpty ? name : "\(name) \(dose)"
+            return tag.map { "\(body) · \($0)" } ?? body
         case .temp: return String(format: "%.1f ℃", value ?? 36.5)
+        case .notebook: return note.isEmpty ? "记事本" : note
         case .custom: return note.isEmpty ? "记录" : note
         }
     }
@@ -114,12 +134,22 @@ struct FeedLog: Identifiable, Codable, Hashable {
         switch kind {
         case .sleep: return "睡了 \(minutes ?? 0) 分钟"
         case .breast: return "亲喂 \(side ?? "左") 侧 \(minutes ?? 0) 分钟"
-        case .bottle: return "喝了 \(Int(ml ?? 0)) 毫升奶"
+        case .bottle:
+            let base = "喝了 \(Int(ml ?? 0)) 毫升\(tag ?? "奶")"
+            return base
         case .pumping: return "吸奶 \(Int(ml ?? 0)) 毫升"
+        case .storage:
+            let base = "储奶 \(Int(ml ?? 0)) 毫升"
+            return tag.map { "\(base)（\($0)）" } ?? base
         case .diaper: return diaperKind ?? "小便"
         case .solid: return "吃了 \(note)"
         case .supplement: return "补了 \(note)"
+        case .medicine:
+            let dose = (value ?? 0) > 0 ? String(format: "%.1f 毫升", value ?? 0) : ""
+            let body = dose.isEmpty ? "喂了 \(note)" : "喂了 \(note) \(dose)"
+            return tag.map { "\(body)（\($0)）" } ?? body
         case .temp: return String(format: "体温 %.1f 度", value ?? 36.5)
+        case .notebook: return "记录：\(note)"
         case .custom: return note
         }
     }
@@ -297,11 +327,14 @@ struct QuickEntry: Identifiable, Codable, Hashable {
         QuickEntry(id: "bottle", kind: "bottle", title: "瓶喂", icon: "🍼"),
         QuickEntry(id: "breast", kind: "breast", title: "亲喂", icon: "🤱"),
         QuickEntry(id: "pumping", kind: "pumping", title: "吸奶", icon: "🧴"),
+        QuickEntry(id: "storage", kind: "storage", title: "储奶", icon: "🥛"),
         QuickEntry(id: "sleep", kind: "sleep", title: "睡眠", icon: "😴"),
         QuickEntry(id: "diaper", kind: "diaper", title: "尿布", icon: "🧷"),
         QuickEntry(id: "solid", kind: "solid", title: "辅食", icon: "🍚"),
         QuickEntry(id: "supplement", kind: "supplement", title: "补剂", icon: "💊"),
+        QuickEntry(id: "medicine", kind: "medicine", title: "喂药", icon: "🩺"),
         QuickEntry(id: "temp", kind: "temp", title: "体温", icon: "🌡️"),
+        QuickEntry(id: "notebook", kind: "notebook", title: "记事本", icon: "📒"),
         QuickEntry(id: "weight", kind: "weight", title: "体重", icon: "⚖️"),
         QuickEntry(id: "height", kind: "height", title: "身高", icon: "📏"),
         QuickEntry(id: "head", kind: "head", title: "头围", icon: "🧢")
@@ -369,7 +402,12 @@ struct AppSettings: Codable, Hashable {
     }
 
     var resolvedQuickEntries: [QuickEntry] {
-        quickEntries.isEmpty ? QuickEntry.builtins : quickEntries
+        if quickEntries.isEmpty { return QuickEntry.builtins }
+        // 老版本存过自定义顺序时，把后来新增的内置入口（储奶/喂药/记事本等）补在末尾，
+        // 否则升级后新功能在快捷栏里永远看不到
+        let existing = Set(quickEntries.map { $0.kind })
+        let missing = QuickEntry.builtins.filter { !existing.contains($0.kind) }
+        return quickEntries + missing
     }
 }
 

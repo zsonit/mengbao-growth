@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,6 +101,12 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
     var weight by remember { mutableStateOf(child.latestWeight ?: 3.5) }
     var height by remember { mutableStateOf(child.latestHeight ?: 50.0) }
     var head by remember { mutableStateOf(40.0) }
+    // 新增：瓶喂奶源 / 储奶方式 / 喂药 / 记事本
+    var milkSource by remember { mutableStateOf("奶粉") }
+    var storageKind by remember { mutableStateOf("冷藏") }
+    var dose by remember { mutableStateOf(5.0) }
+    var medicineReason by remember { mutableStateOf("") }
+    var notebookTag by remember { mutableStateOf("") }
 
     val isGrowth = entry.kind == "weight" || entry.kind == "height" || entry.kind == "head"
 
@@ -123,7 +131,20 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
 
         val kind = kindOf(entry.kind)
         val log = when (entry.kind) {
-            "bottle", "pumping" -> FeedLog(date = date, time = time, kind = kind, ml = ml)
+            "bottle" -> FeedLog(date = date, time = time, kind = kind, ml = ml, tag = milkSource)
+            "pumping" -> FeedLog(date = date, time = time, kind = kind, ml = ml)
+            "storage" -> FeedLog(date = date, time = time, kind = kind, ml = ml, tag = storageKind)
+            "medicine" -> FeedLog(
+                date = date, time = time, kind = kind,
+                note = food.trim().ifEmpty { "喂药" },
+                value = dose,
+                tag = medicineReason.ifEmpty { null },
+            )
+            "notebook" -> FeedLog(
+                date = date, time = time, kind = kind,
+                note = note.trim().ifEmpty { notebookTag.ifEmpty { "记事本" } },
+                tag = notebookTag.ifEmpty { null },
+            )
             "breast" -> FeedLog(
                 date = date, time = time, kind = kind,
                 minutes = breastMin.roundToInt(), side = side,
@@ -151,9 +172,13 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
         onDismiss()
     }
 
+    val screenH = LocalConfiguration.current.screenHeightDp.dp
+
     Column(
         Modifier
             .fillMaxWidth()
+            // 弹层固定为屏幕高度的 70%：比半屏高（备注能直接看到），又不至于顶满全屏
+            .height(screenH * 0.7f)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .padding(bottom = 26.dp),
@@ -181,7 +206,13 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             when (entry.kind) {
-                "bottle", "pumping" -> {
+                "bottle" -> {
+                    Label("这一顿喝的是")
+                    ChipRow(
+                        labels = EntryPresets.milkSources,
+                        isSelected = { i -> milkSource == EntryPresets.milkSources[i] },
+                        onSelect = { i -> milkSource = EntryPresets.milkSources[i] },
+                    )
                     RulerPicker(
                         value = ml, onValueChange = { ml = it },
                         range = 0.0..300.0, step = 5.0, format = "%.0f", unit = "ml",
@@ -192,6 +223,88 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
                         onSelect = { i -> ml = EntryPresets.milkAmounts[i] },
                     )
                     Label("拖动标尺快速选择奶量")
+                }
+
+                "pumping" -> {
+                    RulerPicker(
+                        value = ml, onValueChange = { ml = it },
+                        range = 0.0..300.0, step = 5.0, format = "%.0f", unit = "ml",
+                    )
+                    ChipRow(
+                        labels = EntryPresets.milkAmounts.map { "${it.roundToInt()}" },
+                        isSelected = { i -> ml == EntryPresets.milkAmounts[i] },
+                        onSelect = { i -> ml = EntryPresets.milkAmounts[i] },
+                    )
+                    Label("拖动标尺快速选择奶量")
+                }
+
+                "storage" -> {
+                    Label("存放方式")
+                    ChipRow(
+                        labels = EntryPresets.storageKinds,
+                        isSelected = { i -> storageKind == EntryPresets.storageKinds[i] },
+                        onSelect = { i -> storageKind = EntryPresets.storageKinds[i] },
+                    )
+                    RulerPicker(
+                        value = ml, onValueChange = { ml = it },
+                        range = 0.0..300.0, step = 5.0, format = "%.0f", unit = "ml",
+                    )
+                    ChipRow(
+                        labels = EntryPresets.milkAmounts.map { "${it.roundToInt()}" },
+                        isSelected = { i -> ml == EntryPresets.milkAmounts[i] },
+                        onSelect = { i -> ml = EntryPresets.milkAmounts[i] },
+                    )
+                    Label(
+                        if (storageKind == "冷冻") "冷冻一般可存 3 个月左右，放冰箱最里层，写明日期先存先用。"
+                        else "冷藏一般 24 小时内喝完，放冰箱最里层，别放门上。",
+                    )
+                }
+
+                "medicine" -> {
+                    TextInput(
+                        label = "吃了什么药",
+                        value = food,
+                        placeholder = "例如 美林 布洛芬混悬液",
+                        onChange = { food = it },
+                    )
+                    ChipRow(
+                        labels = EntryPresets.medicineNames,
+                        isSelected = { i -> food == EntryPresets.medicineNames[i] },
+                        onSelect = { i -> food = EntryPresets.medicineNames[i] },
+                    )
+                    Label("吃了多少")
+                    RulerPicker(
+                        value = dose, onValueChange = { dose = it },
+                        range = 0.0..20.0, step = 0.5, format = "%.1f", unit = "ml",
+                    )
+                    Label("为什么吃（可不选）")
+                    ChipRow(
+                        labels = EntryPresets.medicineReasons,
+                        isSelected = { i -> medicineReason == EntryPresets.medicineReasons[i] },
+                        onSelect = { i ->
+                            val picked = EntryPresets.medicineReasons[i]
+                            medicineReason = if (medicineReason == picked) "" else picked
+                        },
+                    )
+                }
+
+                "notebook" -> {
+                    Label("异常情况（点一下加进记录）")
+                    ChipRow(
+                        labels = EntryPresets.notebookTags,
+                        isSelected = { i -> notebookTag == EntryPresets.notebookTags[i] },
+                        onSelect = { i ->
+                            val picked = EntryPresets.notebookTags[i]
+                            notebookTag = if (notebookTag == picked) "" else picked
+                        },
+                    )
+                    TextInput(
+                        label = "详细记一笔",
+                        value = note,
+                        placeholder = "什么时候、什么样、有没有处理…",
+                        singleLine = false,
+                        onChange = { note = it },
+                    )
                 }
 
                 "breast" -> {
@@ -342,8 +455,8 @@ private fun EntrySheetBody(entry: QuickEntry, child: Child, onDismiss: () -> Uni
             }
         }
 
-        // 备注
-        if (entry.kind != "custom") {
+        // 备注（喂药/记事本的正文已经在上面填过，不再重复一个备注框）
+        if (entry.kind !in listOf("custom", "medicine", "notebook")) {
             Column(Modifier.fillMaxWidth().cardStyle(padding = 14.dp)) {
                 TextInput(
                     label = "备注（可选）",
@@ -366,23 +479,29 @@ private fun kindOf(entryKind: String): FeedLog.Kind = when (entryKind) {
     "bottle" -> FeedLog.Kind.BOTTLE
     "breast" -> FeedLog.Kind.BREAST
     "pumping" -> FeedLog.Kind.PUMPING
+    "storage" -> FeedLog.Kind.STORAGE
     "sleep" -> FeedLog.Kind.SLEEP
     "diaper" -> FeedLog.Kind.DIAPER
     "solid" -> FeedLog.Kind.SOLID
     "supplement" -> FeedLog.Kind.SUPPLEMENT
+    "medicine" -> FeedLog.Kind.MEDICINE
     "temp" -> FeedLog.Kind.TEMP
+    "notebook" -> FeedLog.Kind.NOTEBOOK
     else -> FeedLog.Kind.CUSTOM
 }
 
 private fun kindHint(kind: String): String = when (kind) {
-    "bottle" -> "记录这一顿的奶量"
+    "bottle" -> "记录这一顿的奶量与奶粉/人奶"
     "pumping" -> "记录吸出来的奶量"
+    "storage" -> "记录存起来的奶量与方式"
     "breast" -> "记录亲喂的侧别与时长"
     "sleep" -> "记录这一觉的时长"
     "diaper" -> "记录这次尿布情况"
     "solid" -> "记录今天吃了什么"
     "supplement" -> "记录补剂与剂量"
+    "medicine" -> "记录吃了什么药、多少、几点"
     "temp" -> "记录一次体温"
+    "notebook" -> "记录异常情况和处理"
     "weight" -> "记录体重"
     "height" -> "记录身高"
     "head" -> "记录头围"

@@ -717,6 +717,15 @@ struct DayHistoryView: View {
             case .supplement:
                 metric = nil; title = "补剂"
                 detail = f.note.isEmpty ? "已服用" : f.note
+            case .storage:
+                metric = nil; title = "储奶"
+                detail = f.summary
+            case .medicine:
+                metric = nil; title = "喂药"
+                detail = f.summary
+            case .notebook:
+                metric = nil; title = "记事本"
+                detail = f.note.isEmpty ? "—" : f.note
             case .custom:
                 metric = nil; title = "记录"
                 detail = f.note.isEmpty ? "—" : f.note

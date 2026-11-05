@@ -126,6 +126,7 @@ object JsonCodec {
         f.side?.let { put("side", it) }
         f.diaperKind?.let { put("diaperKind", it) }
         f.value?.let { put("value", it) }
+        f.tag?.let { put("tag", it) }
         put("note", f.note)
     }
 
@@ -259,6 +260,7 @@ object JsonCodec {
             side = o.optStringOrNull("side"),
             diaperKind = o.optStringOrNull("diaperKind"),
             value = o.optDoubleOrNull("value"),
+            tag = o.optStringOrNull("tag"),
             note = o.optString("note"),
         )
     }

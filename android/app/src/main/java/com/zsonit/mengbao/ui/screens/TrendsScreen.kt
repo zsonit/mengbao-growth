@@ -766,6 +766,9 @@ private fun buildEntries(child: Child, day: LocalDate): List<DayEntry> {
             FeedLog.Kind.SOLID -> { metric = TrendMetric.SOLID; title = "辅食"; detail = f.note.ifEmpty { "已添加" } }
             FeedLog.Kind.TEMP -> { metric = TrendMetric.TEMP; title = "体温"; detail = String.format(Locale.US, "%.1f ℃", f.value ?: 0.0) }
             FeedLog.Kind.SUPPLEMENT -> { metric = null; title = "补剂"; detail = f.note.ifEmpty { "已服用" } }
+            FeedLog.Kind.STORAGE -> { metric = null; title = "储奶"; detail = f.summary }
+            FeedLog.Kind.MEDICINE -> { metric = null; title = "喂药"; detail = f.summary }
+            FeedLog.Kind.NOTEBOOK -> { metric = null; title = "记事本"; detail = f.note.ifEmpty { "—" } }
             FeedLog.Kind.CUSTOM -> { metric = null; title = "记录"; detail = f.note.ifEmpty { "—" } }
         }
         list.add(

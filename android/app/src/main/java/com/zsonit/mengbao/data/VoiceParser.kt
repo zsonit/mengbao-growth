@@ -363,4 +363,13 @@ object EntryPresets {
     val diaperKinds = listOf("小便", "大便", "混合")
     val milkAmounts = listOf(60.0, 90.0, 120.0, 150.0, 180.0, 210.0, 240.0)
     val sleepMinutes = listOf(15, 30, 45, 60, 90, 120)
+    /** 瓶喂：这一顿喝的是奶粉还是人奶 */
+    val milkSources = listOf("奶粉", "人奶")
+    /** 储奶：存放方式 */
+    val storageKinds = listOf("冷藏", "冷冻")
+    /** 喂药：常见药名与常见原因 */
+    val medicineNames = listOf("美林", "泰诺林", "布洛芬", "对乙酰氨基酚", "退热贴", "益生菌", "蒙脱石散", "口服补液盐")
+    val medicineReasons = listOf("发烧", "感冒", "流鼻涕", "咳嗽", "腹泻", "呕吐", "皮疹", "其他")
+    /** 记事本：异常情况常用标签 */
+    val notebookTags = listOf("发烧", "感冒", "流鼻涕", "咳嗽", "呕吐", "腹泻", "皮疹", "湿疹", "便秘", "哭闹不止", "摔到", "就医")
 }

@@ -97,8 +97,12 @@ private fun HistoryContent(child: Child, filter: String, onFilter: (String) -> U
             if (Store.settings.showFeed) {
                 addAll(child.feeds.map { HistoryItem.Feed(it) })
             } else {
-                addAll(child.feeds.filter { it.kind == com.zsonit.mengbao.model.FeedLog.Kind.TEMP || it.kind == com.zsonit.mengbao.model.FeedLog.Kind.CUSTOM }
-                    .map { HistoryItem.Feed(it) })
+                addAll(child.feeds.filter {
+                    it.kind == com.zsonit.mengbao.model.FeedLog.Kind.TEMP ||
+                        it.kind == com.zsonit.mengbao.model.FeedLog.Kind.CUSTOM ||
+                        it.kind == com.zsonit.mengbao.model.FeedLog.Kind.NOTEBOOK ||
+                        it.kind == com.zsonit.mengbao.model.FeedLog.Kind.MEDICINE
+                }.map { HistoryItem.Feed(it) })
             }
             if (Store.settings.showSize) addAll(child.sizes.map { HistoryItem.Size(it) })
         }.sortedWith(

@@ -310,12 +310,12 @@ struct FeedEditorView: View {
         case .breast:
             log.side = side
             log.minutes = Int(minutes)
-        case .bottle, .pumping:
+        case .bottle, .pumping, .storage:
             guard let value = Double(ml), value > 0 else { return }
             log.ml = value
         case .diaper:
             log.diaperKind = diaperKind
-        case .solid, .supplement, .temp, .custom:
+        case .solid, .supplement, .medicine, .notebook, .temp, .custom:
             // 这几类主要靠备注记录，完整体验走首页的快捷入口弹层
             break
         }

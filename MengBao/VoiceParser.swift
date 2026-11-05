@@ -417,6 +417,15 @@ enum EntryPresets {
     static let diaperKinds = ["小便", "大便", "混合"]
     static let milkAmounts: [Double] = [60, 90, 120, 150, 180, 210, 240]
     static let sleepMinutes: [Int] = [15, 30, 45, 60, 90, 120]
+    /// 瓶喂：这一顿喝的是奶粉还是人奶
+    static let milkSources = ["奶粉", "人奶"]
+    /// 储奶：存的方式
+    static let storageKinds = ["冷藏", "冷冻"]
+    /// 喂药：常见药名 / 常见原因（也可手动输入）
+    static let medicineNames = ["美林", "泰诺林", "布洛芬", "对乙酰氨基酚", "退热贴", "益生菌", "蒙脱石散", "口服补液盐"]
+    static let medicineReasons = ["发烧", "感冒", "流鼻涕", "咳嗽", "腹泻", "呕吐", "皮疹", "其他"]
+    /// 记事本：异常情况常用标签
+    static let notebookTags = ["发烧", "感冒", "流鼻涕", "咳嗽", "呕吐", "腹泻", "皮疹", "湿疹", "便秘", "哭闹不止", "摔到", "就医"]
 }
 
 extension String {
