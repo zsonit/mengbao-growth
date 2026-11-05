@@ -65,6 +65,8 @@ struct MengBaoApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var store: Store
+    /// 必须观察：对方清空数据时要靠它把弹窗顶起来（以前只读 @Published 不会触发刷新，提示就永远不显示）
+    @ObservedObject private var sync = SyncManager.shared
     @State private var tab = "growth"
 
     /// 依据设置动态生成的页签
@@ -115,13 +117,13 @@ struct RootView: View {
         .animation(Anim.pop, value: store.voiceProcessing)
         // 配对手机已清空全部数据：让用户决定「同步清除 / 忽略」
         .alert("配对手机已清空数据", isPresented: Binding(
-            get: { SyncManager.shared.remoteClearPrompt },
-            set: { SyncManager.shared.remoteClearPrompt = $0 }
+            get: { sync.remoteClearPrompt },
+            set: { sync.remoteClearPrompt = $0 }
         )) {
             Button("同步清除", role: .destructive) { store.reset() }
             Button("忽略", role: .cancel) { }
         } message: {
-            Text("对方手机已清空全部数据。要把本机数据一起清空吗？点「忽略」则保留本机数据。")
+            Text("另一台已配对手机点了「清空全部数据」，本机数据还完整保留着。\n\n· 同步清除：本机也一起清空，之后无法恢复\n· 忽略：保留本机全部数据（另一台会跟着恢复）")
         }
     }
 

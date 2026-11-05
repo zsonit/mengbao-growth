@@ -107,7 +107,7 @@ fun MengBaoApp() {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { SyncManager.clearPrompt = false },
             title = { Text("配对手机已清空数据") },
-            text = { Text("对方手机已清空全部数据。要把本机数据一起清空吗？点「忽略」则保留本机数据。") },
+            text = { Text("另一台已配对手机点了「清空全部数据」，本机数据还完整保留着。\n\n· 同步清除：本机也一起清空，之后无法恢复\n· 忽略：保留本机全部数据（另一台会跟着恢复）") },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     SyncManager.clearPrompt = false

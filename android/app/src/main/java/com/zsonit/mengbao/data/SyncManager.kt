@@ -227,16 +227,63 @@ object SyncManager {
         val code = pairedCode
         if (context == null || code == null) return SyncResult(false, "尚未配对")
         if (Store.state.children.isEmpty()) {
-            // 本机没数据：只拉不推，避免把空数据盖掉对方
-            val remote = fetchRemote(code)
-                ?: return if (manual) SyncResult(true, "云端暂无数据") else SyncResult(false, "云端暂无数据")
-            if (remote.updatedBy == UNDECRYPTABLE) {
-                val msg = "云端数据无法解密，请重新输入配对码"
-                lastMessage = msg
-                return SyncResult(false, msg)
+            // 本机没数据分三种情况，必须区别对待：
+            // 1) 全新安装 / 刚配对（没有清空标记、也没删过宝宝）→ 直接拉对方的；
+            // 2) 刚「清空全部数据」→ 有意的空，绝不拉回来，只把带标记的空状态推上去让对方弹窗；
+            // 3) 只是把最后一个宝宝删了（有 child 墓碑、没有清空标记）→ 走正常合并，让墓碑同步出去。
+            val local = Store.state
+            val localCleared = local.clearedAt.orEmpty()
+            val hasChildTombstone = local.tombstones.any { it.startsWith("child:") }
+            if (localCleared.isEmpty() && !hasChildTombstone) {
+                val remote = fetchRemote(code)
+                    ?: return if (manual) SyncResult(true, "云端暂无数据") else SyncResult(false, "云端暂无数据")
+                if (remote.updatedBy == UNDECRYPTABLE) {
+                    val msg = "云端数据无法解密，请重新输入配对码"
+                    lastMessage = msg
+                    return SyncResult(false, msg)
+                }
+                applyRemote(context, code, remote)
+                return SyncResult(true, "已拉取对方资料")
             }
-            applyRemote(context, code, remote)
-            return SyncResult(true, "已拉取对方资料")
+            if (localCleared.isNotEmpty()) {
+                val remote = fetchRemote(code)
+                    ?: return if (manual) SyncResult(true, "云端暂无数据") else SyncResult(false, "云端暂无数据")
+                if (remote.updatedBy == UNDECRYPTABLE) {
+                    val msg = "云端数据无法解密，请重新输入配对码"
+                    lastMessage = msg
+                    return SyncResult(false, msg)
+                }
+                val remoteCleared = remote.state.clearedAt.orEmpty()
+                if (remoteCleared <= localCleared) {
+                    if (remoteCleared < localCleared) {
+                        // 云端还没收到这次清空：把带标记的空状态推上去，让对方弹「同步清除 / 忽略」
+                        val resp = upsert(code, local)
+                        if (!resp.ok) {
+                            lastMessage = if (manual) "推送失败：${resp.message}" else null
+                            AppLog.w("Sync", "推送失败：${resp.message}")
+                            return SyncResult(false, "推送失败：${resp.message}")
+                        }
+                        localDirty = false
+                        val ts = System.currentTimeMillis()
+                        lastSyncAt = ts
+                        prefs()?.edit()?.putLong(KEY_LAST_SYNC, ts)?.apply()
+                        lastMessage = "已通知对方：本机已清空数据"
+                        return SyncResult(true, lastMessage!!)
+                    }
+                    // 对方已经收到过这条清空：如果对方点了「忽略」并把自己的数据推了上来，就把它接回来，
+                    // 避免「一端空、一端有数据」长期分叉；如果云端还是空的，就保持本机为空。
+                    if (remote.state.children.isNotEmpty()) {
+                        val r = applyRemote(context, code, remote)
+                        lastMessage = "对方选择了保留数据，已同步回来"
+                        return SyncResult(r.ok, lastMessage!!)
+                    }
+                    lastMessage = "本机已清空，等对方确认"
+                    return SyncResult(true, lastMessage!!)
+                }
+                // 对方比本机更晚清空：跟着对方的空状态走
+                applyRemote(context, code, remote)
+                return SyncResult(true, "已拉取对方资料")
+            }
         }
         busy = true
         try {

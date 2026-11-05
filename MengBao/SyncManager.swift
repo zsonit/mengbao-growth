@@ -268,8 +268,13 @@ final class SyncManager: ObservableObject {
         let store = Store.shared
         let local = store.state
 
-        // 本机没数据：只拉不推，避免把空数据盖掉对方
-        if local.children.isEmpty {
+        // 本机没数据分三种情况，必须区别对待：
+        // 1) 全新安装 / 刚配对（没有清空标记、也没有删过宝宝）→ 直接拉对方的；
+        // 2) 刚「清空全部数据」→ 有意的空，绝不拉回来，只把带标记的空状态推上去让对方弹窗；
+        // 3) 只是把最后一个宝宝删了（有 child 墓碑、没有清空标记）→ 走正常合并，让墓碑同步出去。
+        let localCleared = local.clearedAt ?? ""
+        let hasChildTombstone = local.tombstones.contains { $0.hasPrefix("child:") }
+        if local.children.isEmpty, localCleared.isEmpty, !hasChildTombstone {
             guard let snapshot = fetchRemote(code: code) else {
                 let msg = manual ? "网络不可用" : ""
                 return SyncOutcome(ok: false, message: msg)
@@ -280,6 +285,54 @@ final class SyncManager: ObservableObject {
                 AppLog.w("Sync", msg)
                 return SyncOutcome(ok: false, message: msg)
             }
+            var remote = snapshot.state
+            if remote.currentID == nil { remote.currentID = remote.children.first?.id }
+            DispatchQueue.main.async { store.update { $0 = remote } }
+            markSynced()
+            DispatchQueue.main.async { self.lastMessage = "已拉取对方资料" }
+            return SyncOutcome(ok: true, message: "已拉取对方资料")
+        }
+        if local.children.isEmpty, !localCleared.isEmpty {
+            guard let snapshot = fetchRemote(code: code) else {
+                let msg = manual ? "网络不可用" : ""
+                return SyncOutcome(ok: false, message: msg)
+            }
+            if snapshot.updatedBy == Self.undecryptable {
+                let msg = "云端数据无法解密，请重新输入配对码"
+                DispatchQueue.main.async { self.lastMessage = msg }
+                AppLog.w("Sync", msg)
+                return SyncOutcome(ok: false, message: msg)
+            }
+            let remoteCleared = snapshot.state.clearedAt ?? ""
+            if remoteCleared <= localCleared {
+                // 云端还没收到这次清空（标记更旧）：把带标记的空状态推上去，让对方弹「同步清除 / 忽略」
+                if remoteCleared < localCleared {
+                    guard let status = upsert(code: code, state: local), (200...299).contains(status) else {
+                        let msg = "推送失败：网络不可用"
+                        DispatchQueue.main.async { if manual { self.lastMessage = msg } }
+                        AppLog.w("Sync", msg)
+                        return SyncOutcome(ok: false, message: msg)
+                    }
+                    localDirty = false
+                    markSynced()
+                    DispatchQueue.main.async { self.lastMessage = "已通知对方：本机已清空数据" }
+                    return SyncOutcome(ok: true, message: "已通知对方：本机已清空数据")
+                }
+                // 对方已经收到过这条清空：如果对方点了「忽略」并把自己的数据推了上来，就把它接回来，
+                // 避免「一端空、一端有数据」长期分叉；如果云端还是空的，就保持本机为空。
+                let remoteHasData = !snapshot.state.children.isEmpty
+                if remoteHasData {
+                    var remote = snapshot.state
+                    if remote.currentID == nil { remote.currentID = remote.children.first?.id }
+                    DispatchQueue.main.async { store.update { $0 = remote } }
+                    markSynced()
+                    DispatchQueue.main.async { self.lastMessage = "对方选择了保留数据，已同步回来" }
+                    return SyncOutcome(ok: true, message: "对方选择了保留数据，已同步回来")
+                }
+                DispatchQueue.main.async { self.lastMessage = "本机已清空，等对方确认" }
+                return SyncOutcome(ok: true, message: "本机已清空，等对方确认")
+            }
+            // 对方比本机更晚清空：跟着对方的空状态走
             var remote = snapshot.state
             if remote.currentID == nil { remote.currentID = remote.children.first?.id }
             DispatchQueue.main.async { store.update { $0 = remote } }
