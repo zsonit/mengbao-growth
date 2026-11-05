@@ -14,8 +14,8 @@ android {
         applicationId = "com.zsonit.mengbao"
         minSdk = 26
         targetSdk = 34
-        versionCode = 67
-        versionName = "2.10.34"
+        versionCode = 68
+        versionName = "2.10.35"
 
         resourceConfigurations += listOf("zh", "en")
 

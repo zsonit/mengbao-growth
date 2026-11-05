@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,8 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -87,7 +84,6 @@ import com.zsonit.mengbao.ui.TopBar
 import com.zsonit.mengbao.ui.cardStyle
 import java.time.LocalDate
 import java.util.Locale
-import kotlinx.coroutines.delay
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
@@ -217,7 +213,7 @@ private fun ChartCard(child: Child, metric: GrowthMetric, onMetric: (GrowthMetri
             metric = metric,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(252.dp)
+                .height(236.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Palette.card),
         )
@@ -230,8 +226,6 @@ private fun ChartCard(child: Child, metric: GrowthMetric, onMetric: (GrowthMetri
             Legend(color = Color(0xFFE2A33C), dash = true, text = "P15 / P85")
             Legend(color = Palette.purple, dash = false, text = "P50")
             Legend(color = Palette.ok, dash = false, text = "实测")
-            Spacer(Modifier.weight(1f))
-            Text("⇄ 可滑动", fontSize = 10.5.sp, color = Palette.subtle)
         }
     }
 }
@@ -712,251 +706,197 @@ private fun GrowthChart(child: Child, metric: GrowthMetric, modifier: Modifier =
     val amberLine = Color(0xFFE2A33C)
     val points = remember(child.records, child.birthDate, metric) { chartPoints(child, metric) }
 
-    val latestMonth = points.maxOfOrNull { it.month } ?: 0
-    val maxMonth = max(36, min(216, latestMonth + 6))
+    Canvas(modifier) {
+        val padLeft = 34.dp.toPx()
+        val padRight = 14.dp.toPx()
+        val padTop = 16.dp.toPx()
+        val padBottom = 26.dp.toPx()
+        val plotW = size.width - padLeft - padRight
+        val plotH = size.height - padTop - padBottom
+        if (plotW <= 10f || plotH <= 10f) return@Canvas
 
-    // 纵向范围（取整）：左侧固定轴与滚动绘图区共用同一套范围才能对齐
-    var low = Double.MAX_VALUE
-    var high = -Double.MAX_VALUE
-    var m = 0
-    while (m <= maxMonth) {
-        val band = GrowthMath.refBands(child.sex, metric, m)
-        low = min(low, band[0])
-        high = max(high, band[4])
-        m += 3
-    }
-    for (p in points) {
-        low = min(low, p.value)
-        high = max(high, p.value)
-    }
-    if (!low.isFinite() || !high.isFinite()) return
+        val latestMonth = points.maxOfOrNull { it.month } ?: 0
+        val maxMonth = max(36, min(216, latestMonth + 6))
 
-    val span = max(1.0, high - low)
-    val stepBase = 10.0.pow(floor(log10(span))) / 2.0
-    val yMin = floor(low * 0.96 / stepBase) * stepBase
-    val yMax = ceil(high * 1.02 / stepBase) * stepBase
-    if (yMax <= yMin) return
+        var low = Double.MAX_VALUE
+        var high = -Double.MAX_VALUE
+        var m = 0
+        while (m <= maxMonth) {
+            val band = GrowthMath.refBands(child.sex, metric, m)
+            low = min(low, band[0])
+            high = max(high, band[4])
+            m += 3
+        }
+        for (p in points) {
+            low = min(low, p.value)
+            high = max(high, p.value)
+        }
+        if (!low.isFinite() || !high.isFinite()) return@Canvas
 
-    val axisW = 36.dp
-    val padTop = 16.dp
-    val padBottom = 26.dp
-    val padRight = 14.dp
-    // 每月固定宽度：曲线越舒展越好读，超出屏幕就左右滑动
-    val pxPerMonth = 8.dp
+        // 纵向范围取整
+        val span = max(1.0, high - low)
+        val step = 10.0.pow(floor(log10(span))) / 2.0
+        val yMin = floor(low * 0.96 / step) * step
+        val yMax = ceil(high * 1.02 / step) * step
+        if (yMax <= yMin) return@Canvas
 
-    BoxWithConstraints(modifier) {
-        val plotW = maxOf(maxWidth - axisW, pxPerMonth * maxMonth + padRight)
-        val scrollState = rememberScrollState()
+        fun xOf(month: Int): Float = padLeft + month.toFloat() / maxMonth.toFloat() * plotW
+        fun yOf(value: Double): Float =
+            padTop + plotH - ((value - yMin) / (yMax - yMin)).toFloat() * plotH
 
-        LaunchedEffect(maxMonth, metric, child.records.size) {
-            // 等布局完成后滚到最右（最新数据一侧）
-            delay(80)
-            scrollState.scrollTo(scrollState.maxValue)
+        // 网格
+        var tickStep = 6
+        if (maxMonth > 36) tickStep = 12
+        if (maxMonth > 84) tickStep = 24
+        var tick = 0
+        while (tick <= maxMonth) {
+            drawLine(gridColor, Offset(xOf(tick), padTop), Offset(xOf(tick), padTop + plotH), 1.dp.toPx())
+            val label = if (tick == 0) "0" else if (tick % 12 == 0) "${tick / 12}岁" else "${tick}月"
+            val layout = measurer.measure(AnnotatedString(label), style = tickStyle)
+            drawText(
+                textLayoutResult = layout,
+                topLeft = Offset(
+                    xOf(tick) - layout.size.width / 2f,
+                    size.height - 8.dp.toPx() - layout.size.height,
+                ),
+            )
+            tick += tickStep
         }
 
-        Row(Modifier.fillMaxSize()) {
-            // 固定 Y 轴（不随横向滚动移动）
-            Canvas(Modifier.width(axisW).fillMaxHeight()) {
-                val plotH = size.height - padTop.toPx() - padBottom.toPx()
-                if (plotH <= 10f) return@Canvas
-                fun yOf(value: Double): Float =
-                    padTop.toPx() + plotH - ((value - yMin) / (yMax - yMin)).toFloat() * plotH
+        var yTick = yMin
+        val yTickStep = (yMax - yMin) / 4
+        var guard = 0
+        while (yTick <= yMax + 0.0001 && guard < 64) {
+            val y = yOf(yTick)
+            drawLine(gridColor, Offset(padLeft, y), Offset(size.width - padRight, y), 1.dp.toPx())
+            val label = if (metric == GrowthMetric.HEIGHT) "${yTick.roundToInt()}" else fmt1(yTick)
+            val layout = measurer.measure(AnnotatedString(label), style = tickStyle)
+            drawText(
+                textLayoutResult = layout,
+                topLeft = Offset(padLeft - 6.dp.toPx() - layout.size.width, y - layout.size.height / 2f),
+            )
+            yTick += yTickStep
+            guard++
+        }
 
-                val yTickStep = (yMax - yMin) / 4
-                var yTick = yMin
-                var guard = 0
-                while (yTick <= yMax + 0.0001 && guard < 64) {
-                    val y = yOf(yTick)
-                    drawLine(
-                        gridColor,
-                        Offset(size.width - 3.dp.toPx(), y),
-                        Offset(size.width, y),
-                        1.dp.toPx(),
-                    )
-                    val label = if (metric == GrowthMetric.HEIGHT) "${yTick.roundToInt()}" else fmt1(yTick)
-                    val layout = measurer.measure(AnnotatedString(label), style = tickStyle)
-                    drawText(
-                        textLayoutResult = layout,
-                        topLeft = Offset(
-                            size.width - 6.dp.toPx() - layout.size.width,
-                            y - layout.size.height / 2f,
-                        ),
-                    )
-                    yTick += yTickStep
-                    guard++
+        // 百分位带
+        fun bandPath(lowerIndex: Int, upperIndex: Int): Path {
+            val path = Path()
+            var first = true
+            var month = 0
+            while (month <= maxMonth) {
+                val v = GrowthMath.refBands(child.sex, metric, month)[upperIndex]
+                val px = xOf(month)
+                val py = yOf(v)
+                if (first) {
+                    path.moveTo(px, py)
+                    first = false
+                } else {
+                    path.lineTo(px, py)
                 }
+                month += 3
             }
+            var back = maxMonth - (maxMonth % 3)
+            while (back >= 0) {
+                val v = GrowthMath.refBands(child.sex, metric, back)[lowerIndex]
+                path.lineTo(xOf(back), yOf(v))
+                back -= 3
+            }
+            path.close()
+            return path
+        }
 
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .horizontalScroll(scrollState),
-            ) {
-                Canvas(Modifier.width(plotW).fillMaxHeight()) {
-                    val drawW = size.width - padRight.toPx()
-                    val plotH = size.height - padTop.toPx() - padBottom.toPx()
-                    if (drawW <= 10f || plotH <= 10f) return@Canvas
+        drawPath(bandPath(0, 4), purpleColor.copy(alpha = 0.07f))
+        drawPath(bandPath(1, 3), purpleColor.copy(alpha = 0.12f))
 
-                    fun xOf(month: Int): Float = month.toFloat() / maxMonth.toFloat() * drawW
-                    fun yOf(value: Double): Float =
-                        padTop.toPx() + plotH - ((value - yMin) / (yMax - yMin)).toFloat() * plotH
-
-                    // 纵向网格 + 横轴刻度
-                    val tickStep = if (maxMonth <= 36) 6 else 12
-                    var tick = 0
-                    while (tick <= maxMonth) {
-                        drawLine(
-                            gridColor,
-                            Offset(xOf(tick), padTop.toPx()),
-                            Offset(xOf(tick), padTop.toPx() + plotH),
-                            1.dp.toPx(),
-                        )
-                        val label = if (tick == 0) "0" else if (tick % 12 == 0) "${tick / 12}岁" else "${tick}月"
-                        val layout = measurer.measure(AnnotatedString(label), style = tickStyle)
-                        drawText(
-                            textLayoutResult = layout,
-                            topLeft = Offset(
-                                xOf(tick) - layout.size.width / 2f,
-                                size.height - 8.dp.toPx() - layout.size.height,
-                            ),
-                        )
-                        tick += tickStep
-                    }
-
-                    // 横向网格
-                    var yTick = yMin
-                    val yTickStep = (yMax - yMin) / 4
-                    var guard = 0
-                    while (yTick <= yMax + 0.0001 && guard < 64) {
-                        val y = yOf(yTick)
-                        drawLine(gridColor, Offset(0f, y), Offset(drawW, y), 1.dp.toPx())
-                        yTick += yTickStep
-                        guard++
-                    }
-
-                    // 百分位带
-                    fun bandPath(lowerIndex: Int, upperIndex: Int): Path {
-                        val path = Path()
-                        var first = true
-                        var month = 0
-                        while (month <= maxMonth) {
-                            val v = GrowthMath.refBands(child.sex, metric, month)[upperIndex]
-                            val px = xOf(month)
-                            val py = yOf(v)
-                            if (first) {
-                                path.moveTo(px, py)
-                                first = false
-                            } else {
-                                path.lineTo(px, py)
-                            }
-                            month += 3
-                        }
-                        var back = maxMonth - (maxMonth % 3)
-                        while (back >= 0) {
-                            val v = GrowthMath.refBands(child.sex, metric, back)[lowerIndex]
-                            path.lineTo(xOf(back), yOf(v))
-                            back -= 3
-                        }
-                        path.close()
-                        return path
-                    }
-
-                    drawPath(bandPath(0, 4), purpleColor.copy(alpha = 0.07f))
-                    drawPath(bandPath(1, 3), purpleColor.copy(alpha = 0.12f))
-
-                    // 百分位线
-                    val dashFine = floatArrayOf(5.dp.toPx(), 4.dp.toPx())
-                    val dashSoft = floatArrayOf(4.dp.toPx(), 3.dp.toPx())
-                    val specs = listOf(
-                        LineSpec(0, redLine, dashFine, 1.2f),
-                        LineSpec(1, amberLine, dashSoft, 1.2f),
-                        LineSpec(2, purpleColor, null, 2f),
-                        LineSpec(3, amberLine, dashSoft, 1.2f),
-                        LineSpec(4, redLine, dashFine, 1.2f),
-                    )
-                    for (spec in specs) {
-                        val path = Path()
-                        var month = 0
-                        var first = true
-                        while (month <= maxMonth) {
-                            val v = GrowthMath.refBands(child.sex, metric, month)[spec.index]
-                            val px = xOf(month)
-                            val py = yOf(v)
-                            if (first) {
-                                path.moveTo(px, py)
-                                first = false
-                            } else {
-                                path.lineTo(px, py)
-                            }
-                            month += 3
-                        }
-                        drawPath(
-                            path = path,
-                            color = spec.color,
-                            style = Stroke(
-                                width = spec.width.dp.toPx(),
-                                pathEffect = spec.dash?.let { PathEffect.dashPathEffect(it) },
-                            ),
-                        )
-                    }
-
-                    // 实测折线
-                    val sorted = points.sortedBy { it.month }
-                    if (sorted.size > 1) {
-                        val path = Path()
-                        sorted.forEachIndexed { index, p ->
-                            val px = xOf(p.month)
-                            val py = yOf(p.value)
-                            if (index == 0) path.moveTo(px, py) else path.lineTo(px, py)
-                        }
-                        drawPath(
-                            path = path,
-                            color = okColor,
-                            style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-                        )
-                    }
-                    for (p in sorted) {
-                        val center = Offset(xOf(p.month), yOf(p.value))
-                        drawCircle(cardColor, radius = 4.dp.toPx(), center = center)
-                        drawCircle(okColor, radius = 4.dp.toPx(), center = center, style = Stroke(width = 2.2.dp.toPx()))
-                    }
-
-                    // 末点标注
-                    val last = sorted.lastOrNull()
-                    if (last != null) {
-                        val text = if (metric == GrowthMetric.HEIGHT) {
-                            "${last.value.roundToInt()}cm"
-                        } else {
-                            String.format(Locale.US, "%.1f%s", last.value, metric.unit)
-                        }
-                        val layout = measurer.measure(
-                            AnnotatedString(text),
-                            style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White),
-                        )
-                        val boxWidth = (if (metric == GrowthMetric.HEIGHT) 46.dp else 44.dp).toPx()
-                        val boxHeight = 17.dp.toPx()
-                        val center = Offset(xOf(last.month), yOf(last.value))
-                        var bx = center.x + 9.dp.toPx()
-                        if (bx + boxWidth > drawW) bx = center.x - boxWidth - 9.dp.toPx()
-                        bx = max(0f, bx)
-                        val by = max(padTop.toPx(), center.y - 26.dp.toPx())
-                        drawRoundRect(
-                            color = okColor.copy(alpha = 0.95f),
-                            topLeft = Offset(bx, by),
-                            size = Size(boxWidth, boxHeight),
-                            cornerRadius = CornerRadius(8.5.dp.toPx()),
-                        )
-                        drawText(
-                            textLayoutResult = layout,
-                            topLeft = Offset(
-                                bx + (boxWidth - layout.size.width) / 2f,
-                                by + (boxHeight - layout.size.height) / 2f,
-                            ),
-                        )
-                    }
+        // 百分位线
+        val dashFine = floatArrayOf(5.dp.toPx(), 4.dp.toPx())
+        val dashSoft = floatArrayOf(4.dp.toPx(), 3.dp.toPx())
+        val specs = listOf(
+            LineSpec(0, redLine, dashFine, 1.2f),
+            LineSpec(1, amberLine, dashSoft, 1.2f),
+            LineSpec(2, purpleColor, null, 2f),
+            LineSpec(3, amberLine, dashSoft, 1.2f),
+            LineSpec(4, redLine, dashFine, 1.2f),
+        )
+        for (spec in specs) {
+            val path = Path()
+            var month = 0
+            var first = true
+            while (month <= maxMonth) {
+                val v = GrowthMath.refBands(child.sex, metric, month)[spec.index]
+                val px = xOf(month)
+                val py = yOf(v)
+                if (first) {
+                    path.moveTo(px, py)
+                    first = false
+                } else {
+                    path.lineTo(px, py)
                 }
+                month += 3
             }
+            drawPath(
+                path = path,
+                color = spec.color,
+                style = Stroke(
+                    width = spec.width.dp.toPx(),
+                    pathEffect = spec.dash?.let { PathEffect.dashPathEffect(it) },
+                ),
+            )
+        }
+
+        // 实测折线
+        val sorted = points.sortedBy { it.month }
+        if (sorted.size > 1) {
+            val path = Path()
+            sorted.forEachIndexed { index, p ->
+                val px = xOf(p.month)
+                val py = yOf(p.value)
+                if (index == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            drawPath(
+                path = path,
+                color = okColor,
+                style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+        }
+        for (p in sorted) {
+            val center = Offset(xOf(p.month), yOf(p.value))
+            drawCircle(cardColor, radius = 4.dp.toPx(), center = center)
+            drawCircle(okColor, radius = 4.dp.toPx(), center = center, style = Stroke(width = 2.2.dp.toPx()))
+        }
+
+        // 末点标注
+        val last = sorted.lastOrNull()
+        if (last != null) {
+            val text = if (metric == GrowthMetric.HEIGHT) {
+                "${last.value.roundToInt()}cm"
+            } else {
+                String.format(Locale.US, "%.1f%s", last.value, metric.unit)
+            }
+            val layout = measurer.measure(
+                AnnotatedString(text),
+                style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White),
+            )
+            val boxWidth = (if (metric == GrowthMetric.HEIGHT) 46.dp else 44.dp).toPx()
+            val boxHeight = 17.dp.toPx()
+            val center = Offset(xOf(last.month), yOf(last.value))
+            var bx = center.x + 9.dp.toPx()
+            if (bx + boxWidth > size.width - padRight) bx = center.x - boxWidth - 9.dp.toPx()
+            val by = max(padTop, center.y - 26.dp.toPx())
+            drawRoundRect(
+                color = okColor.copy(alpha = 0.95f),
+                topLeft = Offset(bx, by),
+                size = Size(boxWidth, boxHeight),
+                cornerRadius = CornerRadius(8.5.dp.toPx()),
+            )
+            drawText(
+                textLayoutResult = layout,
+                topLeft = Offset(
+                    bx + (boxWidth - layout.size.width) / 2f,
+                    by + (boxHeight - layout.size.height) / 2f,
+                ),
+            )
         }
     }
 }
