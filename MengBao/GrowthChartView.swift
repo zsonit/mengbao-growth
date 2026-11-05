@@ -36,7 +36,7 @@ struct GrowthChartView: View {
             var high = -Double.greatestFiniteMagnitude
             var m = 0
             while m <= maxMonth {
-                let band = GrowthMath.refBands(sex: child.sex, metric: metric, months: m)
+                let band = GrowthMath.chartBands(sex: child.sex, metric: metric, months: m)
                 low = min(low, band[0])
                 high = max(high, band[4])
                 m += 3
@@ -94,14 +94,14 @@ struct GrowthChartView: View {
                 var first = true
                 var month = 0
                 while month <= maxMonth {
-                    let v = GrowthMath.refBands(sex: child.sex, metric: metric, months: month)[upperIndex]
+                    let v = GrowthMath.chartBands(sex: child.sex, metric: metric, months: month)[upperIndex]
                     let pt = CGPoint(x: x(month), y: y(v))
                     if first { path.move(to: pt); first = false } else { path.addLine(to: pt) }
                     month += 3
                 }
                 var back = maxMonth - (maxMonth % 3)
                 while back >= 0 {
-                    let v = GrowthMath.refBands(sex: child.sex, metric: metric, months: back)[lowerIndex]
+                    let v = GrowthMath.chartBands(sex: child.sex, metric: metric, months: back)[lowerIndex]
                     path.addLine(to: CGPoint(x: x(back), y: y(v)))
                     back -= 3
                 }
@@ -125,7 +125,7 @@ struct GrowthChartView: View {
                 var month = 0
                 var first = true
                 while month <= maxMonth {
-                    let v = GrowthMath.refBands(sex: child.sex, metric: metric, months: month)[style.index]
+                    let v = GrowthMath.chartBands(sex: child.sex, metric: metric, months: month)[style.index]
                     let pt = CGPoint(x: x(month), y: y(v))
                     if first { path.move(to: pt); first = false } else { path.addLine(to: pt) }
                     month += 3

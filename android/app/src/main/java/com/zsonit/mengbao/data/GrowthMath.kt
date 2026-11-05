@@ -218,6 +218,69 @@ object GrowthMath {
         return listOf(p3, p50 - 1.036 * sigma, p50, p50 + 1.036 * sigma, p97)
     }
 
+    /**
+     * 曲线与评估用的百分位带（恢复 v2.10.29 的经典算法：0-5 岁 WHO LMS、5-7 岁中位数×CV、7-18 岁等级表）。
+     * 数据表格仍用 refBands（首都儿科研究所 0~18 岁标准），两者互不影响。
+     */
+    fun chartBands(sex: Sex, metric: GrowthMetric, months: Int): List<Double> {
+        val m = months.toDouble()
+
+        if (months <= 60) {
+            if (metric == GrowthMetric.BMI) {
+                val median = bmiMedian(sex, m)
+                val cv = 0.085 + 0.015 * min(1.0, m / 60)
+                return zValues.map { median * (1 + cv * it) }
+            }
+            val rows = when (metric) {
+                GrowthMetric.HEIGHT -> if (sex == Sex.BOY) Standards.boyLMSHeight else Standards.girlLMSHeight
+                else -> if (sex == Sex.BOY) Standards.boyLMSWeight else Standards.girlLMSWeight
+            }
+            val row = lmsRow(rows, m)
+            return zValues.map { valueAtZ(it, row) }
+        }
+
+        if (months <= 84) {
+            when (metric) {
+                GrowthMetric.HEIGHT -> {
+                    val median = interp(
+                        if (sex == Sex.BOY) Standards.boyMedianHeight36to84 else Standards.girlMedianHeight36to84, m, 1,
+                    )
+                    return zValues.map { median * (1 + 0.042 * it) }
+                }
+                GrowthMetric.WEIGHT -> {
+                    val median = interp(
+                        if (sex == Sex.BOY) Standards.boyMedianWeight36to84 else Standards.girlMedianWeight36to84, m, 1,
+                    )
+                    return zValues.map { median * (1 + 0.155 * it) }
+                }
+                GrowthMetric.BMI -> {
+                    val median = bmiMedian(sex, 60.0)
+                    return zValues.map { median * (1 + 0.10 * it) }
+                }
+            }
+        }
+
+        val years = min(18.0, max(7.0, m / 12))
+        return when (metric) {
+            GrowthMetric.HEIGHT -> {
+                val rows = if (sex == Sex.BOY) Standards.boyHeight7to18 else Standards.girlHeight7to18
+                (1..5).map { interp(rows, years, it) }
+            }
+            GrowthMetric.WEIGHT -> {
+                val rows = if (sex == Sex.BOY) Standards.boyWeight7to18 else Standards.girlWeight7to18
+                val median = interp(rows, years, 1)
+                val cv = 0.16 + 0.06 * min(1.0, max(0.0, (m - 84) / 132))
+                zValues.map { median * (1 + cv * it) }
+            }
+            GrowthMetric.BMI -> {
+                val rows = if (sex == Sex.BOY) Standards.boyBMI7to18 else Standards.girlBMI7to18
+                val median = interp(rows, years, 1)
+                val cv = 0.11 + 0.02 * min(1.0, max(0.0, (m - 84) / 132))
+                zValues.map { max(9.0, median * (1 + cv * it)) }
+            }
+        }
+    }
+
     /// 李辉表按月龄线性插值，返回 7 列 [P3, P10, P25, P50, P75, P90, P97/95]
     fun liRow(table: List<List<Double>>, months: Int): List<Double> {
         var prev = table.first()
@@ -233,7 +296,7 @@ object GrowthMath {
     }
 
     fun percentile(sex: Sex, metric: GrowthMetric, months: Int, value: Double): Double {
-        val bands = refBands(sex, metric, months)
+        val bands = chartBands(sex, metric, months)
         if (value <= bands[0]) return min(3.0, max(0.1, value / bands[0] * 3))
         if (value >= bands[4]) return min(99.9, 97 + (value - bands[4]) / bands[4] * 30)
         for (i in 0 until 4) {

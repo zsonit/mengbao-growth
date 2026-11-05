@@ -722,7 +722,7 @@ private fun GrowthChart(child: Child, metric: GrowthMetric, modifier: Modifier =
         var high = -Double.MAX_VALUE
         var m = 0
         while (m <= maxMonth) {
-            val band = GrowthMath.refBands(child.sex, metric, m)
+            val band = GrowthMath.chartBands(child.sex, metric, m)
             low = min(low, band[0])
             high = max(high, band[4])
             m += 3
@@ -785,7 +785,7 @@ private fun GrowthChart(child: Child, metric: GrowthMetric, modifier: Modifier =
             var first = true
             var month = 0
             while (month <= maxMonth) {
-                val v = GrowthMath.refBands(child.sex, metric, month)[upperIndex]
+                val v = GrowthMath.chartBands(child.sex, metric, month)[upperIndex]
                 val px = xOf(month)
                 val py = yOf(v)
                 if (first) {
@@ -798,7 +798,7 @@ private fun GrowthChart(child: Child, metric: GrowthMetric, modifier: Modifier =
             }
             var back = maxMonth - (maxMonth % 3)
             while (back >= 0) {
-                val v = GrowthMath.refBands(child.sex, metric, back)[lowerIndex]
+                val v = GrowthMath.chartBands(child.sex, metric, back)[lowerIndex]
                 path.lineTo(xOf(back), yOf(v))
                 back -= 3
             }
@@ -824,7 +824,7 @@ private fun GrowthChart(child: Child, metric: GrowthMetric, modifier: Modifier =
             var month = 0
             var first = true
             while (month <= maxMonth) {
-                val v = GrowthMath.refBands(child.sex, metric, month)[spec.index]
+                val v = GrowthMath.chartBands(child.sex, metric, month)[spec.index]
                 val px = xOf(month)
                 val py = yOf(v)
                 if (first) {
