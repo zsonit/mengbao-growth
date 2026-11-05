@@ -696,7 +696,7 @@ struct PlanSheet: View {
                             }
                         }
                         .tint(Palette.purple)
-                        if let calMsg { Text(calMsg).font(.system(size: 11.5)).foregroundColor(Palette.bad) }
+                        if !calMsg.isEmpty { Text(calMsg).font(.system(size: 11.5)).foregroundColor(Palette.bad) }
                     }
                     .cardStyle(padding: 14)
 
